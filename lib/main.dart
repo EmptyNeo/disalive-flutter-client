@@ -1,4 +1,5 @@
 import 'package:disalive/app/di/di.dart';
+import 'package:disalive/data/network/cert_http_overrides.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
@@ -12,6 +13,8 @@ import 'presentation/features/splash/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await CertHttpOverrides.init();
 
   await setupDependencies();
 

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config>
+        <domain includeSubdomains="true">disalive.ru</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/letsencrypt_chain" />
+        </trust-anchors>
+    </domain-config>
+    <domain-config>
+        <domain includeSubdomains="true">s3-website.cloud.ru</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/globalsign_chain" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

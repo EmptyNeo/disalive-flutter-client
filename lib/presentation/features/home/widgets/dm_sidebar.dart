@@ -28,127 +28,116 @@ class DirectMessagesSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      // Скругление живёт на этом ClipRRect — он же обрезает BackdropFilter,
-      // поэтому блюр не вылезает за пределы скруглённого угла.
-      child: ClipRRect(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(_panelRadius),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(_panelRadius),
+          ),
+          border: Border.all(
+            color: AppColors.white.withOpacity(0.10),
+            width: 1,
+          ),
         ),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              // Полупрозрачный градиент — основа Glassmorphism: верх чуть
-              // светлее, низ чуть темнее и прозрачнее.
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.lightGrey.withOpacity(0.72),
-                  AppColors.lightGrey.withOpacity(0.55),
-                ],
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(_panelRadius),
+          ),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.lightGrey.withOpacity(0.72),
+                    AppColors.lightGrey.withOpacity(0.55),
+                  ],
+                ),
               ),
-              border: Border(
-                top: BorderSide(color: AppColors.white.withOpacity(0.10)),
-                left: BorderSide(color: AppColors.white.withOpacity(0.10)),
-              ),
-            ),
-            // Теперь этот виджет сам занимает всю доступную высоту (его
-            // оборачивают в Expanded в ChatsView), поэтому Column снова
-            // работает в обычном режиме без mainAxisSize.min, а список чатов
-            // внутри может честно использовать Expanded + ListView.
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Заголовок
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
-                  child: Text(
-                    'Личные сообщения',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Заголовок
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
+                    child: Text(
+                      'Личные сообщения',
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                      ),
                     ),
                   ),
-                ),
 
-                // Панель поиска и добавления в друзья
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      GlassButton(
-                        borderRadius: _buttonRadius,
-                        padding: const EdgeInsets.all(11),
-                        child: Icon(
-                          CupertinoIcons.search,
-                          color: AppColors.white.withOpacity(0.75),
-                          size: 18,
-                        ),
-                        onTap: () {},
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Кнопка "Добавить в друзей" — тянется на всю ширину,
-                      // текст сжимается через Expanded + ellipsis, поэтому
-                      // переполнение больше не возникает ни при каком экране.
-                      Expanded(
-                        child: GlassButton(
+                  // Панель поиска и добавления в друзья
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        GlassButton(
                           borderRadius: _buttonRadius,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 11,
-                            horizontal: 14,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.max,
-                            children: [
-                              Icon(
-                                CupertinoIcons.person_add_solid,
-                                color: AppColors.white.withOpacity(0.75),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Добавить в друзей',
-                                  style: TextStyle(
-                                    color: AppColors.white.withOpacity(0.85),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                ),
-                              ),
-                            ],
+                          padding: const EdgeInsets.all(11),
+                          child: Icon(
+                            CupertinoIcons.search,
+                            color: AppColors.white.withOpacity(0.75),
+                            size: 18,
                           ),
                           onTap: () {},
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+
+                        Expanded(
+                          child: GlassButton(
+                            borderRadius: _buttonRadius,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 11,
+                              horizontal: 14,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.max,
+                              children: [
+                                Icon(
+                                  CupertinoIcons.person_add_solid,
+                                  color: AppColors.white.withOpacity(0.75),
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Добавить в друзей',
+                                    style: TextStyle(
+                                      color: AppColors.white.withOpacity(0.85),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            onTap: () {},
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
 
-                // Граница на всю ширину панели, впритык к списку — раньше
-                // была с боковыми отступами и зазором снизу, из-за чего
-                // казалось, что линия "висит" где-то над границей, а не
-                // лежит прямо на ней.
-                Container(
-                  width: double.infinity,
-                  height: 1,
-                  color: AppColors.white.withOpacity(0.10),
-                ),
+                  Container(
+                    width: double.infinity,
+                    height: 1,
+                    color: AppColors.white.withOpacity(0.10),
+                  ),
 
-                // Область списка — единственное, что меняется между
-                // состояниями загрузки/пусто/готово. Шапка и граница выше
-                // остаются на экране без перерисовки.
-                Expanded(child: _buildListArea()),
-              ],
+                  Expanded(child: _buildListArea()),
+                ],
+              ),
             ),
           ),
         ),

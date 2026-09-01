@@ -73,6 +73,7 @@ dependencies:
   web: ^1.1.1
   connectivity_plus: ^7.1.1
   flutter_secure_storage: ^9.2.2
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
@@ -100,6 +101,7 @@ flutter:
     - assets/icons/bookmark.svg
     - assets/icons/icon.png
     - assets/icons/icon120x120.png
+    - assets/certs/globalsign.pem
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

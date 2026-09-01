@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/constants/assets.dart';
@@ -16,11 +17,13 @@ class BuildAvatar extends StatefulWidget {
   final Color? statusBackgroundColor;
   final double statusPosition;
   final bool isBookmark;
+  final bool isGroup;
 
   const BuildAvatar({
     super.key,
     this.url,
     this.isBookmark = false,
+    this.isGroup = false,
     required this.wh,
     required this.size,
     this.status,
@@ -34,7 +37,6 @@ class BuildAvatar extends StatefulWidget {
 }
 
 class _BuildAvatarState extends State<BuildAvatar> {
-  bool _isLoading = true;
   bool _hasError = false;
 
   @override
@@ -42,7 +44,6 @@ class _BuildAvatarState extends State<BuildAvatar> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.url != widget.url) {
       setState(() {
-        _isLoading = true;
         _hasError = false;
       });
     }
@@ -51,6 +52,10 @@ class _BuildAvatarState extends State<BuildAvatar> {
   @override
   Widget build(BuildContext context) {
     final hasValidUrl = widget.url != null && widget.url!.isNotEmpty;
+    final hasDefaultImage =
+        (widget.url?.endsWith(AppAssets.defaultUserImage) ?? false) ||
+            (widget.url?.endsWith(AppAssets.defaultGroupImage) ?? false);
+
     final bgColor = widget.statusBackgroundColor ?? AppColors.mainBackground;
 
     return Stack(
@@ -63,7 +68,7 @@ class _BuildAvatarState extends State<BuildAvatar> {
             color: AppColors.blurple,
             shape: BoxShape.circle,
           ),
-          child: ClipOval(child: _buildImage(hasValidUrl)),
+          child: ClipOval(child: _buildImage(hasValidUrl, hasDefaultImage)),
         ),
         if (widget.status != null)
           Positioned(
@@ -83,12 +88,6 @@ class _BuildAvatarState extends State<BuildAvatar> {
     );
   }
 
-  // Раньше base/highlight брались с alpha 0.2/0.5 — Shimmer.fromColors красит
-  // через ShaderMask, и итоговая альфа пикселя определяется альфой самого
-  // градиента, а не непрозрачностью child. С такими прозрачными цветами
-  // сквозь шиммер просвечивал фон аватарки (blurple), и вместо переливов
-  // получалось блёклое серое пятно. Теперь оба цвета полностью непрозрачны и
-  // контрастны друг другу — виден чёткий бегущий блик.
   Widget _buildShimmer() {
     return Shimmer.fromColors(
       baseColor: AppColors.lightGrey,
@@ -98,7 +97,7 @@ class _BuildAvatarState extends State<BuildAvatar> {
     );
   }
 
-  Widget _buildImage(bool hasValidUrl) {
+  Widget _buildImage(bool hasValidUrl, bool hasDefaultImage) {
     if (widget.isBookmark) {
       return SvgPicture.asset(
         AppAssets.bookmarkIcon,
@@ -117,54 +116,34 @@ class _BuildAvatarState extends State<BuildAvatar> {
       );
     }
 
-    if (!hasValidUrl || _hasError) {
-      return Center(
-        child: Icon(
-          CupertinoIcons.person_solid,
-          color: AppColors.onBlurple,
-          size: widget.size,
-        ),
+    if (!hasValidUrl || hasDefaultImage || _hasError) {
+      return defaultAvatar(
+        !widget.isGroup
+            ? CupertinoIcons.person_solid
+            : CupertinoIcons.person_3_fill,
       );
     }
 
-    // Раньше здесь был ещё один шиммер поверх того, что уже возвращает
-    // loadingBuilder ниже (if (_isLoading) _buildShimmer() в Stack) — два
-    // независимых, рассинхронизированных по фазе шиммера накладывались друг
-    // на друга и гасили эффект перелива до однородно-серого пятна. Теперь
-    // шиммер рисуется только один раз — самим loadingBuilder.
-    return Image.network(
-      Domain.transformUrl(widget.url!),
+    return CachedNetworkImage(
+      imageUrl: Domain.transformUrl(widget.url!),
       fit: BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _isLoading) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
-          });
-          return child;
-        }
-        return _buildShimmer();
-      },
-      errorBuilder: (context, error, stackTrace) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_hasError) {
-            setState(() {
-              _hasError = true;
-              _isLoading = false;
-            });
-          }
-        });
-        return Center(
-          child: Icon(
-            CupertinoIcons.person_solid,
-            color: AppColors.onBlurple,
-            size: widget.size,
-          ),
+      placeholder: (context, url) => _buildShimmer(),
+      errorWidget: (context, url, error) {
+        return defaultAvatar(
+          !widget.isGroup
+              ? CupertinoIcons.person_solid
+              : CupertinoIcons.person_3_fill,
         );
       },
+      fadeInDuration: const Duration(milliseconds: 200),
+      fadeOutDuration: const Duration(milliseconds: 200),
+      cacheKey: widget.url,
+    );
+  }
+
+  Widget defaultAvatar(IconData icon) {
+    return Center(
+      child: Icon(icon, color: AppColors.onBlurple, size: widget.size),
     );
   }
 }

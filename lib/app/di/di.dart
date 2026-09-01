@@ -1,18 +1,21 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
+import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
-import 'package:disalive/data/repositories/session_repository_impl.dart'; // Добавить
+import 'package:disalive/data/repositories/session_repository_impl.dart';
 import 'package:disalive/data/repositories/user_repository_umpl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
-import 'package:disalive/domain/repositories/session_repository.dart'; // Добавить
+import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,9 +43,11 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
+  sl.registerLazySingleton<MessageRepository>(() => MessageRepositoryImpl());
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl()));
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl()));
+  sl.registerFactory<MessageBloc>(() => MessageBloc(sl()));
 }

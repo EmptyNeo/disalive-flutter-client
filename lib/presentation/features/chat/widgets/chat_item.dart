@@ -54,6 +54,7 @@ class _ChatItemState extends State<ChatItem> {
             BuildAvatar(
               url: chat.urlAvatar,
               isBookmark: chat.isSoloChat ?? false,
+              isGroup: chat.isGroupChat,
               wh: 32,
               size: 22,
               status: chat.isPersonalChat ? chat.user?.status : null,

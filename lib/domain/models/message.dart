@@ -1,4 +1,6 @@
 // lib/domain/models/message.dart
+import 'package:disalive/domain/models/invite_data.dart';
+import 'package:disalive/domain/models/link_preview.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/file_message.dart';
@@ -10,8 +12,8 @@ class Message extends Equatable {
   final int? userId;
   final String? text;
   final String? time;
-  final Map<String, dynamic>? linkPreview;
-  final Map<String, dynamic>? inviteData;
+  final LinkPreview? linkPreview;
+  final InviteData? inviteData;
   final UserModel? user;
   final List<FileMessage>? attachments;
   final List<ReactionMessage>? reactions;
@@ -41,10 +43,10 @@ class Message extends Equatable {
       text: map['text'],
       time: map['time'],
       linkPreview: map['linkPreview'] != null
-          ? Map<String, dynamic>.from(map['linkPreview'])
+          ? LinkPreview.fromMap(map['linkPreview'] as Map<String, dynamic>)
           : null,
       inviteData: map['inviteData'] != null
-          ? Map<String, dynamic>.from(map['inviteData'])
+          ? InviteData.fromMap(map['inviteData'] as Map<String, dynamic>)
           : null,
       user: map['user'] != null
           ? UserModel.fromMap(map['user'] as Map<String, dynamic>)
@@ -93,8 +95,8 @@ class Message extends Equatable {
     int? userId,
     String? text,
     String? time,
-    Map<String, dynamic>? linkPreview,
-    Map<String, dynamic>? inviteData,
+    LinkPreview? linkPreview,
+    InviteData? inviteData,
     UserModel? user,
     List<FileMessage>? attachments,
     List<ReactionMessage>? reactions,

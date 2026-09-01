@@ -50,12 +50,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Используем прозрачный фон, чтобы под роутом было видно предыдущий экран (эффект свайпа)
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.transparent,
       child: SafeArea(
         child: Padding(
-          // Свободное пространство от краев экрана
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
