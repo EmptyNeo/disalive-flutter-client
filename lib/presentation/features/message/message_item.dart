@@ -1,6 +1,7 @@
 // lib/presentation/features/message/message_item.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -11,13 +12,6 @@ import 'package:flutter/cupertino.dart';
 /// (превью ссылки, приглашение, вложения, реакции, ответ, пересылка) уже
 /// проверяется, но вёрстка под них — заглушка с пометкой [в разработке],
 /// сделаем отдельно.
-///
-/// ВАЖНО (поля модели [Message] — предположение по аналогии с [Chat],
-/// файла message.dart не было в контексте, поправь имена при расхождении):
-/// messageId (int?), fkSender (int?), sender (UserModel? с .pathImage
-/// и .name), text (String?), createdAt (String?), linkPreview, inviteData,
-/// attachments (List?), reactions (List?), answerMessage (Message?),
-/// forwardMessage (Message?).
 class MessageItem extends StatelessWidget {
   const MessageItem({
     super.key,
@@ -105,17 +99,21 @@ class MessageItem extends StatelessWidget {
                   if (hasReactions) _stubLine('Реакции'),
 
                   const SizedBox(height: 2),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      _formatTime(message.time),
-                      style: AppText.lowTextStyle.copyWith(
-                        color: isMine
-                            ? AppColors.onBlurple.withValues(alpha: 0.7)
-                            : AppColors.greyple,
-                        fontSize: 10,
+                  // Используем Row с mainAxisSize.min, чтобы пузырь не
+                  // растягивался на всю ширину из-за Align
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatTime(message.time),
+                        style: AppText.lowTextStyle.copyWith(
+                          color: isMine
+                              ? AppColors.onBlurple.withValues(alpha: 0.7)
+                              : AppColors.greyple,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),

@@ -21,16 +21,36 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     GetMessages event,
     Emitter<MessageState> emit,
   ) async {
-    emit(MessageLoading());
+    final bool isInitialLoad =
+        event.lastIdMessage == 0 &&
+        event.aroundId == null &&
+        event.neverThanId == null &&
+        event.searchQuery == null;
 
-    final cachedResponse = _messageRepository.getCached(event.chatId);
-    if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
-      emit(
-        MessageLoaded(
-          messages: cachedResponse.messages,
-          actions: cachedResponse.actions,
-        ),
-      );
+    if (isInitialLoad) {
+      emit(MessageLoading());
+
+      final cachedResponse = _messageRepository.getCached(event.chatId);
+      if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
+        emit(
+          MessageLoaded(
+            messages: cachedResponse.messages,
+            actions: cachedResponse.actions,
+          ),
+        );
+      }
+    } else {
+      // Для пагинации показываем текущие сообщения с индикатором загрузки
+      final currentState = state;
+      if (currentState is MessageLoaded) {
+        emit(
+          MessageLoaded(
+            messages: currentState.messages,
+            actions: currentState.actions,
+            isLoadingMore: true,
+          ),
+        );
+      }
     }
 
     final result = await _messageRepository.get(
@@ -48,13 +68,72 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       (failure) {
         if (state is! MessageLoaded) {
           emit(MessageFailure(failure.message));
+        } else {
+          final currentState = state as MessageLoaded;
+          emit(
+            MessageLoaded(
+              messages: currentState.messages,
+              actions: currentState.actions,
+              isLoadingMore: false,
+            ),
+          );
         }
       },
       (response) {
-        emit(
-          MessageLoaded(messages: response.messages, actions: response.actions),
-        );
+        if (isInitialLoad) {
+          emit(
+            MessageLoaded(
+              messages: response.messages,
+              actions: response.actions,
+            ),
+          );
+        } else {
+          final currentState = state;
+          if (currentState is MessageLoaded) {
+            final mergedMessages = [
+              ...currentState.messages,
+              ...response.messages,
+            ];
+            final uniqueMessages = _removeDuplicates(mergedMessages);
+
+            final mergedActions = [
+              ...currentState.actions,
+              ...response.actions,
+            ];
+            final uniqueActions = _removeDuplicateActions(mergedActions);
+
+            emit(
+              MessageLoaded(
+                messages: uniqueMessages,
+                actions: uniqueActions,
+                isLoadingMore: false,
+              ),
+            );
+          }
+        }
       },
     );
+  }
+
+  // Убираем дубликаты сообщений по id
+  List<Message> _removeDuplicates(List<Message> messages) {
+    final uniqueMap = <int, Message>{};
+    for (final message in messages) {
+      if (message.id != null) {
+        uniqueMap[message.id!] = message;
+      }
+    }
+    return uniqueMap.values.toList();
+  }
+
+  // Убираем дубликаты действий по id
+  List<HistoryAction> _removeDuplicateActions(List<HistoryAction> actions) {
+    final uniqueMap = <int, HistoryAction>{};
+    for (final action in actions) {
+      if (action.id != null) {
+        uniqueMap[action.id!] = action;
+      }
+    }
+    return uniqueMap.values.toList();
   }
 }
