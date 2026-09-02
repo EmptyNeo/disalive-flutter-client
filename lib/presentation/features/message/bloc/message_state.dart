@@ -12,11 +12,13 @@ class MessageLoaded extends MessageState {
   final List<Message> messages;
   final List<HistoryAction> actions;
   final bool isLoadingMore;
+  final bool hasMoreMessages;
 
   MessageLoaded({
     required this.messages,
     required this.actions,
     this.isLoadingMore = false,
+    this.hasMoreMessages = true,
   });
 }
 

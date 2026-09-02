@@ -4,9 +4,15 @@ class UtilDate {
 
   static String formatTime(String? createdAt) {
     if (createdAt == null) return '';
-    final dt = DateTime.tryParse(createdAt);
-    if (dt == null) return '';
-    final local = dt.toLocal();
+
+    final normalized = createdAt.contains('T')
+        ? createdAt
+        : createdAt.replaceFirst(' ', 'T');
+
+    final utcTime = DateTime.tryParse('${normalized}Z');
+    if (utcTime == null) return '';
+
+    final local = utcTime.toLocal();
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '$hh:$mm';

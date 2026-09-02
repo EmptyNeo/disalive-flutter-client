@@ -13,8 +13,8 @@ import 'package:flutter/cupertino.dart';
 /// Сам виджет ничего не знает о ширине бабла — она берётся из доступных
 /// constraints (LayoutBuilder), поэтому его достаточно поместить в любой
 /// контейнер с ограниченной шириной.
-class MediaGrid extends StatelessWidget {
-  const MediaGrid({
+class ImagesGrid extends StatelessWidget {
+  const ImagesGrid({
     super.key,
     required this.images,
     this.spacing = 2,

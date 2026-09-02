@@ -10,6 +10,7 @@ import 'package:disalive/presentation/utils/chat_sorter.dart';
 class ChatRepositoryImpl implements ChatRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
   List<Chat>? _chats;
+  Chat? _currentChat;
 
   @override
   Future<Either<Failure, List<Chat>>> get() async {
@@ -39,5 +40,15 @@ class ChatRepositoryImpl implements ChatRepository {
   @override
   List<Chat> getCached() {
     return _chats ?? [];
+  }
+
+  @override
+  Chat? getCurrentChat() {
+    return _currentChat;
+  }
+
+  @override
+  void setCurrentChat(Chat chat) {
+    _currentChat = chat;
   }
 }

@@ -36,15 +36,21 @@ class ActionBottomSheet extends StatefulWidget {
 
 class _ActionBottomSheetState extends State<ActionBottomSheet>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _slideController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 220),
-  );
+  late final AnimationController _slideController;
 
   double _dragExtent = 0;
 
   static const double _dismissDistance = 120;
   static const double _dismissVelocity = 700;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+  }
 
   @override
   void dispose() {

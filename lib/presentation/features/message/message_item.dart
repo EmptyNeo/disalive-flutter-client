@@ -1,7 +1,10 @@
 // lib/presentation/features/message/message_item.dart
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
+import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/presentation/features/message/widgets/media/grids/images_grid.dart';
 import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -19,7 +22,7 @@ class MessageItem extends StatelessWidget {
     this.showAvatar = true,
     this.hasMessageAbove = false,
     this.backgroundMessage,
-    this.isLoading = false,
+    this.isLoading,
     this.hasError = false,
   });
 
@@ -33,8 +36,10 @@ class MessageItem extends StatelessWidget {
   final bool showAvatar;
   final bool hasMessageAbove;
   final Color? backgroundMessage;
-  final bool isLoading;
+  final ActionType? isLoading;
   final bool hasError;
+
+  bool get hasLoading => isLoading != null;
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +54,22 @@ class MessageItem extends StatelessWidget {
 
     final hasLinkPreview = contentMessage.linkPreview != null;
     final hasInviteData = contentMessage.inviteData != null;
-    final hasAttachments = contentMessage.attachments?.isNotEmpty ?? false;
+    // Картинки идут в MediaGrid, остальные типы вложений (файлы, видео,
+    // аудио) пока показываем общей заглушкой ниже.
+    final List<FileMessage> imageAttachments =
+        contentMessage.attachments
+            ?.where((f) => f.isImageFile && f.hasValidPath)
+            .toList() ??
+        const [];
+    final hasOtherAttachments =
+        contentMessage.attachments?.any(
+          (f) => !f.isImageFile || !f.hasValidPath,
+        ) ??
+        false;
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
-    final showStatusRow = showTime || isLoading || hasError;
+    final showStatusRow = showTime || hasLoading || hasError;
     var backgroundColor = isMine
         ? AppColors.blurple
         : AppColors.glassPanelBottom;
@@ -87,10 +103,7 @@ class MessageItem extends StatelessWidget {
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                   minWidth: 50,
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: backgroundColor,
                   borderRadius: _buildBorderRadius(),
@@ -154,7 +167,15 @@ class MessageItem extends StatelessWidget {
 
                     if (hasLinkPreview) _stubLine('Превью ссылки'),
                     if (hasInviteData) _stubLine('Приглашение'),
-                    if (hasAttachments) _stubLine('Вложения'),
+                    if (imageAttachments.isNotEmpty) ...[
+                      if ((contentMessage.text ?? '').isNotEmpty ||
+                          hasAnswer ||
+                          hasForward)
+                        const SizedBox(height: 4),
+                      ImagesGrid(images: imageAttachments),
+                      const SizedBox(height: 2),
+                    ],
+                    if (hasOtherAttachments) _stubLine('Вложения'),
                     if (hasReactions) _stubLine('Реакции'),
 
                     if (showStatusRow) ...[
@@ -162,14 +183,14 @@ class MessageItem extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (isLoading || hasError) ...[
+                          if (hasLoading || hasError) ...[
                             Icon(
                               hasError
                                   ? CupertinoIcons.exclamationmark_circle
-                                  : CupertinoIcons.time,
+                                  : getLoadingIcon(),
                               size: 11,
                               color: hasError
-                                  ? AppColors.errorRed
+                                  ? CupertinoColors.systemRed
                                   : (isMine
                                         ? AppColors.onBlurple.withValues(
                                             alpha: 0.7,
@@ -199,6 +220,17 @@ class MessageItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  IconData getLoadingIcon() {
+    switch (isLoading) {
+      case null:
+      case ActionType.create:
+      case ActionType.update:
+        return CupertinoIcons.time;
+      case ActionType.delete:
+        return CupertinoIcons.trash;
+    }
   }
 
   BorderRadius _buildBorderRadius() {

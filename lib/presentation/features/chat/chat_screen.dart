@@ -1,16 +1,19 @@
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
+import 'package:disalive/presentation/utils/message_grouper.dart';
 import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
@@ -36,6 +39,7 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.chat});
 
   static Future<void> open(BuildContext context, Chat chat) {
+    sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
       (context) => ChatScreen(chat: chat),
@@ -49,6 +53,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   late final TextEditingController _textController;
   final ValueNotifier<bool> _hasText = ValueNotifier(false);
+  int? _editingMessageId;
 
   late final MessageBloc _messageBloc;
   final ScrollController _scrollController = ScrollController();
@@ -61,6 +66,10 @@ class _ChatScreenState extends State<ChatScreen> {
   double _inputReserve = _kInputReserveMin;
 
   int? get _currentUserId => sl<UserRepository>().getCurrentUser()?.id;
+
+  bool get _hasEdit => _editingMessageId != null;
+
+  double _lastScrollOffset = 0;
 
   @override
   void initState() {
@@ -95,8 +104,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _loadInitial() {
     _messageBloc.add(
       GetMessages(
-        chatId: widget.chat.id ?? 0,
-        entityId: widget.chat.id ?? 0,
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
         entityType: EntityType.chat,
         lastIdMessage: 0,
       ),
@@ -203,8 +212,8 @@ class _ChatScreenState extends State<ChatScreen> {
         if (state is MessageLoaded) {
           setState(() {
             _messages = state.messages;
-            _isLoadingMore = state.isLoadingMore; // Используем флаг из bloc
-            if (_messages.isEmpty) _hasMore = false;
+            _isLoadingMore = state.isLoadingMore;
+            _hasMore = state.hasMoreMessages;
           });
         } else if (state is MessageFailure) {
           setState(() => _isLoadingMore = false);
@@ -253,7 +262,11 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        final isGroup = widget.chat.isGroupChat;
+        final groupedMessages = MessageGrouper.group(
+          _messages,
+          isGroup: widget.chat.isGroupChat,
+          currentUserId: _currentUserId,
+        );
         final itemCount = _messages.length + (_isLoadingMore ? 1 : 0);
 
         return ListView.builder(
@@ -272,107 +285,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Center(child: CupertinoActivityIndicator(radius: 10)),
               );
             }
-            final message = _messages[index];
-            final nextMessage = index > 0
-                ? _messages[index - 1]
-                : null; // Ниже (новое)
-            final prevMessage = index < _messages.length - 1
-                ? _messages[index + 1]
-                : null; // Выше (старое)
-            final prevPrevMessage =
-                prevMessage != null && index < _messages.length - 2
-                ? _messages[index + 2]
-                : null;
 
-            // Функция проверки интервала 5 минут
-            bool isWithin5Minutes(Message? m1, Message? m2) {
-              if (m1 == null || m2 == null) return false;
-              if (m1.userId != m2.userId) return false;
-              final t1 = UtilDate.parseDateTime(m1.time);
-              final t2 = UtilDate.parseDateTime(m2.time);
-              if (t1 == null || t2 == null) return false;
-              return t1.difference(t2).abs() <= const Duration(minutes: 5);
-            }
-
-            final hasSameUserAbove = isWithin5Minutes(
-              message,
-              prevMessage,
-            ); // Есть ли сосед выше (старее)
-            final hasSameUserBelow = isWithin5Minutes(
-              message,
-              nextMessage,
-            ); // Есть ли сосед ниже (новее)
-
-            final bool isMine =
-                _currentUserId != null && message.userId == _currentUserId;
-            final isOtherUserInGroup = isGroup && !isMine;
-
-            MessageTailDirection tailDirection;
-            bool showTime;
-            bool showAvatarForGroup = false;
-
-            if (isOtherUserInGroup) {
-              // --- TELEGRAM-СТИЛЬ ДЛЯ ЧУЖИХ СООБЩЕНИЙ В ГРУППЕ ---
-              if (!hasSameUserAbove && !hasSameUserBelow) {
-                // 1. Единственное сообщение: хвост вниз, аватар есть, время есть, верх круглый
-                tailDirection = MessageTailDirection.down;
-                showTime = true;
-                showAvatarForGroup = true;
-              } else if (!hasSameUserAbove && hasSameUserBelow) {
-                // 2. Первое (самое верхнее/старое) сообщение в пачке: хвост вниз, без аватара, верх круглый (без стыков)
-                tailDirection = MessageTailDirection.down;
-                showTime = false;
-                showAvatarForGroup = false;
-              } else if (hasSameUserAbove && hasSameUserBelow) {
-                // 3. Среднее сообщение в пачке: без хвоста (squareRadius), без аватара
-                tailDirection = MessageTailDirection.none;
-                showTime = false;
-                showAvatarForGroup = false;
-              } else {
-                // 4. Последнее (самое нижнее/новое) сообщение в пачке: хвост вниз (к аватару), аватар есть, верх плоский (стыкуется)
-                tailDirection = MessageTailDirection.down;
-                showTime = true;
-                showAvatarForGroup = true;
-              }
-            } else {
-              // --- СТРОГАЯ ЛОГИКА ДЛЯ ЛИЧНЫХ ЧАТОВ И МОИХ СООБЩЕНИЙ (isMine) ---
-              if (!hasSameUserAbove && !hasSameUserBelow) {
-                tailDirection = MessageTailDirection.up;
-                showTime = true;
-                showAvatarForGroup = false;
-              } else if (!hasSameUserAbove && hasSameUserBelow) {
-                tailDirection = MessageTailDirection.down;
-                showTime = true;
-                showAvatarForGroup = false;
-              } else if (hasSameUserAbove && hasSameUserBelow) {
-                tailDirection = MessageTailDirection.none;
-                showTime = false;
-                showAvatarForGroup = false;
-              } else {
-                tailDirection = MessageTailDirection.up;
-                final bool hasSomeoneAbovePrev = isWithin5Minutes(
-                  prevMessage,
-                  prevPrevMessage,
-                );
-                showTime = !hasSomeoneAbovePrev;
-                showAvatarForGroup = false;
-              }
-            }
+            final grouped = groupedMessages[index];
+            final message = grouped.message;
 
             return MessageItem(
               message: message,
-              isMine: isMine,
-              showSender: isGroup,
-              // Всегда передаем true для групп, чтобы сохранять отступ
-              showAvatar: showAvatarForGroup,
-              // Аватар рисуем только у последнего/единственного
-              showTime: showTime,
-              tailDirection: tailDirection,
-              hasMessageAbove: hasSameUserAbove,
-              // <--- КРИТИЧЕСКИ ВАЖНО: передаем наличие соседа сверху для плоского верхнего угла
+              isMine:
+                  _currentUserId != null && message.userId == _currentUserId,
+              showSender: widget.chat.isGroupChat,
+              showAvatar: grouped.showAvatar,
+              showTime: grouped.showTime,
+              tailDirection: grouped.tailDirection,
+              hasMessageAbove: grouped.hasMessageAbove,
               onLongPress: () => _showMessageActions(message),
               onTap: () => FocusScope.of(context).unfocus(),
-              isLoading: message.localGeneratedId != null && message.id == null,
+              isLoading: message.hasLoading,
               hasError: message.hasErrorMessage,
             );
           },
@@ -473,73 +401,149 @@ class _ChatScreenState extends State<ChatScreen> {
         _kFloatingPanelMargin,
         _kFloatingPanelMargin,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          GlassIconButton(
-            icon: CupertinoIcons.add,
-            onTap: () {
-              // TODO: Логика прикрепления медиа
-            },
-            size: 36,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.actionGrey.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: AppColors.white.withValues(alpha: 0.08),
-                    ),
+          if (_hasEdit) _buildEditBanner(),
+          if (_hasEdit) const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              GlassIconButton(
+                icon: CupertinoIcons.add,
+                onTap: () {
+                  // TODO: Логика прикрепления медиа
+                },
+                size: 36,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(_hasEdit ? 8 : 20),
+                    topRight: Radius.circular(_hasEdit ? 8 : 20),
+                    bottomLeft: const Radius.circular(20),
+                    bottomRight: const Radius.circular(20),
                   ),
-                  child: CupertinoTextField(
-                    controller: _textController,
-                    minLines: 1,
-                    maxLines: 5,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.actionGrey.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(_hasEdit ? 8 : 20),
+                          topRight: Radius.circular(_hasEdit ? 8 : 20),
+                          bottomLeft: const Radius.circular(20),
+                          bottomRight: const Radius.circular(20),
+                        ),
+                        border: Border.all(
+                          color: AppColors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: CupertinoTextField(
+                        controller: _textController,
+                        minLines: 1,
+                        maxLines: 5,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        placeholder: 'Сообщение...',
+                        placeholderStyle: AppText.mediumTextStyle.copyWith(
+                          color: AppColors.greyple,
+                        ),
+                        style: AppText.mediumTextStyle.copyWith(
+                          color: AppColors.white,
+                        ),
+                        decoration: null,
+                      ),
                     ),
-                    placeholder: 'Сообщение...',
-                    placeholderStyle: AppText.mediumTextStyle.copyWith(
-                      color: AppColors.greyple,
-                    ),
-                    style: AppText.mediumTextStyle.copyWith(
-                      color: AppColors.white,
-                    ),
-                    decoration: null,
                   ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ValueListenableBuilder<bool>(
-            valueListenable: _hasText,
-            builder: (context, hasText, _) {
-              return GlassIconButton(
-                icon: hasText
-                    ? CupertinoIcons.arrow_up
-                    : CupertinoIcons.mic_solid,
-                filled: hasText,
-                onTap: () {
-                  if (hasText) {
-                    sendMessage(Message(text: _textController.value.text));
-                    _textController.clear();
-                  } else {
-                    // TODO: Логика записи голосового сообщения
-                  }
+              const SizedBox(width: 10),
+              ValueListenableBuilder<bool>(
+                valueListenable: _hasText,
+                builder: (context, hasText, _) {
+                  return GlassIconButton(
+                    icon: _hasEdit
+                        ? CupertinoIcons.checkmark_alt
+                        : hasText
+                        ? CupertinoIcons.arrow_up
+                        : CupertinoIcons.mic_solid,
+                    filled: hasText || _hasEdit,
+                    onTap: () {
+                      final message = Message(text: _textController.value.text);
+                      if (_hasEdit) {
+                        _applyEdit(message);
+                      } else if (hasText) {
+                        sendMessage(message);
+                      } else {
+                        // TODO: Логика записи голосового сообщения
+                      }
+                      _textController.clear();
+                    },
+                    size: 36,
+                  );
                 },
-                size: 36,
-              );
-            },
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEditBanner() {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(20),
+        topRight: Radius.circular(20),
+        bottomLeft: Radius.circular(8),
+        bottomRight: Radius.circular(8),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.actionGrey.withValues(alpha: 0.35),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+              bottomLeft: Radius.circular(8),
+              bottomRight: Radius.circular(8),
+            ),
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.pencil, size: 14, color: AppColors.linkBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Редактирование сообщения',
+                  style: AppText.lowTextStyle.copyWith(
+                    color: AppColors.white,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _cancelEdit,
+                child: Icon(
+                  CupertinoIcons.xmark,
+                  size: 16,
+                  color: AppColors.greyple,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -548,12 +552,20 @@ class _ChatScreenState extends State<ChatScreen> {
     final isMyMessage =
         _currentUserId != null && message.userId == _currentUserId;
 
+    var messageRepeat = getMessageRepeat(message);
+
     final actions = <ActionItem>[
       if (message.hasErrorMessage)
         ActionItem(
           icon: CupertinoIcons.arrow_clockwise,
-          label: "Отправить повторно",
-          onTap: () => sendMessage(message),
+          label: messageRepeat,
+          onTap: () => {
+            switch (message.hasError ?? ActionType.create) {
+              ActionType.create => sendMessage(message),
+              ActionType.update => editMessage(message),
+              ActionType.delete => deleteMessage(message),
+            },
+          },
         ),
 
       // Ответить
@@ -585,23 +597,23 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
 
       // Редактировать (только для своих)
-      if (isMyMessage)
+      if (isMyMessage && message.hasError != ActionType.update)
         ActionItem(
           icon: CupertinoIcons.pencil,
           label: 'Редактировать',
           onTap: () {
-            // _editMessage(message);
+            editMessage(message);
           },
         ),
 
       // Удалить (только для своих)
-      if (isMyMessage)
+      if (isMyMessage && message.hasError != ActionType.delete)
         ActionItem(
           icon: CupertinoIcons.trash,
           label: 'Удалить',
           isDestructive: true,
           onTap: () {
-            // _confirmDeleteMessage(message);
+            deleteMessage(message);
           },
         ),
     ];
@@ -640,5 +652,64 @@ class _ChatScreenState extends State<ChatScreen> {
         message: localMessage,
       ),
     );
+  }
+
+  void editMessage(Message message) {
+    _textController.text = message.text ?? '';
+    _textController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _textController.text.length),
+    );
+
+    _editingMessageId = message.id;
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingMessageId = null;
+    });
+    _textController.clear();
+  }
+
+  void _applyEdit(Message message) {
+    if (_editingMessageId == null) return;
+
+    final updatedMessage = Message(
+      id: _editingMessageId,
+      chatId: widget.chat.id,
+      text: message.text,
+    );
+
+    _messageBloc.add(
+      UpdateMessage(
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
+        entityType: EntityType.chat,
+        message: updatedMessage,
+      ),
+    );
+
+    _editingMessageId = null;
+  }
+
+  void deleteMessage(Message message) {
+    _messageBloc.add(
+      DeleteMessage(
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
+        entityType: EntityType.chat,
+        messageId: message.getId,
+      ),
+    );
+  }
+
+  String getMessageRepeat(Message message) {
+    switch (message.hasError ?? ActionType.create) {
+      case ActionType.create:
+        return 'Отправить повторно';
+      case ActionType.update:
+        return 'Обновить повторно';
+      case ActionType.delete:
+        return 'Удалить повторно';
+    }
   }
 }

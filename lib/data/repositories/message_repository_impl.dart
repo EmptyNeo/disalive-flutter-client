@@ -149,10 +149,10 @@ class MessageRepositoryImpl implements MessageRepository {
     final result = await _httpClient.postFormData<bool>(
       endpoint: 'messages/delete.php',
       data: {
+        'id': messageId,
         'chatId': chatId,
         'entityId': entityId,
         'entityType': entityType.value,
-        'messageId': messageId,
       },
       apiType: ApiType.v1,
       requireAuth: true,

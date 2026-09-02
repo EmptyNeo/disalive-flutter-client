@@ -1,4 +1,5 @@
 // lib/domain/models/message.dart
+import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/link_preview.dart';
 import 'package:equatable/equatable.dart';
@@ -23,7 +24,8 @@ class Message extends Equatable {
   final int? answerMessageId;
   final int? forwardMessageId;
 
-  final bool? hasError;
+  final ActionType? hasError;
+  final ActionType? hasLoading;
 
   const Message({
     this.id,
@@ -42,6 +44,7 @@ class Message extends Equatable {
     this.answerMessageId,
     this.forwardMessageId,
     this.hasError,
+    this.hasLoading,
   });
 
   factory Message.fromMap(Map<String, dynamic> map) {
@@ -116,7 +119,8 @@ class Message extends Equatable {
     Message? forwardMessage,
     int? answerMessageId,
     int? forwardMessageId,
-    bool? hasError,
+    ActionType? hasError,
+    ActionType? hasLoading,
   }) {
     return Message(
       id: id ?? this.id,
@@ -135,6 +139,7 @@ class Message extends Equatable {
       answerMessageId: answerMessageId ?? this.answerMessageId,
       forwardMessageId: forwardMessageId ?? this.forwardMessageId,
       hasError: hasError ?? this.hasError,
+      hasLoading: hasLoading ?? this.hasLoading,
     );
   }
 
@@ -153,7 +158,11 @@ class Message extends Equatable {
 
   int? get amountFiles => attachments?.length;
 
-  bool get hasErrorMessage => hasError ?? false;
+  bool get hasErrorMessage => hasError != null;
+
+  bool get isLoadingIcon => hasLoading != null;
+
+  int get getId => id ?? 0;
 
   @override
   List<Object?> get props => [
@@ -174,5 +183,6 @@ class Message extends Equatable {
     answerMessageId,
     forwardMessageId,
     hasError,
+    hasLoading
   ];
 }

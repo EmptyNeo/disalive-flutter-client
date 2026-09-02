@@ -44,3 +44,36 @@ class CreateMessage extends MessageEvent {
     this.isWs = false,
   });
 }
+
+class UpdateMessage extends MessageEvent {
+  final int chatId;
+  final int entityId;
+  final EntityType entityType;
+  final Message message;
+  final bool isWs;
+
+  UpdateMessage({
+    required this.chatId,
+    required this.entityId,
+    required this.entityType,
+    required this.message,
+    this.isWs = false,
+  });
+}
+
+// В message_event.dart добавьте:
+class DeleteMessage extends MessageEvent {
+  final int chatId;
+  final int entityId;
+  final EntityType entityType;
+  final int messageId;
+  final bool isWs;
+
+  DeleteMessage({
+    required this.chatId,
+    required this.entityId,
+    required this.entityType,
+    required this.messageId,
+    this.isWs = false,
+  });
+}

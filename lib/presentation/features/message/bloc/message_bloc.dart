@@ -6,9 +6,13 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/history_action.dart';
+import 'package:disalive/domain/models/ui/message_grouped.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
+import 'package:disalive/presentation/utils/message_grouper.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'message_event.dart';
@@ -29,19 +33,33 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     : super(MessageInitial()) {
     on<GetMessages>(_onGetMessages);
     on<CreateMessage>(_onCreateMessage);
+    on<DeleteMessage>(_onDeleteMessage);
+    on<UpdateMessage>(_onUpdateMessage);
 
     _setupWsListeners();
   }
 
   void _setupWsListeners() {
     _createSubscription = _eventBus.subscribe(
-      table: 'Message',
+      table: tableName,
       action: ActionType.create,
-      onData: _onWsMessageEvent,
+      onData: _onWsCreateEvent,
+    );
+
+    _updateSubscription = _eventBus.subscribe(
+      table: tableName,
+      action: ActionType.update,
+      onData: _onWsUpdateEvent,
+    );
+
+    _deleteSubscription = _eventBus.subscribe(
+      table: tableName,
+      action: ActionType.delete,
+      onData: _onWsDeleteEvent,
     );
   }
 
-  void _onWsMessageEvent(WsEvent event) {
+  void _onWsCreateEvent(WsEvent event) {
     final messageData = event.data['message'];
     if (messageData is! Map<String, dynamic>) return;
 
@@ -55,6 +73,41 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         entityType: EntityType.chat,
         localGeneratedId: event.data['localGeneratedId'] ?? '',
         message: message,
+        isWs: true,
+      ),
+    );
+  }
+
+  void _onWsUpdateEvent(WsEvent event) {
+    final messageData = event.data['message'];
+    if (messageData is! Map<String, dynamic>) return;
+
+    final message = Message.fromMap(messageData);
+    final chatId = message.chatId ?? 0;
+
+    add(
+      UpdateMessage(
+        chatId: chatId,
+        entityId: chatId,
+        entityType: EntityType.chat,
+        message: message,
+        isWs: true,
+      ),
+    );
+  }
+
+  void _onWsDeleteEvent(WsEvent event) {
+    final messageId = event.data['messageId'] ?? event.data['id'];
+    final chatId = event.data['chatId'];
+
+    if (messageId == null || chatId == null) return;
+
+    add(
+      DeleteMessage(
+        chatId: chatId,
+        entityId: chatId,
+        entityType: EntityType.chat,
+        messageId: messageId,
         isWs: true,
       ),
     );
@@ -79,6 +132,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           MessageLoaded(
             messages: cachedResponse.messages,
             actions: cachedResponse.actions,
+            hasMoreMessages: cachedResponse.messages.isNotEmpty,
           ),
         );
       }
@@ -132,6 +186,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         } else {
           final currentState = state;
           if (currentState is MessageLoaded) {
+            if (response.messages.isEmpty) {
+              emit(
+                MessageLoaded(
+                  messages: currentState.messages,
+                  actions: currentState.actions,
+                  isLoadingMore: false,
+                  hasMoreMessages: false,
+                ),
+              );
+              return;
+            }
+
             final mergedMessages = [
               ...currentState.messages,
               ...response.messages,
@@ -210,12 +276,88 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     }
   }
 
+  Future<void> _onUpdateMessage(
+    UpdateMessage event,
+    Emitter<MessageState> emit,
+  ) async {
+    if (event.isWs) {
+      _updateMessageFromWs(event);
+      _emitFromCache(event.chatId, emit);
+      return;
+    }
+
+    // Помечаем сообщение как обновляемое
+    _markMessageAsLoading(
+      event.chatId,
+      event.message.id ?? 0,
+      ActionType.update,
+    );
+    _emitFromCache(event.chatId, emit);
+
+    final result = await _messageRepository.update(
+      event.chatId,
+      event.entityId,
+      event.entityType,
+      event.message.id ?? 0,
+      event.message.text ?? '',
+    );
+
+    result.fold((failure) {
+      debugPrint('Failed to update message: ${failure.message}');
+      _markMessageAsFailed(
+        event.chatId,
+        event.message.id ?? 0,
+        ActionType.update,
+      );
+      _emitFromCache(event.chatId, emit);
+    }, (_) {});
+  }
+
+  Future<void> _onDeleteMessage(
+    DeleteMessage event,
+    Emitter<MessageState> emit,
+  ) async {
+    if (event.isWs) {
+      _removeMessageFromCache(event.chatId, event.messageId);
+      _emitFromCache(event.chatId, emit);
+      return;
+    }
+
+    // Помечаем сообщение как удаляемое (показываем индикатор)
+    _markMessageAsLoading(event.chatId, event.messageId, ActionType.delete);
+    _emitFromCache(event.chatId, emit);
+
+    final result = await _messageRepository.delete(
+      event.chatId,
+      event.entityId,
+      event.entityType,
+      event.messageId,
+    );
+
+    result.fold(
+      (failure) {
+        debugPrint('Failed to delete message: ${failure.message}');
+        // Ошибка удаления — показываем ошибку
+        _markMessageAsFailed(event.chatId, event.messageId, ActionType.delete);
+        _emitFromCache(event.chatId, emit);
+      },
+      (_) {
+        // Успех — удаляем из кэша
+        _removeMessageFromCache(event.chatId, event.messageId);
+        _emitFromCache(event.chatId, emit);
+      },
+    );
+  }
+
   void _addOptimisticLocalMessage(CreateMessage event) {
     final chatId = event.chatId;
     final cached = _messageRepository.getCached(chatId);
 
     if (cached == null) {
-      _messageRepository.cacheMessages(chatId, [event.message]);
+      final messageWithLoading = event.message.copyWith(
+        hasLoading: ActionType.create,
+      );
+      _messageRepository.cacheMessages(chatId, [messageWithLoading]);
       return;
     }
 
@@ -225,10 +367,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
     if (existingIndex != -1) {
       cached.messages[existingIndex] = cached.messages[existingIndex].copyWith(
-        hasError: false,
+        hasError: null,
+        hasLoading: ActionType.create,
       );
     } else {
-      cached.messages.insert(0, event.message);
+      cached.messages.insert(
+        0,
+        event.message.copyWith(hasLoading: ActionType.create),
+      );
     }
   }
 
@@ -240,7 +386,36 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       (m) => m.localGeneratedId == localGeneratedId,
     );
     if (index != -1) {
-      cached.messages[index] = cached.messages[index].copyWith(hasError: true);
+      cached.messages[index] = cached.messages[index].copyWith(
+        hasError: ActionType.create,
+        hasLoading: null,
+      );
+    }
+  }
+
+  void _markMessageAsFailed(int chatId, int messageId, ActionType action) {
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    final index = cached.messages.indexWhere((m) => m.id == messageId);
+    if (index != -1) {
+      cached.messages[index] = cached.messages[index].copyWith(
+        hasError: action,
+        hasLoading: null,
+      );
+    }
+  }
+
+  void _markMessageAsLoading(int chatId, int messageId, ActionType action) {
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    final index = cached.messages.indexWhere((m) => m.id == messageId);
+    if (index != -1) {
+      cached.messages[index] = cached.messages[index].copyWith(
+        hasLoading: action,
+        hasError: null,
+      );
     }
   }
 
@@ -249,12 +424,25 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   void _emitFromCache(int chatId, Emitter<MessageState> emit) {
     if (state is! MessageLoaded) return;
     final cached = _messageRepository.getCached(chatId);
+
     emit(
       MessageLoaded(
         messages: cached?.messages ?? [],
         actions: cached?.actions ?? [],
       ),
     );
+  }
+
+  void _updateMessageFromWs(UpdateMessage event) {
+    final message = event.message;
+    final chatId = message.chatId ?? event.chatId;
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    final index = cached.messages.indexWhere((m) => m.id == message.id);
+    if (index != -1) {
+      cached.messages[index] = message;
+    }
   }
 
   List<Message> _removeDuplicates(List<Message> messages) {
@@ -277,9 +465,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     return uniqueMap.values.toList();
   }
 
+  void _removeMessageFromCache(int chatId, int messageId) {
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    cached.messages.removeWhere((m) => m.id == messageId);
+  }
+
   @override
   Future<void> close() {
     _createSubscription?.cancel();
+    _updateSubscription?.cancel();
+    _deleteSubscription?.cancel();
     return super.close();
   }
 }
