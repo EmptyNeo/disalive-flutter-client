@@ -34,33 +34,29 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   void _setupWsListeners() {
-    print("SETUP WS LISTENERS CALLED");
-    print("EventBus: $_eventBus");
-
     _createSubscription = _eventBus.subscribe(
       table: 'Message',
       action: ActionType.create,
-      onData: (event) {
-        print("START CREATE SUB");
-        print(event);
-        final messageData = event.data['message'];
-        if (messageData is Map<String, dynamic>) {
-          final message = Message.fromMap(messageData);
-          final chatId = message.chatId ?? 0;
+      onData: _onWsMessageEvent,
+    );
+  }
 
-          add(
-            CreateMessage(
-              chatId: chatId,
-              entityId: chatId,
-              entityType: EntityType.chat,
-              localGeneratedId: event.data['localGeneratedId'] ?? '',
-              message: message,
-              isWs: true,
-            ),
-          );
-        }
-        print("END CREATE SUB");
-      },
+  void _onWsMessageEvent(WsEvent event) {
+    final messageData = event.data['message'];
+    if (messageData is! Map<String, dynamic>) return;
+
+    final message = Message.fromMap(messageData);
+    final chatId = message.chatId ?? 0;
+
+    add(
+      CreateMessage(
+        chatId: chatId,
+        entityId: chatId,
+        entityType: EntityType.chat,
+        localGeneratedId: event.data['localGeneratedId'] ?? '',
+        message: message,
+        isWs: true,
+      ),
     );
   }
 
@@ -87,7 +83,6 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         );
       }
     } else {
-      // Для пагинации показываем текущие сообщения с индикатором загрузки
       final currentState = state;
       if (currentState is MessageLoaded) {
         emit(
@@ -167,78 +162,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     Emitter<MessageState> emit,
   ) async {
     if (event.isWs) {
-      // Сообщение пришло из WebSocket — заменяем локальное
-      final message = event.message;
-      final chatId = message.chatId ?? event.chatId;
-      final localGeneratedId = event.localGeneratedId;
-
-      final cachedResponse = _messageRepository.getCached(chatId);
-      if (cachedResponse != null) {
-        // Ищем локальное сообщение по localGeneratedId
-        final localIndex = cachedResponse.messages.indexWhere(
-          (m) => m.localGeneratedId == localGeneratedId,
-        );
-
-        if (localIndex != -1) {
-          // Заменяем локальное на серверное
-          cachedResponse.messages[localIndex] = message;
-        } else {
-          // Если локального нет — проверяем, нет ли уже такого сообщения
-          final exists = cachedResponse.messages.any((m) => m.id == message.id);
-          // В _onCreateMessage, когда добавляем из WebSocket:
-          if (!exists) {
-            cachedResponse.messages.insert(0, message);
-          }
-        }
-      }
-
-      final currentState = state;
-      if (currentState is MessageLoaded) {
-        emit(
-          MessageLoaded(
-            messages: _messageRepository.getCached(chatId)?.messages ?? [],
-            actions: _messageRepository.getCached(chatId)?.actions ?? [],
-          ),
-        );
-      }
+      _applyIncomingServerMessage(event);
+      _emitFromCache(_wsChatId(event), emit);
       return;
     }
 
-    // HTTP запрос — отправляем на сервер и сразу показываем локальное сообщение
-    final message = event.message;
-    final chatId = event.chatId;
+    _addOptimisticLocalMessage(event);
+    _emitFromCache(event.chatId, emit);
 
-    // Добавляем локальное сообщение в кэш
-    final cachedResponse = _messageRepository.getCached(chatId);
-    if (cachedResponse != null) {
-      // Ищем сообщение с тем же localGeneratedId
-      final existingIndex = cachedResponse.messages.indexWhere(
-        (m) => m.localGeneratedId == event.localGeneratedId,
-      );
-
-      if (existingIndex != -1) {
-        cachedResponse.messages[existingIndex] = cachedResponse
-            .messages[existingIndex]
-            .copyWith(hasError: false);
-      } else {
-        cachedResponse.messages.insert(0, message);
-      }
-    } else {
-      _messageRepository.cacheMessages(chatId, [message]);
-    }
-
-    // Обновляем UI с локальным сообщением
-    final currentState = state;
-    if (currentState is MessageLoaded) {
-      emit(
-        MessageLoaded(
-          messages: _messageRepository.getCached(chatId)?.messages ?? [],
-          actions: _messageRepository.getCached(chatId)?.actions ?? [],
-        ),
-      );
-    }
-
-    // Отправляем на сервер
     final result = await _messageRepository.create(
       event.chatId,
       event.entityId,
@@ -249,40 +180,83 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       event.message.forwardMessageId,
     );
 
-    result.fold(
-      (failure) {
-        print('Failed to create message: ${failure.message}');
+    result.fold((failure) {
+      debugPrint('Failed to create message: ${failure.message}');
+      _markLocalMessageAsFailed(event.chatId, event.localGeneratedId);
+      _emitFromCache(event.chatId, emit);
+    }, (_) {});
+  }
 
-        // Помечаем сообщение как ошибочное
-        final cachedResponse = _messageRepository.getCached(chatId);
-        if (cachedResponse != null) {
-          final index = cachedResponse.messages.indexWhere(
-            (m) => m.localGeneratedId == event.localGeneratedId,
-          );
-          if (index != -1) {
-            cachedResponse.messages[index] = cachedResponse.messages[index]
-                .copyWith(hasError: true);
-          }
-        }
+  // --- Кэш сообщений чата: три чётких сценария ---
 
-        // Обновляем UI с ошибкой
-        final currentState = state;
-        if (currentState is MessageLoaded) {
-          emit(
-            MessageLoaded(
-              messages: _messageRepository.getCached(chatId)?.messages ?? [],
-              actions: _messageRepository.getCached(chatId)?.actions ?? [],
-            ),
-          );
-        }
-      },
-      (success) {
-        // Успех — сообщение придет через WebSocket и заменит локальное
-      },
+  void _applyIncomingServerMessage(CreateMessage event) {
+    final message = event.message;
+    final chatId = _wsChatId(event);
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    final localIndex = cached.messages.indexWhere(
+      (m) => m.localGeneratedId == event.localGeneratedId,
+    );
+
+    if (localIndex != -1) {
+      cached.messages[localIndex] = message;
+      return;
+    }
+
+    final alreadyExists = cached.messages.any((m) => m.id == message.id);
+    if (!alreadyExists) {
+      cached.messages.insert(0, message);
+    }
+  }
+
+  void _addOptimisticLocalMessage(CreateMessage event) {
+    final chatId = event.chatId;
+    final cached = _messageRepository.getCached(chatId);
+
+    if (cached == null) {
+      _messageRepository.cacheMessages(chatId, [event.message]);
+      return;
+    }
+
+    final existingIndex = cached.messages.indexWhere(
+      (m) => m.localGeneratedId == event.localGeneratedId,
+    );
+
+    if (existingIndex != -1) {
+      cached.messages[existingIndex] = cached.messages[existingIndex].copyWith(
+        hasError: false,
+      );
+    } else {
+      cached.messages.insert(0, event.message);
+    }
+  }
+
+  void _markLocalMessageAsFailed(int chatId, String localGeneratedId) {
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    final index = cached.messages.indexWhere(
+      (m) => m.localGeneratedId == localGeneratedId,
+    );
+    if (index != -1) {
+      cached.messages[index] = cached.messages[index].copyWith(hasError: true);
+    }
+  }
+
+  int _wsChatId(CreateMessage event) => event.message.chatId ?? event.chatId;
+
+  void _emitFromCache(int chatId, Emitter<MessageState> emit) {
+    if (state is! MessageLoaded) return;
+    final cached = _messageRepository.getCached(chatId);
+    emit(
+      MessageLoaded(
+        messages: cached?.messages ?? [],
+        actions: cached?.actions ?? [],
+      ),
     );
   }
 
-  // Убираем дубликаты сообщений по id
   List<Message> _removeDuplicates(List<Message> messages) {
     final uniqueMap = <int, Message>{};
     for (final message in messages) {
@@ -293,7 +267,6 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     return uniqueMap.values.toList();
   }
 
-  // Убираем дубликаты действий по id
   List<HistoryAction> _removeDuplicateActions(List<HistoryAction> actions) {
     final uniqueMap = <int, HistoryAction>{};
     for (final action in actions) {
