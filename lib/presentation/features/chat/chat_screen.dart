@@ -252,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
-        final showSender = widget.chat.isGroupChat;
+        final isGroup = widget.chat.isGroupChat;
         final itemCount = _messages.length + (_isLoadingMore ? 1 : 0);
 
         return ListView.builder(
@@ -278,6 +278,10 @@ class _ChatScreenState extends State<ChatScreen> {
             final prevMessage = index < _messages.length - 1
                 ? _messages[index + 1]
                 : null; // Выше (старое)
+            final prevPrevMessage =
+                prevMessage != null && index < _messages.length - 2
+                ? _messages[index + 2]
+                : null;
 
             // Функция проверки интервала 5 минут
             bool isWithin5Minutes(Message? m1, Message? m2) {
@@ -298,49 +302,73 @@ class _ChatScreenState extends State<ChatScreen> {
               nextMessage,
             ); // Есть ли сосед ниже (новее)
 
-            final isGroup = widget.chat.isGroupChat;
-            final bool isUserMessage =
+            final bool isMine =
                 _currentUserId != null && message.userId == _currentUserId;
+            final isOtherUserInGroup = isGroup && !isMine;
 
             MessageTailDirection tailDirection;
             bool showTime;
             bool showAvatarForGroup = false;
 
-            if (!hasSameUserAbove && !hasSameUserBelow) {
-              // 1 сообщение (единственное):
-              // Если это группа И это чужое сообщение (есть аватар снизу) -> хвост вниз.
-              // Иначе (личный чат или моё сообщение) -> хвост вверх.
-              tailDirection = (isGroup && !isUserMessage)
-                  ? MessageTailDirection.down
-                  : MessageTailDirection.up;
-
-              showTime = true;
-              showAvatarForGroup = isGroup;
-            } else if (!hasSameUserAbove && hasSameUserBelow) {
-              // Первое сообщение в цепочке (самое верхнее/старое)
-              tailDirection = MessageTailDirection.down;
-              showTime = true;
-              showAvatarForGroup = isGroup;
-            } else if (hasSameUserAbove && hasSameUserBelow) {
-              // Среднее сообщение в цепочке
-              tailDirection = MessageTailDirection.none;
-              showTime = false;
-              showAvatarForGroup = false;
+            if (isOtherUserInGroup) {
+              // --- TELEGRAM-СТИЛЬ ДЛЯ ЧУЖИХ СООБЩЕНИЙ В ГРУППЕ ---
+              if (!hasSameUserAbove && !hasSameUserBelow) {
+                // 1. Единственное сообщение: хвост вниз, аватар есть, время есть, верх круглый
+                tailDirection = MessageTailDirection.down;
+                showTime = true;
+                showAvatarForGroup = true;
+              } else if (!hasSameUserAbove && hasSameUserBelow) {
+                // 2. Первое (самое верхнее/старое) сообщение в пачке: хвост вниз, без аватара, верх круглый (без стыков)
+                tailDirection = MessageTailDirection.down;
+                showTime = false;
+                showAvatarForGroup = false;
+              } else if (hasSameUserAbove && hasSameUserBelow) {
+                // 3. Среднее сообщение в пачке: без хвоста (squareRadius), без аватара
+                tailDirection = MessageTailDirection.none;
+                showTime = false;
+                showAvatarForGroup = false;
+              } else {
+                // 4. Последнее (самое нижнее/новое) сообщение в пачке: хвост вниз (к аватару), аватар есть, верх плоский (стыкуется)
+                tailDirection = MessageTailDirection.down;
+                showTime = true;
+                showAvatarForGroup = true;
+              }
             } else {
-              // Последнее сообщение в цепочке
-              tailDirection = MessageTailDirection.up;
-              showTime = false;
-              showAvatarForGroup = false;
+              // --- СТРОГАЯ ЛОГИКА ДЛЯ ЛИЧНЫХ ЧАТОВ И МОИХ СООБЩЕНИЙ (isMine) ---
+              if (!hasSameUserAbove && !hasSameUserBelow) {
+                tailDirection = MessageTailDirection.up;
+                showTime = true;
+                showAvatarForGroup = false;
+              } else if (!hasSameUserAbove && hasSameUserBelow) {
+                tailDirection = MessageTailDirection.down;
+                showTime = true;
+                showAvatarForGroup = false;
+              } else if (hasSameUserAbove && hasSameUserBelow) {
+                tailDirection = MessageTailDirection.none;
+                showTime = false;
+                showAvatarForGroup = false;
+              } else {
+                tailDirection = MessageTailDirection.up;
+                final bool hasSomeoneAbovePrev = isWithin5Minutes(
+                  prevMessage,
+                  prevPrevMessage,
+                );
+                showTime = !hasSomeoneAbovePrev;
+                showAvatarForGroup = false;
+              }
             }
 
             return MessageItem(
               message: message,
-              isMine:
-                  _currentUserId != null && message.userId == _currentUserId,
-              showSender: widget.chat.isGroupChat,
+              isMine: isMine,
+              showSender: isGroup,
+              // Всегда передаем true для групп, чтобы сохранять отступ
               showAvatar: showAvatarForGroup,
+              // Аватар рисуем только у последнего/единственного
               showTime: showTime,
               tailDirection: tailDirection,
+              hasMessageAbove: hasSameUserAbove,
+              // <--- КРИТИЧЕСКИ ВАЖНО: передаем наличие соседа сверху для плоского верхнего угла
               onLongPress: () => _showMessageActions(message),
               onTap: () => FocusScope.of(context).unfocus(),
             );

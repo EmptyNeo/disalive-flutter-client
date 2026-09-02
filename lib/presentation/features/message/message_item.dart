@@ -18,6 +18,7 @@ class MessageItem extends StatelessWidget {
     this.showTime = true,
     this.tailDirection = MessageTailDirection.none,
     this.showAvatar = true,
+    this.hasMessageAbove = false,
     this.backgroundMessage,
   });
 
@@ -29,6 +30,7 @@ class MessageItem extends StatelessWidget {
   final bool showTime;
   final MessageTailDirection tailDirection;
   final bool showAvatar;
+  final bool hasMessageAbove;
   final Color? backgroundMessage;
 
   @override
@@ -39,7 +41,9 @@ class MessageItem extends StatelessWidget {
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final hasForward = message.forwardMessage != null;
+
     final showSenderInfo = !isMine && showSender && showAvatar;
+
     var backgroundColor = isMine
         ? AppColors.blurple
         : AppColors.glassPanelBottom;
@@ -56,21 +60,14 @@ class MessageItem extends StatelessWidget {
           mainAxisAlignment: isMine
               ? MainAxisAlignment.end
               : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: showSenderInfo
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
           children: [
             if (showSenderInfo) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: BuildAvatar(
-                  url: message.user?.pathImage,
-                  wh: 26,
-                  size: 16,
-                ),
-              ),
+              BuildAvatar(url: message.user?.pathImage, wh: 26, size: 16),
               const SizedBox(width: 6),
             ],
-            // Если аватар не показываем, но это групповой чат —
-            // добавляем отступ для идеального выравнивания по вертикали
             if (!isMine && showSender && !showAvatar) ...[
               const SizedBox(width: 26 + 6),
             ],
@@ -132,7 +129,9 @@ class MessageItem extends StatelessWidget {
                           Text(
                             UtilDate.formatTime(message.time),
                             style: AppText.lowTextStyle.copyWith(
-                              color: AppColors.white.withValues(alpha: 0.7),
+                              color: isMine
+                                  ? AppColors.onBlurple.withValues(alpha: 0.7)
+                                  : AppColors.greyple,
                               fontSize: 10,
                             ),
                           ),
@@ -150,45 +149,79 @@ class MessageItem extends StatelessWidget {
   }
 
   BorderRadius _buildBorderRadius() {
-    final double smallRadius = 4;
-    final double bigRadius = 14;
-    final double squareRadius = 8;
+    final Radius small = const Radius.circular(4); // Обычный хвостик
+    final Radius big = const Radius.circular(14); // Скругленный угол
+    final Radius square = const Radius.circular(8); // Плоский стык
+    final Radius pronounced =
+        Radius.zero; // Острый хвостик, тянущийся к аватару
 
-    if (tailDirection == MessageTailDirection.none) {
-      return BorderRadius.circular(squareRadius);
-    }
+    // Проверяем, что это чужое сообщение именно в групповом чате
+    final bool isOtherInGroup = !isMine && showSender;
 
-    if (isMine) {
-      if (tailDirection == MessageTailDirection.down) {
+    if (isOtherInGroup) {
+      // --- ЛОГИКА ДЛЯ ГРУППОВЫХ ЧАТОВ (Telegram-стиль) ---
+      if (tailDirection == MessageTailDirection.none) {
+        // Среднее сообщение: левая сторона плоская, правая круглая
         return BorderRadius.only(
-          topLeft: Radius.circular(bigRadius),
-          topRight: Radius.circular(bigRadius),
-          bottomLeft: Radius.circular(bigRadius),
-          bottomRight: Radius.circular(smallRadius),
+          topLeft: square,
+          bottomLeft: square,
+          topRight: big,
+          bottomRight: big,
         );
       } else {
+        // tailDirection == MessageTailDirection.down (Первое, Последнее или Единственное)
         return BorderRadius.only(
-          topLeft: Radius.circular(bigRadius),
-          topRight: Radius.circular(smallRadius),
-          bottomLeft: Radius.circular(bigRadius),
-          bottomRight: Radius.circular(bigRadius),
+          topRight: big,
+          bottomRight: big,
+          // Если есть сообщение выше (Последнее) — делаем стык. Иначе (Первое/Единственное) — круглый верх без стыков
+          topLeft: hasMessageAbove ? square : big,
+          // Если есть аватар (Последнее/Единственное) — тянем острый хвост к нему. Иначе (Первое) — обычный хвост вниз
+          bottomLeft: showAvatar ? pronounced : small,
         );
       }
     } else {
-      if (tailDirection == MessageTailDirection.down) {
+      // --- СТРОГАЯ ЛОГИКА ДЛЯ МОИХ (isMine) И ЛИЧНЫХ ЧАТОВ ---
+      if (tailDirection == MessageTailDirection.none) {
         return BorderRadius.only(
-          topLeft: Radius.circular(bigRadius),
-          topRight: Radius.circular(bigRadius),
-          bottomLeft: Radius.circular(smallRadius),
-          bottomRight: Radius.circular(bigRadius),
+          topLeft: isMine ? big : square,
+          bottomLeft: isMine ? big : square,
+          topRight: isMine ? square : big,
+          bottomRight: isMine ? square : big,
         );
+      }
+
+      if (isMine) {
+        if (tailDirection == MessageTailDirection.up) {
+          return BorderRadius.only(
+            topLeft: big,
+            bottomLeft: big,
+            topRight: small,
+            bottomRight: big,
+          );
+        } else {
+          return BorderRadius.only(
+            topLeft: big,
+            bottomLeft: big,
+            topRight: hasMessageAbove ? square : big,
+            bottomRight: small,
+          );
+        }
       } else {
-        return BorderRadius.only(
-          topLeft: Radius.circular(smallRadius),
-          topRight: Radius.circular(bigRadius),
-          bottomLeft: Radius.circular(bigRadius),
-          bottomRight: Radius.circular(bigRadius),
-        );
+        if (tailDirection == MessageTailDirection.up) {
+          return BorderRadius.only(
+            topRight: big,
+            bottomRight: big,
+            topLeft: small,
+            bottomLeft: big,
+          );
+        } else {
+          return BorderRadius.only(
+            topRight: big,
+            bottomRight: big,
+            topLeft: hasMessageAbove ? square : big,
+            bottomLeft: small,
+          );
+        }
       }
     }
   }
