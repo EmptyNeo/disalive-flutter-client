@@ -8,6 +8,7 @@ import 'package:disalive/domain/models/reaction_message.dart';
 
 class Message extends Equatable {
   final int? id;
+  final String? localGeneratedId;
   final int? chatId;
   final int? userId;
   final String? text;
@@ -22,8 +23,11 @@ class Message extends Equatable {
   final int? answerMessageId;
   final int? forwardMessageId;
 
+  final bool? hasError;
+
   const Message({
     this.id,
+    this.localGeneratedId,
     this.chatId,
     this.userId,
     this.text,
@@ -37,6 +41,7 @@ class Message extends Equatable {
     this.forwardMessage,
     this.answerMessageId,
     this.forwardMessageId,
+    this.hasError,
   });
 
   factory Message.fromMap(Map<String, dynamic> map) {
@@ -97,6 +102,7 @@ class Message extends Equatable {
 
   Message copyWith({
     int? id,
+    String? localGeneratedId,
     int? chatId,
     int? userId,
     String? text,
@@ -110,9 +116,11 @@ class Message extends Equatable {
     Message? forwardMessage,
     int? answerMessageId,
     int? forwardMessageId,
+    bool? hasError,
   }) {
     return Message(
       id: id ?? this.id,
+      localGeneratedId: localGeneratedId ?? this.localGeneratedId,
       chatId: chatId ?? this.chatId,
       userId: userId ?? this.userId,
       text: text ?? this.text,
@@ -126,6 +134,7 @@ class Message extends Equatable {
       forwardMessage: forwardMessage ?? this.forwardMessage,
       answerMessageId: answerMessageId ?? this.answerMessageId,
       forwardMessageId: forwardMessageId ?? this.forwardMessageId,
+      hasError: hasError ?? this.hasError,
     );
   }
 
@@ -144,9 +153,12 @@ class Message extends Equatable {
 
   int? get amountFiles => attachments?.length;
 
+  bool get hasErrorMessage => hasError ?? false;
+
   @override
   List<Object?> get props => [
     id,
+    localGeneratedId,
     chatId,
     userId,
     text,
@@ -159,5 +171,8 @@ class Message extends Equatable {
     answerMessage,
     forwardMessage,
     amountFiles,
+    answerMessageId,
+    forwardMessageId,
+    hasError,
   ];
 }

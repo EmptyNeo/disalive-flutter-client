@@ -174,6 +174,16 @@ class MessageRepositoryImpl implements MessageRepository {
   }
 
   @override
+  void cacheMessages(int chatId, List<Message> messages) {
+    final existing = _messages[chatId];
+    if (existing != null) {
+      _messages[chatId] = existing.copyWith(messages: messages);
+    } else {
+      _messages[chatId] = MessagesResponse(messages: messages, actions: []);
+    }
+  }
+
+  @override
   void clearCache(int chatId) {
     _messages.remove(chatId);
   }

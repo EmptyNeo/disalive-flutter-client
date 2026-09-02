@@ -10,6 +10,7 @@ import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
@@ -123,8 +124,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isLoadingMore = true);
     _messageBloc.add(
       GetMessages(
-        chatId: widget.chat.id ?? 0,
-        entityId: widget.chat.id ?? 0,
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
         entityType: EntityType.chat,
         lastIdMessage: oldestId,
       ),
@@ -371,6 +372,8 @@ class _ChatScreenState extends State<ChatScreen> {
               // <--- КРИТИЧЕСКИ ВАЖНО: передаем наличие соседа сверху для плоского верхнего угла
               onLongPress: () => _showMessageActions(message),
               onTap: () => FocusScope.of(context).unfocus(),
+              isLoading: message.localGeneratedId != null && message.id == null,
+              hasError: message.hasErrorMessage,
             );
           },
         );
@@ -526,7 +529,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 filled: hasText,
                 onTap: () {
                   if (hasText) {
-                    // TODO: Логика отправки текста
+                    sendMessage(Message(text: _textController.value.text));
                     _textController.clear();
                   } else {
                     // TODO: Логика записи голосового сообщения
@@ -546,6 +549,13 @@ class _ChatScreenState extends State<ChatScreen> {
         _currentUserId != null && message.userId == _currentUserId;
 
     final actions = <ActionItem>[
+      if (message.hasErrorMessage)
+        ActionItem(
+          icon: CupertinoIcons.arrow_clockwise,
+          label: "Отправить повторно",
+          onTap: () => sendMessage(message),
+        ),
+
       // Ответить
       ActionItem(
         icon: CupertinoIcons.arrow_turn_up_left,
@@ -603,14 +613,31 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void sendMessage(BuildContext content, String text) {
-    context.read<MessageBloc>().add(
+  void sendMessage(Message message) {
+    var localGeneratedId = '';
+
+    if (message.localGeneratedId != null) {
+      localGeneratedId = message.localGeneratedId ?? '';
+    } else {
+      localGeneratedId = IdGenerator.generateId();
+    }
+
+    // Создаем локальное сообщение
+    final localMessage = Message(
+      localGeneratedId: localGeneratedId,
+      chatId: widget.chat.id,
+      userId: _currentUserId,
+      text: message.text,
+      time: DateTime.now().toUtc().toString(),
+    );
+
+    _messageBloc.add(
       CreateMessage(
         chatId: widget.chat.id,
         entityId: widget.chat.id,
         entityType: EntityType.chat,
         localGeneratedId: localGeneratedId,
-        message: Message(text: text),
+        message: localMessage,
       ),
     );
   }

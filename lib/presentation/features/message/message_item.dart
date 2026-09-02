@@ -2,7 +2,6 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/message.dart';
-import 'package:disalive/presentation/features/message/widgets/forward_message_preview.dart';
 import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -20,6 +19,8 @@ class MessageItem extends StatelessWidget {
     this.showAvatar = true,
     this.hasMessageAbove = false,
     this.backgroundMessage,
+    this.isLoading = false,
+    this.hasError = false,
   });
 
   final Message message;
@@ -32,6 +33,8 @@ class MessageItem extends StatelessWidget {
   final bool showAvatar;
   final bool hasMessageAbove;
   final Color? backgroundMessage;
+  final bool isLoading;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -78,105 +81,151 @@ class MessageItem extends StatelessWidget {
               const SizedBox(width: 26 + 6),
             ],
             Flexible(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.75,
-                  minWidth: 50,
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: _buildBorderRadius(),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (showSenderInfo && message.user != null) ...[
-                      Text(
-                        message.user!.displayName ?? 'Пользователь',
-                        style: AppText.lowTextStyle.copyWith(
-                          color: AppColors.blurple,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                    ],
-
-                    if (hasForward) ...[
-                      Row(
-                        children: [
-                          BuildAvatar(
-                            url: message.forwardMessage?.user?.pathImage,
-                            wh: 16,
-                            size: 10,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Переслано от ${message.forwardMessage?.user?.displayName ?? 'Пользователь'}',
-                              style: AppText.lowTextStyle.copyWith(
-                                color: isMine
-                                    ? AppColors.onBlurple.withValues(
-                                        alpha: 0.85,
-                                      )
-                                    : AppColors.linkBlue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-
-                    if (hasAnswer) _stubLine('Ответ на сообщение'),
-
-                    if ((contentMessage.text ?? '').isNotEmpty)
-                      Text(
-                        contentMessage.text!,
-                        style: AppText.mediumTextStyle.copyWith(
-                          color: isMine ? AppColors.onBlurple : AppColors.white,
-                        ),
-                      ),
-
-                    if (hasLinkPreview) _stubLine('Превью ссылки'),
-                    if (hasInviteData) _stubLine('Приглашение'),
-                    if (hasAttachments) _stubLine('Вложения'),
-                    if (hasReactions) _stubLine('Реакции'),
-
-                    if (showTime) ...[
-                      const SizedBox(height: 2),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                      minWidth: 50,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: backgroundColor,
+                      borderRadius: _buildBorderRadius(),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showSenderInfo && message.user != null) ...[
                           Text(
-                            UtilDate.formatTime(message.time),
+                            message.user!.displayName ?? 'Пользователь',
                             style: AppText.lowTextStyle.copyWith(
+                              color: AppColors.blurple,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                        ],
+
+                        if (hasForward) ...[
+                          Row(
+                            children: [
+                              BuildAvatar(
+                                url: message.forwardMessage?.user?.pathImage,
+                                wh: 16,
+                                size: 10,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Переслано от ${message.forwardMessage?.user?.displayName ?? 'Пользователь'}',
+                                  style: AppText.lowTextStyle.copyWith(
+                                    color: isMine
+                                        ? AppColors.onBlurple.withValues(
+                                            alpha: 0.85,
+                                          )
+                                        : AppColors.linkBlue,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+
+                        if (hasAnswer) _stubLine('Ответ на сообщение'),
+
+                        if ((contentMessage.text ?? '').isNotEmpty)
+                          Text(
+                            contentMessage.text!,
+                            style: AppText.mediumTextStyle.copyWith(
                               color: isMine
-                                  ? AppColors.onBlurple.withValues(alpha: 0.7)
-                                  : AppColors.greyple,
-                              fontSize: 10,
+                                  ? AppColors.onBlurple
+                                  : AppColors.white,
                             ),
                           ),
+
+                        if (hasLinkPreview) _stubLine('Превью ссылки'),
+                        if (hasInviteData) _stubLine('Приглашение'),
+                        if (hasAttachments) _stubLine('Вложения'),
+                        if (hasReactions) _stubLine('Реакции'),
+
+                        if (showTime) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                UtilDate.formatTime(message.time),
+                                style: AppText.lowTextStyle.copyWith(
+                                  color: isMine
+                                      ? AppColors.onBlurple.withValues(
+                                          alpha: 0.7,
+                                        )
+                                      : AppColors.greyple,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
+                      ],
+                    ),
+                  ),
+                  if (isLoading)
+                    Positioned(
+                      left: -4,
+                      bottom: -4,
+                      child: _buildIconLeftBottom(CupertinoIcons.time),
+                    ),
+                  if (hasError)
+                    Positioned(
+                      left: -4,
+                      bottom: -4,
+                      child: _buildIconLeftBottom(
+                        CupertinoIcons.exclamationmark_circle,
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildIconLeftBottom(IconData icon) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.glassPanelBottom.withValues(alpha: 0.9),
+        border: Border.all(
+          color: AppColors.white.withValues(alpha: 0.15),
+          width: 0.5,
+        ),
+        boxShadow: [
+          const BoxShadow(
+            color: Color(0x40000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Icon(icon, size: 11, color: AppColors.greyple),
     );
   }
 

@@ -34,10 +34,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   void _setupWsListeners() {
+    print("SETUP WS LISTENERS CALLED");
+    print("EventBus: $_eventBus");
+
     _createSubscription = _eventBus.subscribe(
       table: 'Message',
       action: ActionType.create,
       onData: (event) {
+        print("START CREATE SUB");
+        print(event);
         final messageData = event.data['message'];
         if (messageData is Map<String, dynamic>) {
           final message = Message.fromMap(messageData);
@@ -48,12 +53,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               chatId: chatId,
               entityId: chatId,
               entityType: EntityType.chat,
-              localGeneratedId: '',
+              localGeneratedId: event.data['localGeneratedId'] ?? '',
               message: message,
               isWs: true,
             ),
           );
         }
+        print("END CREATE SUB");
       },
     );
   }
@@ -156,55 +162,33 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     );
   }
 
-  void _handleMessageCreate(WsEvent event) {
-    final messageData = event.data['message'];
-    if (messageData is Map<String, dynamic>) {
-      final message = Message.fromMap(messageData);
-      final chatId = message.chatId ?? 0;
-
-      if (chatId == 0) return;
-
-      final cachedResponse = _messageRepository.getCached(chatId);
-      if (cachedResponse != null) {
-        // Проверяем, нет ли уже такого сообщения
-        final exists = cachedResponse.messages.any((m) => m.id == message.id);
-        if (!exists) {
-          cachedResponse.messages.add(message);
-          cachedResponse.messages.sort(
-            (a, b) => (a.id ?? 0).compareTo(b.id ?? 0),
-          );
-        }
-      }
-
-      // Обновляем состояние
-      final currentState = state;
-      if (currentState is MessageLoaded) {
-        emit(
-          MessageLoaded(
-            messages: _messageRepository.getCached(chatId)?.messages ?? [],
-            actions: _messageRepository.getCached(chatId)?.actions ?? [],
-          ),
-        );
-      }
-    }
-  }
-
   Future<void> _onCreateMessage(
     CreateMessage event,
     Emitter<MessageState> emit,
   ) async {
     if (event.isWs) {
+      // Сообщение пришло из WebSocket — заменяем локальное
       final message = event.message;
       final chatId = message.chatId ?? event.chatId;
+      final localGeneratedId = event.localGeneratedId;
 
       final cachedResponse = _messageRepository.getCached(chatId);
       if (cachedResponse != null) {
-        final exists = cachedResponse.messages.any((m) => m.id == message.id);
-        if (!exists) {
-          cachedResponse.messages.add(message);
-          cachedResponse.messages.sort(
-            (a, b) => (a.id ?? 0).compareTo(b.id ?? 0),
-          );
+        // Ищем локальное сообщение по localGeneratedId
+        final localIndex = cachedResponse.messages.indexWhere(
+          (m) => m.localGeneratedId == localGeneratedId,
+        );
+
+        if (localIndex != -1) {
+          // Заменяем локальное на серверное
+          cachedResponse.messages[localIndex] = message;
+        } else {
+          // Если локального нет — проверяем, нет ли уже такого сообщения
+          final exists = cachedResponse.messages.any((m) => m.id == message.id);
+          // В _onCreateMessage, когда добавляем из WebSocket:
+          if (!exists) {
+            cachedResponse.messages.insert(0, message);
+          }
         }
       }
 
@@ -220,6 +204,41 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       return;
     }
 
+    // HTTP запрос — отправляем на сервер и сразу показываем локальное сообщение
+    final message = event.message;
+    final chatId = event.chatId;
+
+    // Добавляем локальное сообщение в кэш
+    final cachedResponse = _messageRepository.getCached(chatId);
+    if (cachedResponse != null) {
+      // Ищем сообщение с тем же localGeneratedId
+      final existingIndex = cachedResponse.messages.indexWhere(
+        (m) => m.localGeneratedId == event.localGeneratedId,
+      );
+
+      if (existingIndex != -1) {
+        cachedResponse.messages[existingIndex] = cachedResponse
+            .messages[existingIndex]
+            .copyWith(hasError: false);
+      } else {
+        cachedResponse.messages.insert(0, message);
+      }
+    } else {
+      _messageRepository.cacheMessages(chatId, [message]);
+    }
+
+    // Обновляем UI с локальным сообщением
+    final currentState = state;
+    if (currentState is MessageLoaded) {
+      emit(
+        MessageLoaded(
+          messages: _messageRepository.getCached(chatId)?.messages ?? [],
+          actions: _messageRepository.getCached(chatId)?.actions ?? [],
+        ),
+      );
+    }
+
+    // Отправляем на сервер
     final result = await _messageRepository.create(
       event.chatId,
       event.entityId,
@@ -233,9 +252,32 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     result.fold(
       (failure) {
         print('Failed to create message: ${failure.message}');
+
+        // Помечаем сообщение как ошибочное
+        final cachedResponse = _messageRepository.getCached(chatId);
+        if (cachedResponse != null) {
+          final index = cachedResponse.messages.indexWhere(
+            (m) => m.localGeneratedId == event.localGeneratedId,
+          );
+          if (index != -1) {
+            cachedResponse.messages[index] = cachedResponse.messages[index]
+                .copyWith(hasError: true);
+          }
+        }
+
+        // Обновляем UI с ошибкой
+        final currentState = state;
+        if (currentState is MessageLoaded) {
+          emit(
+            MessageLoaded(
+              messages: _messageRepository.getCached(chatId)?.messages ?? [],
+              actions: _messageRepository.getCached(chatId)?.actions ?? [],
+            ),
+          );
+        }
       },
       (success) {
-        // Успех
+        // Успех — сообщение придет через WebSocket и заменит локальное
       },
     );
   }

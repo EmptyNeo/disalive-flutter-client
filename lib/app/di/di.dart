@@ -59,7 +59,7 @@ Future<void> setupDependencies() async {
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl()));
-  sl.registerFactory<ChatBloc>(() => ChatBloc(sl()));
+  sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
 }

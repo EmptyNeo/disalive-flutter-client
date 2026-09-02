@@ -68,12 +68,14 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _processMessage(Map<String, dynamic> data) {
     final table = data['table'] as String?;
     final actionStr = data['nameAction'] as String?;
-    final isSelf = data['isSelf'] as bool;
+    final isSelf = (data['isSelf'] ?? false) as bool;
     final action = ActionType.fromString(actionStr);
 
-    if (table == null) {
+    if (table == null || action == null) {
+      print("table or action is null");
       return;
     }
+
     print('Message from Web Socket');
     print(table);
     print(action);

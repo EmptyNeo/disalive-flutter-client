@@ -28,6 +28,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   }
 
   void _setupWsListeners() {
+    print("SETUP WS LISTENERS");
+
     _messageCreateSubscription = _eventBus.subscribe(
       table: 'Message',
       action: ActionType.create,

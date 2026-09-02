@@ -35,6 +35,8 @@ class WsEventBus {
   }
 
   void dispatch(WsEvent event) {
+    print("DISPATCH: ${event.table} ${event.action}");
+    print("Has listeners: ${_controller.hasListener}");
     _controller.add(event);
   }
 
