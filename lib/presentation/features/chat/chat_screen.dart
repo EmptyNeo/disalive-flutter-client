@@ -96,7 +96,7 @@ class _ChatScreenState extends State<ChatScreen> {
       GetMessages(
         chatId: widget.chat.chatId ?? 0,
         entityId: widget.chat.chatId ?? 0,
-        entityType: EntityType.CHAT,
+        entityType: EntityType.chat,
         lastIdMessage: 0,
       ),
     );
@@ -125,7 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
       GetMessages(
         chatId: widget.chat.chatId ?? 0,
         entityId: widget.chat.chatId ?? 0,
-        entityType: EntityType.CHAT,
+        entityType: EntityType.chat,
         lastIdMessage: oldestId,
       ),
     );

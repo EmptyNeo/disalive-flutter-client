@@ -1,6 +1,6 @@
 enum EntityType {
-  CHAT('chat'),
-  SERVER('server');
+  chat('chat'),
+  server('server');
 
   final String value;
 
@@ -9,7 +9,7 @@ enum EntityType {
   static EntityType fromString(String? value) {
     return EntityType.values.firstWhere(
       (type) => type.value == value,
-      orElse: () => EntityType.CHAT,
+      orElse: () => EntityType.chat,
     );
   }
 }

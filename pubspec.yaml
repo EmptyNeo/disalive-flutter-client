@@ -74,6 +74,7 @@ dependencies:
   connectivity_plus: ^7.1.1
   flutter_secure_storage: ^9.2.2
   cached_network_image: ^3.4.1
+  web_socket_channel: ^3.0.0
 
 dev_dependencies:
   flutter_test:

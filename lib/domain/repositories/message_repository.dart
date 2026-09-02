@@ -16,6 +16,31 @@ abstract class MessageRepository {
     String? searchQuery,
   );
 
+  Future<Either<Failure, bool>> create(
+    int chatId,
+    int entityId,
+    EntityType entityType,
+    String localGeneratedId,
+    String text,
+    int? answerMessageId,
+    int? forwardMessageId,
+  );
+
+  Future<Either<Failure, bool>> update(
+    int chatId,
+    int entityId,
+    EntityType entityType,
+    int messageId,
+    String text,
+  );
+
+  Future<Either<Failure, bool>> delete(
+    int chatId,
+    int entityId,
+    EntityType entityType,
+    int messageId,
+  );
+
   MessagesResponse? getCached(int chatId);
 
   void clearCache(int chatId);

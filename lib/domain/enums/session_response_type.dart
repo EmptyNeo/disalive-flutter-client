@@ -1,4 +1,4 @@
 class SessionResponseType {
-  static final ALL = 'all';
-  static final TARGET = 'target';
+  static final all = 'all';
+  static final target = 'target';
 }

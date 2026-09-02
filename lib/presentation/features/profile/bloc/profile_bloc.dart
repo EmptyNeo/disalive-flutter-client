@@ -25,7 +25,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ) async {
     emit(ProfileLoading());
 
-    if (event.userResponseType == UserResponseType.USER) {
+    if (event.userResponseType == UserResponseType.user) {
       final cachedUser = _userRepository.getCurrentUser();
       if (cachedUser != null) {
         emit(ProfileLoaded(cachedUser));
@@ -46,7 +46,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         emit(ProfileFailure(failure.message));
       },
       (user) {
-        if (event.userResponseType == UserResponseType.USER) {
+        if (event.userResponseType == UserResponseType.user) {
           _userRepository.setCurrentUser(user);
         }
         emit(ProfileLoaded(user));

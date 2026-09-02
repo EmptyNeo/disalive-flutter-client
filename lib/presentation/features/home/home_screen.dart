@@ -4,6 +4,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
@@ -53,9 +54,12 @@ class _HomeScreenState extends State<HomeScreen> {
         BlocProvider<ProfileBloc>(
           create: (_) =>
               sl<ProfileBloc>()
-                ..add(GetProfile(userResponseType: UserResponseType.USER)),
+                ..add(GetProfile(userResponseType: UserResponseType.user)),
         ),
         BlocProvider<ChatBloc>(create: (_) => sl<ChatBloc>()..add(GetChats())),
+        BlocProvider<ChatServerBloc>(
+          create: (_) => sl<ChatServerBloc>()..add(ConnectToChatServer()),
+        ),
       ],
       child: BlocBuilder<ProfileBloc, ProfileState>(
         builder: (context, state) {

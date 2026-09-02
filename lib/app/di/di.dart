@@ -1,20 +1,26 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
+import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
 import 'package:disalive/data/repositories/user_repository_umpl.dart';
+import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/repositories/ws_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -44,10 +50,16 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
   sl.registerLazySingleton<MessageRepository>(() => MessageRepositoryImpl());
+  sl.registerLazySingleton<WsRepository>(() => WsRepositoryImpl());
+  sl.registerLazySingleton<WsEventBus>(() => WsEventBus());
+  sl.registerLazySingleton<ChatServerRepository>(
+    () => ChatServerRepositoryImpl(sl()),
+  );
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl()));
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl()));
+  sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
 }

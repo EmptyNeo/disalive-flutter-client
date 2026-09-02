@@ -1,4 +1,4 @@
 class UserResponseType {
-  static final USER = 'user';
-  static final PROFILE = 'profile';
+  static final user = 'user';
+  static final profile = 'profile';
 }
