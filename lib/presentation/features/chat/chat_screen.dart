@@ -272,55 +272,72 @@ class _ChatScreenState extends State<ChatScreen> {
               );
             }
             final message = _messages[index];
-            final nextMessage = index > 0 ? _messages[index - 1] : null;
+            final nextMessage = index > 0
+                ? _messages[index - 1]
+                : null; // Ниже (новое)
             final prevMessage = index < _messages.length - 1
                 ? _messages[index + 1]
-                : null;
+                : null; // Выше (старое)
 
-            // Последнее сообщение в группе (самое новое)
-            final isLastInGroup =
-                nextMessage == null || nextMessage.userId != message.userId;
-
-            // Первое сообщение в группе (самое старое)
-            final isFirstInGroup =
-                prevMessage == null || prevMessage.userId != message.userId;
-
-            // Проверяем разницу между сообщениями (5 минут)
-            bool hasTimeGap = false;
-            if (nextMessage != null && nextMessage.userId == message.userId) {
-              final currentTime = UtilDate.parseDateTime(message.time);
-              final nextTime = UtilDate.parseDateTime(nextMessage.time);
-              if (currentTime != null && nextTime != null) {
-                hasTimeGap =
-                    currentTime.difference(nextTime).abs() >
-                    const Duration(minutes: 5);
-              }
+            // Функция проверки интервала 5 минут
+            bool isWithin5Minutes(Message? m1, Message? m2) {
+              if (m1 == null || m2 == null) return false;
+              if (m1.userId != m2.userId) return false;
+              final t1 = UtilDate.parseDateTime(m1.time);
+              final t2 = UtilDate.parseDateTime(m2.time);
+              if (t1 == null || t2 == null) return false;
+              return t1.difference(t2).abs() <= const Duration(minutes: 5);
             }
 
-            // Показываем время если:
-            // 1. Это первое сообщение в группе (от другого пользователя)
-            // 2. Разница между сообщениями больше 5 минут
-            final showTime = isFirstInGroup || hasTimeGap;
+            final hasSameUserAbove = isWithin5Minutes(
+              message,
+              prevMessage,
+            ); // Есть ли сосед выше (старее)
+            final hasSameUserBelow = isWithin5Minutes(
+              message,
+              nextMessage,
+            ); // Есть ли сосед ниже (новее)
 
-            // Аватар и имя у первого сообщения в группе или через 5 минут
-            final showAvatarForGroup =
-                showSender && (isFirstInGroup || hasTimeGap);
+            final isGroup = widget.chat.isGroupChat;
+            final bool isUserMessage =
+                _currentUserId != null && message.userId == _currentUserId;
 
-            // Определяем направление хвостика
             MessageTailDirection tailDirection;
-            if (isLastInGroup) {
+            bool showTime;
+            bool showAvatarForGroup = false;
+
+            if (!hasSameUserAbove && !hasSameUserBelow) {
+              // 1 сообщение (единственное):
+              // Если это группа И это чужое сообщение (есть аватар снизу) -> хвост вниз.
+              // Иначе (личный чат или моё сообщение) -> хвост вверх.
+              tailDirection = (isGroup && !isUserMessage)
+                  ? MessageTailDirection.down
+                  : MessageTailDirection.up;
+
+              showTime = true;
+              showAvatarForGroup = isGroup;
+            } else if (!hasSameUserAbove && hasSameUserBelow) {
+              // Первое сообщение в цепочке (самое верхнее/старое)
               tailDirection = MessageTailDirection.down;
-            } else if (isFirstInGroup) {
-              tailDirection = MessageTailDirection.up;
-            } else {
+              showTime = true;
+              showAvatarForGroup = isGroup;
+            } else if (hasSameUserAbove && hasSameUserBelow) {
+              // Среднее сообщение в цепочке
               tailDirection = MessageTailDirection.none;
+              showTime = false;
+              showAvatarForGroup = false;
+            } else {
+              // Последнее сообщение в цепочке
+              tailDirection = MessageTailDirection.up;
+              showTime = false;
+              showAvatarForGroup = false;
             }
 
             return MessageItem(
               message: message,
               isMine:
                   _currentUserId != null && message.userId == _currentUserId,
-              showSender: showAvatarForGroup,
+              showSender: widget.chat.isGroupChat,
               showAvatar: showAvatarForGroup,
               showTime: showTime,
               tailDirection: tailDirection,

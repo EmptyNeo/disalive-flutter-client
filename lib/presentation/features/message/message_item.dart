@@ -56,7 +56,7 @@ class MessageItem extends StatelessWidget {
           mainAxisAlignment: isMine
               ? MainAxisAlignment.end
               : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (showSenderInfo) ...[
               Padding(
@@ -69,8 +69,9 @@ class MessageItem extends StatelessWidget {
               ),
               const SizedBox(width: 6),
             ],
-            // Если аватар не показываем, но нужно место для выравнивания
-            if (!showSenderInfo && showSender && showAvatar) ...[
+            // Если аватар не показываем, но это групповой чат —
+            // добавляем отступ для идеального выравнивания по вертикали
+            if (!isMine && showSender && !showAvatar) ...[
               const SizedBox(width: 26 + 6),
             ],
             Flexible(
@@ -131,9 +132,7 @@ class MessageItem extends StatelessWidget {
                           Text(
                             UtilDate.formatTime(message.time),
                             style: AppText.lowTextStyle.copyWith(
-                              color: isMine
-                                  ? AppColors.onBlurple.withValues(alpha: 0.7)
-                                  : AppColors.greyple,
+                              color: AppColors.white.withValues(alpha: 0.7),
                               fontSize: 10,
                             ),
                           ),
@@ -156,14 +155,11 @@ class MessageItem extends StatelessWidget {
     final double squareRadius = 8;
 
     if (tailDirection == MessageTailDirection.none) {
-      // Без хвостика — все углы одинаковые
       return BorderRadius.circular(squareRadius);
     }
 
     if (isMine) {
-      // Мои сообщения
-      if (tailDirection == MessageTailDirection.up) {
-        // Хвостик вверх — угол внизу справа маленький
+      if (tailDirection == MessageTailDirection.down) {
         return BorderRadius.only(
           topLeft: Radius.circular(bigRadius),
           topRight: Radius.circular(bigRadius),
@@ -171,7 +167,6 @@ class MessageItem extends StatelessWidget {
           bottomRight: Radius.circular(smallRadius),
         );
       } else {
-        // Хвостик вниз — угол вверху справа маленький
         return BorderRadius.only(
           topLeft: Radius.circular(bigRadius),
           topRight: Radius.circular(smallRadius),
@@ -180,9 +175,7 @@ class MessageItem extends StatelessWidget {
         );
       }
     } else {
-      // Чужие сообщения
-      if (tailDirection == MessageTailDirection.up) {
-        // Хвостик вверх — угол внизу слева маленький
+      if (tailDirection == MessageTailDirection.down) {
         return BorderRadius.only(
           topLeft: Radius.circular(bigRadius),
           topRight: Radius.circular(bigRadius),
@@ -190,7 +183,6 @@ class MessageItem extends StatelessWidget {
           bottomRight: Radius.circular(bigRadius),
         );
       } else {
-        // Хвостик вниз — угол вверху слева маленький
         return BorderRadius.only(
           topLeft: Radius.circular(smallRadius),
           topRight: Radius.circular(bigRadius),
