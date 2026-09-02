@@ -12,11 +12,11 @@ class WsEventBus {
   StreamSubscription<WsEvent> subscribe({
     required String table,
     required ActionType action,
-    required void Function(Map<String, dynamic> data) onData,
+    required void Function(WsEvent) onData,
   }) {
     return _controller.stream
         .where((event) => event.table == table && event.action == action)
-        .listen((event) => onData(event.data));
+        .listen((event) => onData(event));
   }
 
   StreamSubscription<WsEvent> subscribeToTable({

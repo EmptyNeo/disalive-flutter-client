@@ -68,13 +68,21 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _processMessage(Map<String, dynamic> data) {
     final table = data['table'] as String?;
     final actionStr = data['nameAction'] as String?;
+    final isSelf = data['isSelf'] as bool;
     final action = ActionType.fromString(actionStr);
 
     if (table == null) {
       return;
     }
+    print('Message from Web Socket');
+    print(table);
+    print(action);
+    print(data);
+    print('End Message From Web Socket');
 
-    _eventBus.dispatch(WsEvent(table: table, action: action, data: data));
+    _eventBus.dispatch(
+      WsEvent(table: table, action: action, data: data, isSelf: isSelf),
+    );
   }
 
   @override

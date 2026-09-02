@@ -51,15 +51,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider<ChatServerBloc>(
+          lazy: false,
+          create: (_) => sl<ChatServerBloc>()..add(ConnectToChatServer()),
+        ),
         BlocProvider<ProfileBloc>(
           create: (_) =>
               sl<ProfileBloc>()
                 ..add(GetProfile(userResponseType: UserResponseType.user)),
         ),
         BlocProvider<ChatBloc>(create: (_) => sl<ChatBloc>()..add(GetChats())),
-        BlocProvider<ChatServerBloc>(
-          create: (_) => sl<ChatServerBloc>()..add(ConnectToChatServer()),
-        ),
       ],
       child: BlocBuilder<ProfileBloc, ProfileState>(
         builder: (context, state) {

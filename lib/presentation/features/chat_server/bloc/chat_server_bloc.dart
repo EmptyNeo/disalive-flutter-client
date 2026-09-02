@@ -23,27 +23,32 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState> {
     ConnectToChatServer event,
     Emitter<ChatServerState> emit,
   ) async {
+    print("--------- START CONNECT TO CHAT SERVER ------------------");
     emit(ChatServerConnecting());
 
     final tokenResult = await _wsRepository.getToken();
 
-    tokenResult.fold(
-      (failure) {
-        emit(ChatServerFailure(failure.message));
-      },
-      (token) async {
-        final connectResult = await _chatServerRepository.connect(token);
+    if (tokenResult.isLeft()) {
+      final failure = tokenResult.fold((l) => l, (r) => null);
+      print(failure?.message);
+      emit(ChatServerFailure(failure?.message ?? 'Unknown error'));
+      return;
+    }
 
-        connectResult.fold(
-          (failure) {
-            emit(ChatServerFailure(failure.message));
-          },
-          (_) {
-            emit(ChatServerConnected());
-          },
-        );
-      },
-    );
+    final token = tokenResult.fold((l) => '', (r) => r);
+    print(token);
+
+    final connectResult = await _chatServerRepository.connect(token);
+
+    if (connectResult.isLeft()) {
+      final failure = connectResult.fold((l) => l, (r) => null);
+      print(failure?.message);
+      emit(ChatServerFailure(failure?.message ?? 'Unknown error'));
+      return;
+    }
+
+    print('chat server connected');
+    emit(ChatServerConnected());
   }
 
   void _onDisconnect(

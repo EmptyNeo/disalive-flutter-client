@@ -5,3 +5,11 @@ part of 'chat_bloc.dart';
 abstract class ChatEvent {}
 
 class GetChats extends ChatEvent {}
+
+// В ChatEvent:
+class AddMessageToChat extends ChatEvent {
+  final Message message;
+  final bool isSelf;
+
+  AddMessageToChat({required this.message, required this.isSelf});
+}

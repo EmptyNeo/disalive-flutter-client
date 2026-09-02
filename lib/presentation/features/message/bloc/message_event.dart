@@ -25,3 +25,22 @@ class GetMessages extends MessageEvent {
     this.searchQuery,
   });
 }
+
+// В MessageEvent:
+class CreateMessage extends MessageEvent {
+  final int chatId;
+  final int entityId;
+  final EntityType entityType;
+  final String localGeneratedId;
+  final Message message;
+  final bool isWs;
+
+  CreateMessage({
+    required this.chatId,
+    required this.entityId,
+    required this.entityType,
+    required this.localGeneratedId,
+    required this.message,
+    this.isWs = false,
+  });
+}

@@ -7,7 +7,7 @@ import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/role_member.dart';
 
 class Chat extends Equatable {
-  final int? chatId;
+  final int id;
   final int? fkCreator;
   final int? roleId;
   final int? idLastMessage;
@@ -28,7 +28,7 @@ class Chat extends Equatable {
   final UserModel? user;
 
   const Chat({
-    this.chatId,
+    required this.id,
     this.fkCreator,
     this.roleId,
     this.idLastMessage,
@@ -51,7 +51,7 @@ class Chat extends Equatable {
 
   factory Chat.fromMap(Map<String, dynamic> map) {
     return Chat(
-      chatId: map['chatId'],
+      id: map['chatId'],
       fkCreator: map['fkCreator'],
       roleId: map['roleId'],
       idLastMessage: map['idLastMessage'],
@@ -83,7 +83,7 @@ class Chat extends Equatable {
 
   Map<String, dynamic> toMap() {
     return {
-      if (chatId != null) 'chatId': chatId,
+      'chatId': id,
       if (fkCreator != null) 'fkCreator': fkCreator,
       if (roleId != null) 'roleId': roleId,
       if (idLastMessage != null) 'idLastMessage': idLastMessage,
@@ -127,7 +127,7 @@ class Chat extends Equatable {
     UserModel? user,
   }) {
     return Chat(
-      chatId: chatId ?? this.chatId,
+      id: chatId ?? id,
       fkCreator: fkCreator ?? this.fkCreator,
       roleId: roleId ?? this.roleId,
       idLastMessage: idLastMessage ?? this.idLastMessage,
@@ -165,7 +165,7 @@ class Chat extends Equatable {
 
   @override
   List<Object?> get props => [
-    chatId,
+    id,
     fkCreator,
     roleId,
     idLastMessage,

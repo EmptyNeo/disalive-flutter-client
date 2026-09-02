@@ -94,8 +94,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _loadInitial() {
     _messageBloc.add(
       GetMessages(
-        chatId: widget.chat.chatId ?? 0,
-        entityId: widget.chat.chatId ?? 0,
+        chatId: widget.chat.id ?? 0,
+        entityId: widget.chat.id ?? 0,
         entityType: EntityType.chat,
         lastIdMessage: 0,
       ),
@@ -123,8 +123,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isLoadingMore = true);
     _messageBloc.add(
       GetMessages(
-        chatId: widget.chat.chatId ?? 0,
-        entityId: widget.chat.chatId ?? 0,
+        chatId: widget.chat.id ?? 0,
+        entityId: widget.chat.id ?? 0,
         entityType: EntityType.chat,
         lastIdMessage: oldestId,
       ),
@@ -600,6 +600,18 @@ class _ChatScreenState extends State<ChatScreen> {
       context,
       title: "Сообщение от ${message.user?.displayName}",
       actions: actions,
+    );
+  }
+
+  void sendMessage(BuildContext content, String text) {
+    context.read<MessageBloc>().add(
+      CreateMessage(
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
+        entityType: EntityType.chat,
+        localGeneratedId: localGeneratedId,
+        message: Message(text: text),
+      ),
     );
   }
 }

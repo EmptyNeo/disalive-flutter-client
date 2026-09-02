@@ -19,6 +19,8 @@ class Message extends Equatable {
   final List<ReactionMessage>? reactions;
   final Message? answerMessage;
   final Message? forwardMessage;
+  final int? answerMessageId;
+  final int? forwardMessageId;
 
   const Message({
     this.id,
@@ -33,6 +35,8 @@ class Message extends Equatable {
     this.reactions,
     this.answerMessage,
     this.forwardMessage,
+    this.answerMessageId,
+    this.forwardMessageId,
   });
 
   factory Message.fromMap(Map<String, dynamic> map) {
@@ -86,6 +90,8 @@ class Message extends Equatable {
         'reactions': reactions?.map((e) => e.toMap()).toList(),
       if (answerMessage != null) 'answerMessage': answerMessage?.toMap(),
       if (forwardMessage != null) 'forwardMessage': forwardMessage?.toMap(),
+      if (answerMessageId != null) 'answerMessageId': answerMessageId,
+      if (forwardMessageId != null) 'forwardMessageId': forwardMessageId,
     };
   }
 
@@ -102,6 +108,8 @@ class Message extends Equatable {
     List<ReactionMessage>? reactions,
     Message? answerMessage,
     Message? forwardMessage,
+    int? answerMessageId,
+    int? forwardMessageId,
   }) {
     return Message(
       id: id ?? this.id,
@@ -116,6 +124,8 @@ class Message extends Equatable {
       reactions: reactions ?? this.reactions,
       answerMessage: answerMessage ?? this.answerMessage,
       forwardMessage: forwardMessage ?? this.forwardMessage,
+      answerMessageId: answerMessageId ?? this.answerMessageId,
+      forwardMessageId: forwardMessageId ?? this.forwardMessageId,
     );
   }
 

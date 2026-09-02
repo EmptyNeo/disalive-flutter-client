@@ -35,15 +35,21 @@ class MessageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasLinkPreview = message.linkPreview != null;
-    final hasInviteData = message.inviteData != null;
-    final hasAttachments = message.attachments?.isNotEmpty ?? false;
+    final hasForward = message.forwardMessage != null;
+    // Пересланное сообщение заменяет контент бабла целиком — текст,
+    // вложения, ссылка и приглашение берутся из оригинала. Реакции и время
+    // остаются от message: это метаданные конкретно этого экземпляра
+    // сообщения в текущем чате, а не оригинала.
+    final Message contentMessage = hasForward
+        ? message.forwardMessage!
+        : message;
+
+    final hasLinkPreview = contentMessage.linkPreview != null;
+    final hasInviteData = contentMessage.inviteData != null;
+    final hasAttachments = contentMessage.attachments?.isNotEmpty ?? false;
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
-    final hasForward = message.forwardMessage != null;
-
     final showSenderInfo = !isMine && showSender && showAvatar;
-
     var backgroundColor = isMine
         ? AppColors.blurple
         : AppColors.glassPanelBottom;
@@ -102,15 +108,41 @@ class MessageItem extends StatelessWidget {
                       const SizedBox(height: 2),
                     ],
 
-                    if (hasForward && message.forwardMessage != null) ...[
-                      ForwardedMessagePreview(message: message),
+                    if (hasForward) ...[
+                      Row(
+                        children: [
+                          BuildAvatar(
+                            url: message.forwardMessage?.user?.pathImage,
+                            wh: 16,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              'Переслано от ${message.forwardMessage?.user?.displayName ?? 'Пользователь'}',
+                              style: AppText.lowTextStyle.copyWith(
+                                color: isMine
+                                    ? AppColors.onBlurple.withValues(
+                                        alpha: 0.85,
+                                      )
+                                    : AppColors.linkBlue,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                     ],
 
                     if (hasAnswer) _stubLine('Ответ на сообщение'),
 
-                    if ((message.text ?? '').isNotEmpty)
+                    if ((contentMessage.text ?? '').isNotEmpty)
                       Text(
-                        message.text!,
+                        contentMessage.text!,
                         style: AppText.mediumTextStyle.copyWith(
                           color: isMine ? AppColors.onBlurple : AppColors.white,
                         ),
