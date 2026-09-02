@@ -160,10 +160,6 @@ class BottomMenu extends StatelessWidget {
                 size: 16,
                 status: user.status,
                 statusSize: 4,
-                statusPosition: -2,
-                statusBackgroundColor: isSelected
-                    ? AppColors.darkGrey
-                    : AppColors.lightGrey,
               ),
             ),
             const SizedBox(height: 2),

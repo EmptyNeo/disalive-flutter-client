@@ -2,12 +2,16 @@ import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/utils/util_date.dart';
+import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -198,7 +202,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (state is MessageLoaded) {
           setState(() {
             _messages = state.messages;
-            _isLoadingMore = false;
+            _isLoadingMore = state.isLoadingMore; // Используем флаг из bloc
             if (_messages.isEmpty) _hasMore = false;
           });
         } else if (state is MessageFailure) {
@@ -260,18 +264,68 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           itemCount: itemCount,
           itemBuilder: (context, index) {
+            // Индикатор загрузки — в самом верху (последний элемент при reverse)
             if (_isLoadingMore && index == _messages.length) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(child: CupertinoActivityIndicator()),
+                child: Center(child: CupertinoActivityIndicator(radius: 10)),
               );
             }
             final message = _messages[index];
+            final nextMessage = index > 0 ? _messages[index - 1] : null;
+            final prevMessage = index < _messages.length - 1
+                ? _messages[index + 1]
+                : null;
+
+            // Последнее сообщение в группе (самое новое)
+            final isLastInGroup =
+                nextMessage == null || nextMessage.userId != message.userId;
+
+            // Первое сообщение в группе (самое старое)
+            final isFirstInGroup =
+                prevMessage == null || prevMessage.userId != message.userId;
+
+            // Проверяем разницу между сообщениями (5 минут)
+            bool hasTimeGap = false;
+            if (nextMessage != null && nextMessage.userId == message.userId) {
+              final currentTime = UtilDate.parseDateTime(message.time);
+              final nextTime = UtilDate.parseDateTime(nextMessage.time);
+              if (currentTime != null && nextTime != null) {
+                hasTimeGap =
+                    currentTime.difference(nextTime).abs() >
+                    const Duration(minutes: 5);
+              }
+            }
+
+            // Показываем время если:
+            // 1. Это первое сообщение в группе (от другого пользователя)
+            // 2. Разница между сообщениями больше 5 минут
+            final showTime = isFirstInGroup || hasTimeGap;
+
+            // Аватар и имя у первого сообщения в группе или через 5 минут
+            final showAvatarForGroup =
+                showSender && (isFirstInGroup || hasTimeGap);
+
+            // Определяем направление хвостика
+            MessageTailDirection tailDirection;
+            if (isLastInGroup) {
+              tailDirection = MessageTailDirection.down;
+            } else if (isFirstInGroup) {
+              tailDirection = MessageTailDirection.up;
+            } else {
+              tailDirection = MessageTailDirection.none;
+            }
+
             return MessageItem(
               message: message,
               isMine:
                   _currentUserId != null && message.userId == _currentUserId,
-              showSender: showSender,
+              showSender: showAvatarForGroup,
+              showAvatar: showAvatarForGroup,
+              showTime: showTime,
+              tailDirection: tailDirection,
+              onLongPress: () => _showMessageActions(message),
+              onTap: () => FocusScope.of(context).unfocus(),
             );
           },
         );
@@ -287,72 +341,77 @@ class _ChatScreenState extends State<ChatScreen> {
         _kFloatingPanelMargin,
         0,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: AppColors.white.withValues(alpha: 0.08),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12.0,
-                vertical: 10.0,
-              ),
-              child: Row(
-                children: [
-                  GlassIconButton(
-                    icon: CupertinoIcons.back,
-                    onTap: () => Navigator.of(context).pop(),
-                    size: 32,
+      child: Row(
+        children: [
+          // Кнопка назад — без фона
+          GlassIconButton(
+            icon: CupertinoIcons.back,
+            onTap: () => Navigator.of(context).pop(),
+            size: 36,
+          ),
+          const SizedBox(width: 12),
+
+          // Аватар и имя — в стеклянной капсуле
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.mainBackground.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: AppColors.white.withValues(alpha: 0.08),
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  BuildAvatar(
-                    url: widget.chat.urlAvatar,
-                    wh: 26,
-                    size: 20,
-                    status: widget.chat.user?.status,
-                    statusSize: 6,
-                    statusBackgroundColor: AppColors.lightGrey,
-                    isBookmark: widget.chat.isSoloChat ?? false,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 6.0,
+                    ),
+                    child: Row(
                       children: [
-                        Text(
-                          widget.chat.name,
-                          style: AppText.mediumTextStyle.copyWith(
-                            color: AppColors.white,
+                        BuildAvatar(
+                          url: widget.chat.urlAvatar,
+                          wh: 26,
+                          size: 20,
+                          status: widget.chat.user?.status,
+                          statusSize: 6,
+                          isBookmark: widget.chat.isSoloChat ?? false,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            widget.chat.name,
+                            style: AppText.mediumTextStyle.copyWith(
+                              color: AppColors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  if (widget.chat.isSoloChat == false) ...[
-                    GlassIconButton(
-                      icon: CupertinoIcons.phone_fill,
-                      onTap: () {
-                        // TODO: Инициализация LiveKit для аудио/видео звонков
-                      },
-                      size: 32,
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
           ),
-        ),
+
+          const SizedBox(width: 12),
+
+          // Кнопка звонка — без фона
+          if (widget.chat.isSoloChat == false) ...[
+            GlassIconButton(
+              icon: CupertinoIcons.phone_fill,
+              onTap: () {
+                // TODO: Инициализация LiveKit для аудио/видео звонков
+              },
+              size: 36,
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -366,86 +425,136 @@ class _ChatScreenState extends State<ChatScreen> {
         _kFloatingPanelMargin,
         _kFloatingPanelMargin,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.mainBackground.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.white.withValues(alpha: 0.08),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  GlassIconButton(
-                    icon: CupertinoIcons.add,
-                    onTap: () {
-                      // TODO: Логика прикрепления медиа
-                    },
-                    size: 36,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.actionGrey.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppColors.white.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: CupertinoTextField(
-                        controller: _textController,
-                        minLines: 1,
-                        maxLines: 3,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        placeholder: 'Сообщение...',
-                        placeholderStyle: AppText.mediumTextStyle.copyWith(
-                          color: AppColors.greyple,
-                        ),
-                        style: AppText.mediumTextStyle.copyWith(
-                          color: AppColors.white,
-                        ),
-                        decoration: null,
-                      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          GlassIconButton(
+            icon: CupertinoIcons.add,
+            onTap: () {
+              // TODO: Логика прикрепления медиа
+            },
+            size: 36,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.actionGrey.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.white.withValues(alpha: 0.08),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: _hasText,
-                    builder: (context, hasText, _) {
-                      return GlassIconButton(
-                        icon: hasText
-                            ? CupertinoIcons.arrow_up
-                            : CupertinoIcons.mic_solid,
-                        filled: hasText,
-                        onTap: () {
-                          if (hasText) {
-                            // TODO: Логика отправки текста
-                            _textController.clear();
-                          } else {
-                            // TODO: Логика записи голосового сообщения
-                          }
-                        },
-                        size: 36,
-                      );
-                    },
+                  child: CupertinoTextField(
+                    controller: _textController,
+                    minLines: 1,
+                    maxLines: 5,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    placeholder: 'Сообщение...',
+                    placeholderStyle: AppText.mediumTextStyle.copyWith(
+                      color: AppColors.greyple,
+                    ),
+                    style: AppText.mediumTextStyle.copyWith(
+                      color: AppColors.white,
+                    ),
+                    decoration: null,
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+          const SizedBox(width: 10),
+          ValueListenableBuilder<bool>(
+            valueListenable: _hasText,
+            builder: (context, hasText, _) {
+              return GlassIconButton(
+                icon: hasText
+                    ? CupertinoIcons.arrow_up
+                    : CupertinoIcons.mic_solid,
+                filled: hasText,
+                onTap: () {
+                  if (hasText) {
+                    // TODO: Логика отправки текста
+                    _textController.clear();
+                  } else {
+                    // TODO: Логика записи голосового сообщения
+                  }
+                },
+                size: 36,
+              );
+            },
+          ),
+        ],
       ),
+    );
+  }
+
+  void _showMessageActions(Message message) {
+    final isMyMessage =
+        _currentUserId != null && message.userId == _currentUserId;
+
+    final actions = <ActionItem>[
+      // Ответить
+      ActionItem(
+        icon: CupertinoIcons.arrow_turn_up_left,
+        label: 'Ответить',
+        onTap: () {
+          // TODO: Логика ответа на сообщение
+        },
+      ),
+
+      // Копировать (только если есть текст)
+      if (message.text?.isNotEmpty == true)
+        ActionItem(
+          icon: CupertinoIcons.square_on_square,
+          label: 'Копировать',
+          onTap: () {
+            // TODO: Копирование в буфер обмена
+          },
+        ),
+
+      // Переслать
+      ActionItem(
+        icon: CupertinoIcons.arrow_turn_up_right,
+        label: 'Переслать',
+        onTap: () {
+          // TODO: Логика пересылки
+        },
+      ),
+
+      // Редактировать (только для своих)
+      if (isMyMessage)
+        ActionItem(
+          icon: CupertinoIcons.pencil,
+          label: 'Редактировать',
+          onTap: () {
+            // _editMessage(message);
+          },
+        ),
+
+      // Удалить (только для своих)
+      if (isMyMessage)
+        ActionItem(
+          icon: CupertinoIcons.trash,
+          label: 'Удалить',
+          isDestructive: true,
+          onTap: () {
+            // _confirmDeleteMessage(message);
+          },
+        ),
+    ];
+
+    ActionBottomSheet.show(
+      context,
+      title: "Сообщение от ${message.user?.displayName}",
+      actions: actions,
     );
   }
 }

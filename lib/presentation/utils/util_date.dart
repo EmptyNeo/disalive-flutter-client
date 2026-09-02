@@ -2,6 +2,16 @@
 class UtilDate {
   UtilDate._();
 
+  static String formatTime(String? createdAt) {
+    if (createdAt == null) return '';
+    final dt = DateTime.tryParse(createdAt);
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
   /// Парсит бэкендовую строку времени ("2026-08-20 21:24:36" и т.п.) в
   /// [DateTime] (локальное время). Возвращает null, если строка пустая или
   /// не парсится. Вынесено отдельно, чтобы форматирование для UI и
@@ -27,8 +37,8 @@ class UtilDate {
 
     final isToday =
         local.year == now.year &&
-            local.month == now.month &&
-            local.day == now.day;
+        local.month == now.month &&
+        local.day == now.day;
     if (isToday) {
       return '${_two(local.hour)}:${_two(local.minute)}';
     }
@@ -36,8 +46,8 @@ class UtilDate {
     final yesterday = now.subtract(const Duration(days: 1));
     final isYesterday =
         local.year == yesterday.year &&
-            local.month == yesterday.month &&
-            local.day == yesterday.day;
+        local.month == yesterday.month &&
+        local.day == yesterday.day;
     if (isYesterday) return 'Вчера';
 
     if (local.year == now.year) {

@@ -14,8 +14,9 @@ class BuildAvatar extends StatefulWidget {
   final double size;
   final UserStatus? status;
   final double statusSize;
-  final Color? statusBackgroundColor;
   final double statusPosition;
+  final double statusRingWidth;
+
   final bool isBookmark;
   final bool isGroup;
 
@@ -28,8 +29,8 @@ class BuildAvatar extends StatefulWidget {
     required this.size,
     this.status,
     this.statusSize = 8,
-    this.statusBackgroundColor,
-    this.statusPosition = -3,
+    this.statusPosition = 0,
+    this.statusRingWidth = 3,
   });
 
   @override
@@ -56,32 +57,39 @@ class _BuildAvatarState extends State<BuildAvatar> {
         (widget.url?.endsWith(AppAssets.defaultUserImage) ?? false) ||
             (widget.url?.endsWith(AppAssets.defaultGroupImage) ?? false);
 
-    final bgColor = widget.statusBackgroundColor ?? AppColors.mainBackground;
+    final hasStatus = widget.status != null;
+
+    final notchCenter = Offset(
+      widget.wh - widget.statusPosition - widget.statusSize / 2,
+      widget.wh - widget.statusPosition - widget.statusSize / 2,
+    );
+    final notchRadius = widget.statusSize / 2 + widget.statusRingWidth;
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Container(
-          width: widget.wh,
-          height: widget.wh,
-          decoration: BoxDecoration(
+        ClipPath(
+          clipper: hasStatus
+              ? _AvatarNotchClipper(center: notchCenter, radius: notchRadius)
+              : const _CircleClipper(),
+          child: Container(
+            width: widget.wh,
+            height: widget.wh,
             color: AppColors.blurple,
-            shape: BoxShape.circle,
+            child: _buildImage(hasValidUrl, hasDefaultImage),
           ),
-          child: ClipOval(child: _buildImage(hasValidUrl, hasDefaultImage)),
         ),
-        if (widget.status != null)
+        if (hasStatus)
           Positioned(
             bottom: widget.statusPosition,
             right: widget.statusPosition,
-            child: Container(
-              padding: const EdgeInsets.all(3.5),
-              decoration: BoxDecoration(shape: BoxShape.circle, color: bgColor),
-              child: StatusDot(
-                status: widget.status!,
-                size: widget.statusSize,
-                backgroundColor: bgColor,
-              ),
+            // Без обёртки-контейнера с цветом фона: зазор вокруг кружка —
+            // это вырезанная дырка выше, а не что-то, что рисует сам
+            // StatusDot, поэтому его собственный фон делаем прозрачным.
+            child: StatusDot(
+              status: widget.status!,
+              size: widget.statusSize,
+              backgroundColor: CupertinoColors.transparent,
             ),
           ),
       ],
@@ -146,4 +154,38 @@ class _BuildAvatarState extends State<BuildAvatar> {
       child: Icon(icon, color: AppColors.onBlurple, size: widget.size),
     );
   }
+}
+
+class _AvatarNotchClipper extends CustomClipper<Path> {
+  const _AvatarNotchClipper({required this.center, required this.radius});
+
+  final Offset center;
+  final double radius;
+
+  @override
+  Path getClip(Size size) {
+    final avatarPath = Path()
+      ..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
+    final notchPath = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: radius));
+    return Path.combine(PathOperation.difference, avatarPath, notchPath);
+  }
+
+  @override
+  bool shouldReclip(covariant _AvatarNotchClipper oldClipper) {
+    return oldClipper.center != center || oldClipper.radius != radius;
+  }
+}
+
+/// Обычная круглая обрезка — когда статуса нет, "укус" вырезать не из чего.
+class _CircleClipper extends CustomClipper<Path> {
+  const _CircleClipper();
+
+  @override
+  Path getClip(Size size) {
+    return Path()..addOval(Rect.fromLTWH(0, 0, size.width, size.height));
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

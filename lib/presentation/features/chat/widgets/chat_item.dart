@@ -58,10 +58,10 @@ class _ChatItemState extends State<ChatItem> {
               wh: 32,
               size: 22,
               status: chat.isPersonalChat ? chat.user?.status : null,
-              statusBackgroundColor: _pressed
-                  ? AppColors
-                        .glassPanelTop // При нажатии
-                  : AppColors.lightGrey, // Обычное состояние
+              //statusBackgroundColor: _pressed
+               //   ? AppColors
+               //         .glassPanelTop // При нажатии
+               //   : AppColors.lightGrey, // Обычное состояние
             ),
             const SizedBox(width: 12),
 
