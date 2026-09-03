@@ -69,8 +69,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool get _hasEdit => _editingMessageId != null;
 
-  double _lastScrollOffset = 0;
-
   @override
   void initState() {
     super.initState();
@@ -162,7 +160,7 @@ class _ChatScreenState extends State<ChatScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
@@ -174,7 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
                       color: AppColors.mainBackground.withValues(alpha: 0.3),
                       child: Stack(
@@ -334,7 +332,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(32),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.mainBackground.withValues(alpha: 0.45),
@@ -429,7 +427,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     bottomRight: const Radius.circular(20),
                   ),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Container(
                       decoration: BoxDecoration(
                         color: AppColors.actionGrey.withValues(alpha: 0.35),
@@ -506,7 +504,7 @@ class _ChatScreenState extends State<ChatScreen> {
         bottomRight: Radius.circular(8),
       ),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(

@@ -135,10 +135,41 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             hasMoreMessages: cachedResponse.messages.isNotEmpty,
           ),
         );
+        return; // Есть кэш — не запрашиваем сервер
       }
     } else {
       final currentState = state;
       if (currentState is MessageLoaded) {
+        // Проверяем, есть ли старые сообщения в кэше
+        final cached = _messageRepository.getCached(event.chatId);
+        if (cached != null && cached.messages.isNotEmpty) {
+          final oldestId = event.lastIdMessage;
+
+          // Ищем сообщения старее oldestId в кэше
+          final olderMessages =
+              cached.messages
+                  .where((m) => (m.id ?? 0) < oldestId && (m.id ?? 0) > 0)
+                  .toList()
+                ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
+
+          if (olderMessages.isNotEmpty) {
+            // Берём из кэша — не отправляем запрос!
+            final mergedMessages = [...currentState.messages, ...olderMessages];
+            final uniqueMessages = _removeDuplicates(mergedMessages);
+
+            emit(
+              MessageLoaded(
+                messages: uniqueMessages,
+                actions: currentState.actions,
+                isLoadingMore: false,
+                hasMoreMessages: true, // Может быть ещё старее
+              ),
+            );
+            return;
+          }
+        }
+
+        // Если старых сообщений нет в кэше — показываем индикатор
         emit(
           MessageLoaded(
             messages: currentState.messages,
@@ -149,6 +180,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       }
     }
 
+    // Запрашиваем сервер
     final result = await _messageRepository.get(
       event.chatId,
       event.entityId,
@@ -177,16 +209,21 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       },
       (response) {
         if (isInitialLoad) {
+          // Сохраняем в кэш
+          _messageRepository.cacheMessages(event.chatId, response.messages);
+
           emit(
             MessageLoaded(
               messages: response.messages,
               actions: response.actions,
+              hasMoreMessages: response.messages.isNotEmpty,
             ),
           );
         } else {
           final currentState = state;
           if (currentState is MessageLoaded) {
             if (response.messages.isEmpty) {
+              // Больше нет старых сообщений
               emit(
                 MessageLoaded(
                   messages: currentState.messages,
@@ -210,11 +247,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             ];
             final uniqueActions = _removeDuplicateActions(mergedActions);
 
+            // Обновляем кэш — все сообщения
+            _messageRepository.cacheMessages(event.chatId, uniqueMessages);
+
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: uniqueActions,
                 isLoadingMore: false,
+                hasMoreMessages: true,
               ),
             );
           }
