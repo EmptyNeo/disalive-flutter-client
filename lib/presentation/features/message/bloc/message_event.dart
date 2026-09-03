@@ -19,7 +19,7 @@ class GetMessages extends MessageEvent {
     required this.entityId,
     required this.entityType,
     required this.lastIdMessage,
-    this.limit = 30,
+    this.limit = 25,
     this.neverThanId,
     this.aroundId,
     this.searchQuery,

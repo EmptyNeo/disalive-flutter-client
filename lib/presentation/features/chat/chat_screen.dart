@@ -179,7 +179,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       color: AppColors.mainBackground.withValues(alpha: 0.3),
                       child: Stack(
                         children: [
-                          Positioned.fill(child: _buildMessagesArea()),
+                          Positioned.fill(
+                            child: RepaintBoundary(child: _buildMessagesArea()),
+                          ),
                           Positioned(
                             top: 0,
                             left: 0,
