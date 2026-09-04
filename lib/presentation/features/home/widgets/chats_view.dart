@@ -1,5 +1,5 @@
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
-import 'package:disalive/presentation/features/home/widgets/dm_sidebar.dart';
+import 'package:disalive/presentation/features/dm_sidebar/dm_sidebar.dart';
 import 'package:disalive/presentation/features/server/servers_sidebar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,14 +26,16 @@ class ChatsView extends StatelessWidget {
                 // друзей») остаётся на месте, крутится только область
                 // списка внутри DirectMessagesSidebar.
                 if (state is ChatLoading || state is ChatInitial) {
-                  return const DirectMessagesSidebar(
+                  return DirectMessagesSidebar(
                     chats: [],
                     isLoading: true,
                   );
                 }
 
                 if (state is ChatLoaded) {
-                  return DirectMessagesSidebar(chats: state.chats);
+                  return DirectMessagesSidebar(
+                    chats: state.chats,
+                  );
                 }
 
                 if (state is ChatFailure) {

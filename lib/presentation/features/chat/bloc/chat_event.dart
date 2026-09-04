@@ -13,3 +13,27 @@ class AddMessageToChat extends ChatEvent {
 
   AddMessageToChat({required this.message, required this.isSelf});
 }
+
+class AddChat extends ChatEvent {
+  final Chat chat;
+
+  AddChat(this.chat);
+}
+
+class UpdateChat extends ChatEvent {
+  final Chat chat;
+
+  UpdateChat(this.chat);
+}
+
+class DeleteChat extends ChatEvent {
+  final int chatId;
+
+  DeleteChat(this.chatId);
+}
+
+class SearchChats extends ChatEvent {
+  final String query;
+
+  SearchChats(this.query);
+}

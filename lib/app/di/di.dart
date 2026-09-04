@@ -2,6 +2,7 @@ import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
+import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
 import 'package:disalive/data/repositories/user_repository_umpl.dart';
@@ -10,6 +11,7 @@ import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
@@ -23,6 +25,7 @@ import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -55,6 +58,7 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<ChatServerRepository>(
     () => ChatServerRepositoryImpl(sl()),
   );
+  sl.registerLazySingleton<RequestsRepository>(() => RequestsRepositoryImpl());
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
@@ -62,4 +66,5 @@ Future<void> setupDependencies() async {
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
+  sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl()));
 }

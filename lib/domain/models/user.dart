@@ -1,6 +1,7 @@
 // lib/domain/models/user.dart
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/badge.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 
@@ -85,7 +86,7 @@ class UserModel extends Equatable {
       displayName: map['displayName'],
       email: map['email'],
       status: map['status'] != null
-          ? UserStatus.fromString(map['status'])
+          ? UserStatus.fromString(map['status'] as String)
           : null,
       dateRegistration: map['dateRegistration'],
       pathImage: map['pathImage'],
@@ -96,28 +97,32 @@ class UserModel extends Equatable {
       bageAdditionalColor: map['bageAdditionalColor'],
       aboutMe: map['aboutMe'],
       myThink: map['myThink'],
-      canSendMeRequest: map['canSendMeRequest'],
-      modeDnd: map['modeDnd'],
-      isBanned: map['isBanned'],
+      canSendMeRequest: DataParser.parseInt(map['canSendMeRequest']),
+      modeDnd: DataParser.parseInt(map['modeDnd']),
+      isBanned: DataParser.parseInt(map['isBanned']),
       banExpiresAt: map['banExpiresAt'],
       complaintsBlockedUntil: map['complaintsBlockedUntil'],
-      isMyFriend: map['isMyFriend'],
-      personalChatId: map['personalChatId'],
-      friendRequest: map['friendRequest'],
+      isMyFriend: DataParser.parseBool(map['isMyFriend']),
+      personalChatId: DataParser.parseInt(map['personalChatId']),
+      friendRequest: map['friendRequest'] is Map<String, dynamic>
+          ? map['friendRequest']
+          : null,
       lastVisit: map['lastVisit'],
-      followLastVisit: map['followLastVisit'],
-      allowComments: map['allowComments'],
-      allowOnlyFriendsComments: map['allowOnlyFriendsComments'],
-      onlyIBlocked: map['onlyIBlocked'],
-      onlyTheyBlocked: map['onlyTheyBlocked'],
+      followLastVisit: DataParser.parseBool(map['followLastVisit']),
+      allowComments: DataParser.parseBool(map['allowComments']),
+      allowOnlyFriendsComments: DataParser.parseBool(
+        map['allowOnlyFriendsComments'],
+      ),
+      onlyIBlocked: DataParser.parseBool(map['onlyIBlocked']),
+      onlyTheyBlocked: DataParser.parseBool(map['onlyTheyBlocked']),
       totpSecret: map['totpSecret'],
-      totpEnabled: map['totpEnabled'],
+      totpEnabled: DataParser.parseInt(map['totpEnabled']),
       badges: map['badges'] != null
           ? (map['badges'] as List)
                 .map((e) => BadgeModel.fromMap(e as Map<String, dynamic>))
                 .toList()
           : null,
-      fkMainBadge: map['fkMainBadge'],
+      fkMainBadge: DataParser.parseInt(map['fkMainBadge']),
       mainBadge: map['mainBadge'] != null
           ? BadgeModel.fromMap(map['mainBadge'] as Map<String, dynamic>)
           : null,
