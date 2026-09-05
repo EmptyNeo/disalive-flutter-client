@@ -31,7 +31,7 @@ class MessagesList extends StatefulWidget {
   final VoidCallback? onFocusInput;
   final VoidCallback? onUnfocusInput;
 
-  final Map<int, GlobalKey> _messageKeys = {};
+  final Map<dynamic, GlobalKey> messageKeys = {};
 
   MessagesList({
     super.key,
@@ -52,10 +52,6 @@ class MessagesList extends StatefulWidget {
 
 class _MessagesListState extends State<MessagesList> {
   final ScrollController _scrollController = ScrollController();
-  List<Message> _messages = [];
-
-  bool _isLoadingMore = false;
-  bool _hasMore = true;
 
   @override
   void initState() {
@@ -72,23 +68,22 @@ class _MessagesListState extends State<MessagesList> {
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    if (_isLoadingMore || !_hasMore || _messages.isEmpty) return;
+
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return;
+
+    if (state.isLoadingMore || !state.hasMoreMessages) return;
 
     final position = _scrollController.position;
     if (position.pixels >= position.maxScrollExtent - _kLoadMoreThreshold) {
-      _loadMore();
+      _loadMore(state.messages);
     }
   }
 
-  void _loadMore() {
-    // Список с reverse: true, поэтому самый старый элемент — последний
-    final oldestId = _messages.last.id;
-    if (oldestId == null || oldestId <= 0) {
-      _hasMore = false;
-      return;
-    }
+  void _loadMore(List<Message> currentMessages) {
+    final oldestId = currentMessages.last.id;
+    if (oldestId == null || oldestId <= 0) return;
 
-    setState(() => _isLoadingMore = true);
     widget.messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
@@ -101,32 +96,25 @@ class _MessagesListState extends State<MessagesList> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<MessageBloc, MessageState>(
+    // ИСПОЛЬЗУЕМ BlocBuilder ВМЕСТО BlocConsumer
+    return BlocBuilder<MessageBloc, MessageState>(
       bloc: widget.messageBloc,
-      listener: (context, state) {
-        if (state is MessageLoaded) {
-          setState(() {
-            _messages = state.messages;
-            _isLoadingMore = state.isLoadingMore;
-            _hasMore = state.hasMoreMessages;
-          });
-        } else if (state is MessageFailure) {
-          setState(() => _isLoadingMore = false);
-        }
-      },
       builder: (context, state) {
         final reservePadding = EdgeInsets.only(
           top: _kHeaderReserve,
           bottom: widget.inputReserve,
         );
 
-        if (_messages.isEmpty && state is MessageLoading) {
+        // 1. Состояние загрузки
+        if (state is MessageLoading) {
           return Padding(
             padding: reservePadding,
             child: const Center(child: CupertinoActivityIndicator()),
           );
         }
-        if (_messages.isEmpty && state is MessageFailure) {
+
+        // 2. Состояние ошибки
+        if (state is MessageFailure) {
           return Padding(
             padding: reservePadding,
             child: Center(
@@ -143,7 +131,11 @@ class _MessagesListState extends State<MessagesList> {
             ),
           );
         }
-        if (_messages.isEmpty) {
+
+        // 3. Успешная загрузка (или пустой список)
+        final messages = state is MessageLoaded ? state.messages : [];
+
+        if (messages.isEmpty) {
           return Padding(
             padding: reservePadding,
             child: Center(
@@ -158,11 +150,15 @@ class _MessagesListState extends State<MessagesList> {
         }
 
         final groupedMessages = MessageGrouper.group(
-          _messages,
+          messages as List<Message>,
           isGroup: widget.chat.isGroupChat,
           currentUserId: widget.currentUserId,
         );
-        final itemCount = _messages.length + (_isLoadingMore ? 1 : 0);
+
+        final isLoadingMore = state is MessageLoaded
+            ? state.isLoadingMore
+            : false;
+        final itemCount = messages.length + (isLoadingMore ? 1 : 0);
 
         return ListView.builder(
           controller: _scrollController,
@@ -172,6 +168,7 @@ class _MessagesListState extends State<MessagesList> {
             bottom: widget.inputReserve + 8,
           ),
           itemCount: itemCount,
+          // Эта функция спасает позицию скролла при добавлении элементов в начало
           findChildIndexCallback: (Key key) {
             if (key is! ValueKey<Object>) return null;
             final id = key.value;
@@ -182,8 +179,7 @@ class _MessagesListState extends State<MessagesList> {
             return index == -1 ? null : index;
           },
           itemBuilder: (context, index) {
-            // Индикатор загрузки — в самом верху (последний элемент при reverse)
-            if (_isLoadingMore && index == _messages.length) {
+            if (isLoadingMore && index == messages.length) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Center(child: CupertinoActivityIndicator(radius: 10)),
@@ -192,16 +188,19 @@ class _MessagesListState extends State<MessagesList> {
 
             final grouped = groupedMessages[index];
             final message = grouped.message;
+            final messageId = message.id ?? message.localGeneratedId;
 
-            final key = widget._messageKeys.putIfAbsent(
-              message.id ?? message.localGeneratedId.hashCode,
+            final key = widget.messageKeys.putIfAbsent(
+              messageId,
               () => GlobalKey(),
             );
 
             return RepaintBoundary(
               key: key,
               child: MessageItem(
-                key: ValueKey(message.id ?? message.localGeneratedId),
+                // ValueKey гарантирует, что Flutter переиспользует RenderObject,
+                // а не пересоздаст виджет с нуля при сдвиге индексов!
+                key: ValueKey(messageId),
                 message: message,
                 isMine:
                     widget.currentUserId != null &&
@@ -216,7 +215,6 @@ class _MessagesListState extends State<MessagesList> {
                 isLoading: message.hasLoading,
                 hasError: message.hasErrorMessage,
                 onTapImage: (attachmentIndex) {
-                  // Получаем sourceRect из key
                   final renderBox =
                       key.currentContext?.findRenderObject() as RenderBox?;
                   if (renderBox == null) return;
@@ -224,6 +222,7 @@ class _MessagesListState extends State<MessagesList> {
                   final sourceRect =
                       renderBox.localToGlobal(Offset.zero) & renderBox.size;
 
+                  // Передаем messageId вместо messageIndex (согласно предыдущему рефакторингу)
                   _openMediaViewer(message.getId, attachmentIndex, sourceRect);
                 },
               ),
@@ -326,12 +325,18 @@ class _MessagesListState extends State<MessagesList> {
   }
 
   void _openMediaViewer(
-    int messageId,
+    int messageId, // Теперь передаем ID, а не индекс
     int attachmentIndex,
-    Rect sourceRect, // Передаём из itemBuilder
+    Rect sourceRect,
   ) {
     final state = widget.messageBloc.state;
     if (state is! MessageLoaded) return;
+
+    // Находим текущий индекс сообщения по его ID для MediaPosition
+    final currentIndex = state.messages.indexWhere(
+      (m) => (m.id ?? m.localGeneratedId) == messageId,
+    );
+    if (currentIndex == -1) return;
 
     final position = MediaPosition(
       messageId: messageId,

@@ -64,6 +64,8 @@ class _ImageItemState extends State<ImageItem> {
             ),
           ),
           cacheKey: '${widget.pathImage}_$_retryCount',
+          maxWidthDiskCache: 400,
+          maxHeightDiskCache: 400,
         ),
       ),
     );

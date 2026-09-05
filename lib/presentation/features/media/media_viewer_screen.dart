@@ -1,4 +1,5 @@
 // presentation/features/media/media_viewer_screen.dart
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/ui/media_close_mode.dart';
@@ -143,7 +144,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   void _ensureOlderNeighbor(int pageIndex) {
     // Если не близко к концу списка (старые) — не пагинируем
-    if (pageIndex < _positions.length - 5) return;
+    if (pageIndex < _positions.length - 2) return;
 
     final messages = _messages;
     if (messages.isEmpty) return;
@@ -300,18 +301,21 @@ class _MediaPage extends StatelessWidget {
     }
 
     return Center(
-      child: Image.network(
-        attachment.pathFile ?? '',
+      child: CachedNetworkImage(
+        imageUrl: attachment.pathFile ?? '',
         fit: BoxFit.contain,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return const CupertinoActivityIndicator(color: CupertinoColors.white);
-        },
-        errorBuilder: (context, error, stackTrace) => const Icon(
+        cacheKey: attachment.id?.toString(),
+        fadeInDuration: const Duration(milliseconds: 200),
+        fadeOutDuration: const Duration(milliseconds: 200),
+        placeholder: (context, url) =>
+            const CupertinoActivityIndicator(color: CupertinoColors.white),
+        errorWidget: (context, url, error) => const Icon(
           CupertinoIcons.exclamationmark_triangle,
           color: CupertinoColors.white,
           size: 40,
         ),
+        maxWidthDiskCache: 2000,
+        maxHeightDiskCache: 2000,
       ),
     );
   }

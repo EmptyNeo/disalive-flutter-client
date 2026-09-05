@@ -146,6 +146,8 @@ class _BuildAvatarState extends State<BuildAvatar> {
       fadeInDuration: const Duration(milliseconds: 200),
       fadeOutDuration: const Duration(milliseconds: 200),
       cacheKey: widget.url,
+      maxWidthDiskCache: 1000,
+      maxHeightDiskCache: 1000,
     );
   }
 
