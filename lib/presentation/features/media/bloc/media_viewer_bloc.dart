@@ -39,7 +39,7 @@ class MediaViewerBloc extends Bloc<MediaViewerEvent, MediaViewerState> {
       chatId,
       chatId,
       EntityType.chat,
-      60,
+      20,
       event.startMessageId ?? 0,
       null,
       null,

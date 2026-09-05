@@ -1,57 +1,32 @@
 // presentation/features/media/media_viewer_screen.dart
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/di/di.dart';
-import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/ui/media_close_mode.dart';
 import 'package:disalive/domain/enums/ui/media_step_direction.dart';
-
-// ЗАМЕНИ на реальный путь/имя своей модели вложения — ниже используются
-// только attachment.type (image/video) и attachment.pathFile.
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/presentation/features/media/bloc/media_viewer_bloc.dart';
 import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
 import 'package:disalive/presentation/features/media/media_viewer_route.dart';
-import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Просмотр вложений поверх текущего чата — фото/видео (видео пока
-/// заглушка), свайп между вложениями сообщения, а когда они заканчиваются —
-/// переход к следующему/предыдущему сообщению с вложением.
-///
-/// Не хранит собственный кэш сообщений — читает live-состояние того же
-/// [MessageBloc], которым уже пользуется MessagesList: новые сообщения (в
-/// т.ч. дозагруженные пагинацией отсюда же) видны сразу, без рассинхрона.
-///
-/// Направление "к более новым" считается уже полностью загруженным на
-/// момент открытия (эти вложения уже есть в кэше бота — докачивать нечего),
-/// поэтому весь список позиций в эту сторону строится один раз при
-/// инициализации. Направление "к более старым" — наоборот, лениво
-/// достраивается по мере приближения к краю, с пагинацией через
-/// GetMessages(showed: false), когда hasMoreMessages == true.
 class MediaViewerScreen extends StatefulWidget {
   const MediaViewerScreen({
     super.key,
-    required this.messageBloc,
     required this.chat,
     required this.initialPosition,
     required this.setCloseMode,
   });
 
-  final MessageBloc messageBloc;
   final Chat chat;
   final MediaPosition initialPosition;
   final void Function(MediaCloseMode mode) setCloseMode;
 
-  /// [sourceRect] — глобальные координаты вложения, из которого открываем
-  /// (в вызывающем виджете: RenderBox превью → `localToGlobal(Offset.zero)
-  /// & box.size`). Сама верстка превью-вложений в сообщении ещё не
-  /// готова — эта точка входа рассчитана на неё заранее.
   static Future<void> open(
     BuildContext context, {
-    required MessageBloc messageBloc,
     required Chat chat,
     required MediaPosition initialPosition,
     required Rect sourceRect,
@@ -59,12 +34,19 @@ class MediaViewerScreen extends StatefulWidget {
     return MediaViewerRoute.open<void>(
       context,
       sourceRect: sourceRect,
-      builder: (context, animation, setCloseMode) => MediaViewerScreen(
-        messageBloc: messageBloc,
-        chat: chat,
-        initialPosition: initialPosition,
-        setCloseMode: setCloseMode,
-      ),
+      builder: (context, animation, setCloseMode) {
+        return BlocProvider(
+          create: (context) => MediaViewerBloc(
+            messageRepository: sl<MessageRepository>(),
+            chatId: chat.id,
+          )..add(LoadInitialMedia(chatId: chat.id)),
+          child: MediaViewerScreen(
+            chat: chat,
+            initialPosition: initialPosition,
+            setCloseMode: setCloseMode,
+          ),
+        );
+      },
     );
   }
 
@@ -74,28 +56,28 @@ class MediaViewerScreen extends StatefulWidget {
 
 class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late final PageController _pageController;
-  late List<MediaPosition> _positions;
-  bool _isRequestingMore = false;
-
-  late final int _initialPageIndex;
-
-  List<Message> get _messages {
-    final cached = sl<MessageRepository>().getCached(widget.chat.id);
-    return cached?.messages ?? [];
-  }
-
-  bool get _hasMoreMessages {
-    final state = widget.messageBloc.state;
-    return state is MessageLoaded ? state.hasMoreMessages : false;
-  }
+  final List<MediaPosition> _positions = [];
+  late int _initialPageIndex;
+  bool _isPositionsBuilt = false;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
+    _initialPageIndex = 0;
+  }
 
-    final messages = _messages;
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
-    // 1. Строим "более новые"
+  /// Строит начальные позиции (новые и старые) при первой загрузке
+  void _buildInitialPositions(List<Message> messages) {
+    if (_isPositionsBuilt || messages.isEmpty) return;
+
+    // 1. Ищем все более новые
     final newerPositions = <MediaPosition>[];
     var cursor = widget.initialPosition;
     while (true) {
@@ -109,7 +91,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    // 2. Строим "более старые"
+    // 2. Ищем все более старые
     final olderPositions = <MediaPosition>[];
     cursor = widget.initialPosition;
     while (true) {
@@ -123,83 +105,84 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    // 3. Сохраняем изначальный индекс ДО объединения массивов!
     _initialPageIndex = newerPositions.length;
 
-    // 4. Итоговый массив
-    _positions = [
-      ...newerPositions.reversed,
-      widget.initialPosition,
-      ...olderPositions,
-    ];
+    _positions.clear();
+    _positions.addAll(newerPositions.reversed);
+    _positions.add(widget.initialPosition);
+    _positions.addAll(olderPositions);
 
-    _pageController = PageController(initialPage: _initialPageIndex);
-  }
+    _isPositionsBuilt = true;
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _ensureOlderNeighbor(int pageIndex) {
-    // Если не близко к концу списка (старые) — не пагинируем
-    if (pageIndex < _positions.length - 2) return;
-
-    final messages = _messages;
-    if (messages.isEmpty) return;
-
-    // Берем последнюю позицию (самое старое)
-    final lastPos = _positions.last;
-    final next = MediaAttachmentLocator.step(
-      messages,
-      lastPos,
-      MediaStepDirection.older,
-    );
-
-    if (next != null) {
-      setState(() => _positions = [..._positions, next]);
-    } else if (_hasMoreMessages && !_isRequestingMore) {
-      _loadMoreMessages();
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(_initialPageIndex);
     }
   }
 
-  void _loadMoreMessages() {
-    print("LOAD MORE MESSAGES");
-    final messages = _messages;
+  /// Добавляет ВСЕ доступные старые позиции из текущего списка сообщений.
+  /// Это предотвращает лавину запросов, добавляя сразу всё, что есть в кэше.
+  bool _addAllAvailableOlderPositions(List<Message> messages) {
+    bool addedAny = false;
+    while (true) {
+      if (_positions.isEmpty) break;
+
+      final lastPos = _positions.last;
+      final next = MediaAttachmentLocator.step(
+        messages,
+        lastPos,
+        MediaStepDirection.older,
+      );
+
+      if (next == null) break;
+
+      // Защита от дубликатов (на всякий случай)
+      if (_positions.any((p) => p == next)) break;
+
+      _positions.add(next);
+      addedAny = true;
+    }
+    return addedAny;
+  }
+
+  /// Проверяет, нужно ли догрузить данные с сервера
+  void _ensureMoreData(int pageIndex, List<Message> messages) {
+    // Сначала пробуем добавить всё, что уже есть в памяти
+    final added = _addAllAvailableOlderPositions(messages);
+    if (added && mounted) {
+      setState(() {}); // Перерисовываем PageView с новым itemCount
+    }
+
+    // Проверяем, близко ли мы к концу СПИСКА ПОЗИЦИЙ
+    if (pageIndex >= _positions.length - 2) {
+      final bloc = context.read<MediaViewerBloc>();
+      final state = bloc.state;
+
+      // Грузим только если есть что грузить и мы НЕ грузим прямо сейчас
+      if (state is MediaViewerLoaded &&
+          state.hasMoreMessages &&
+          !state.isLoadingMore) {
+        _loadMoreMessages(messages);
+      }
+    }
+  }
+
+  void _loadMoreMessages(List<Message> messages) {
     if (messages.isEmpty) return;
+
     final oldestId = messages.last.id;
     if (oldestId == null) return;
 
-    _isRequestingMore = true;
-    widget.messageBloc.add(
-      GetMessages(
-        chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
-        lastIdMessage: oldestId,
-        // showed: false — просто догружаем историю для листалки, не
-        // помечаем сообщения прочитанными.
-        showed: false,
-        limit: 60,
-      ),
-    );
+    context.read<MediaViewerBloc>().add(LoadMoreMedia(lastMessageId: oldestId));
   }
 
   void _handleClose() {
-    // Получаем текущий индекс страницы (округляем до целого)
     final currentPageIndex = _pageController.page?.round() ?? _initialPageIndex;
 
     if (currentPageIndex == _initialPageIndex) {
-      // Мы на той же странице, с которой начали -> летим обратно к источнику
       widget.setCloseMode(MediaCloseMode.toSource);
     } else if (currentPageIndex < _initialPageIndex) {
-      // Индекс меньше -> мы ушли влево по PageView -> это более НОВЫЕ сообщения.
-      // В чате (reverse: true) новые сообщения находятся ВИЗУАЛЬНО НИЖЕ.
       widget.setCloseMode(MediaCloseMode.collapseDown);
     } else {
-      // Индекс больше -> мы ушли вправо по PageView -> это более СТАРЫЕ сообщения.
-      // В чате старые сообщения находятся ВИЗУАЛЬНО ВЫШЕ.
       widget.setCloseMode(MediaCloseMode.collapseUp);
     }
 
@@ -208,75 +191,119 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<MessageBloc, MessageState>(
-      bloc: widget.messageBloc,
+    return BlocListener<MediaViewerBloc, MediaViewerState>(
       listener: (context, state) {
-        if (state is MessageLoaded) {
-          _isRequestingMore = false;
-          final page = _pageController.hasClients
-              ? (_pageController.page?.round() ?? _positions.length - 1)
-              : _positions.length - 1;
-          _ensureOlderNeighbor(page);
+        if (state is MediaViewerLoaded) {
+          if (!_isPositionsBuilt) {
+            _buildInitialPositions(state.messages);
+            if (mounted) setState(() {});
+          } else {
+            // Когда подгрузились новые данные, просто проверяем, не нужно ли добавить позиции
+            // НЕ вызываем setState здесь, BlocBuilder сам перерисует
+            final page = _pageController.page?.round() ?? _positions.length - 1;
+            _ensureMoreData(page, state.messages);
+          }
         }
       },
-      child: CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.transparent,
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: _pageController,
-              itemCount: _positions.length,
-              onPageChanged: _ensureOlderNeighbor,
-              itemBuilder: (context, index) {
-                final position = _positions[index];
-                final messages = _messages;
+      child: BlocBuilder<MediaViewerBloc, MediaViewerState>(
+        builder: (context, state) {
+          if (state is MediaViewerLoading || !_isPositionsBuilt) {
+            return CupertinoPageScaffold(
+              backgroundColor: CupertinoColors.transparent,
+              child: const Center(
+                child: CupertinoActivityIndicator(color: CupertinoColors.white),
+              ),
+            );
+          }
 
-                // Динамически находим актуальный индекс сообщения по его ID
-                final actualMessageIndex = messages.indexWhere(
-                  (m) => m.id == position.messageId,
-                );
-
-                if (actualMessageIndex == -1) {
-                  return const Center(
-                    child: CupertinoActivityIndicator(
-                      color: CupertinoColors.white,
-                    ),
-                  );
-                }
-
-                final attachments =
-                    messages[actualMessageIndex].attachments
-                        ?.where((a) => a.isImageFile || a.isVideoFile)
-                        .toList() ??
-                    const [];
-
-                if (position.attachmentIndex >= attachments.length) {
-                  return const SizedBox.shrink();
-                }
-
-                return GestureDetector(
-                  onTap: _handleClose,
-                  child: _MediaPage(
-                    attachment: attachments[position.attachmentIndex],
-                  ),
-                );
-              },
-            ),
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 8,
-              right: 12,
-              child: CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: _handleClose,
-                child: const Icon(
-                  CupertinoIcons.xmark_circle_fill,
-                  color: CupertinoColors.white,
-                  size: 32,
+          if (state is MediaViewerError) {
+            return CupertinoPageScaffold(
+              backgroundColor: CupertinoColors.transparent,
+              child: Center(
+                child: Text(
+                  'Ошибка загрузки: ${state.message}',
+                  style: const TextStyle(color: CupertinoColors.white),
                 ),
               ),
+            );
+          }
+
+          if (state is! MediaViewerLoaded) return const SizedBox.shrink();
+
+          final messages = state.messages;
+
+          return CupertinoPageScaffold(
+            backgroundColor: CupertinoColors.transparent,
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: _pageController,
+                  itemCount: _positions.length,
+                  onPageChanged: (index) => _ensureMoreData(index, messages),
+                  itemBuilder: (context, index) {
+                    final position = _positions[index];
+
+                    final actualMessageIndex = messages.indexWhere(
+                      (m) => m.id == position.messageId,
+                    );
+
+                    if (actualMessageIndex == -1) {
+                      return const Center(
+                        child: CupertinoActivityIndicator(
+                          color: CupertinoColors.white,
+                        ),
+                      );
+                    }
+
+                    final attachments =
+                        messages[actualMessageIndex].attachments
+                            ?.where((a) => a.isImageFile || a.isVideoFile)
+                            .toList() ??
+                        const [];
+
+                    if (position.attachmentIndex >= attachments.length) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return GestureDetector(
+                      onTap: _handleClose,
+                      child: _MediaPage(
+                        attachment: attachments[position.attachmentIndex],
+                      ),
+                    );
+                  },
+                ),
+
+                // Индикатор загрузки старых медиа (справа внизу, чтобы не мешать)
+                if (state.isLoadingMore)
+                  Positioned(
+                    bottom: MediaQuery.of(context).padding.bottom + 20,
+                    left: 0,
+                    right: 0,
+                    child: const Center(
+                      child: CupertinoActivityIndicator(
+                        color: CupertinoColors.white,
+                      ),
+                    ),
+                  ),
+
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 12,
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: _handleClose,
+                    child: const Icon(
+                      CupertinoIcons.xmark_circle_fill,
+                      color: CupertinoColors.white,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -290,7 +317,6 @@ class _MediaPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (attachment.isVideoFile) {
-      // Видео — заглушка, как договорились, без плеера.
       return const Center(
         child: Icon(
           CupertinoIcons.play_circle,

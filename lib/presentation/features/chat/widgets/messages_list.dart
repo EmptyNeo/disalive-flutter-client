@@ -324,20 +324,7 @@ class _MessagesListState extends State<MessagesList> {
     }
   }
 
-  void _openMediaViewer(
-    int messageId, // Теперь передаем ID, а не индекс
-    int attachmentIndex,
-    Rect sourceRect,
-  ) {
-    final state = widget.messageBloc.state;
-    if (state is! MessageLoaded) return;
-
-    // Находим текущий индекс сообщения по его ID для MediaPosition
-    final currentIndex = state.messages.indexWhere(
-      (m) => (m.id ?? m.localGeneratedId) == messageId,
-    );
-    if (currentIndex == -1) return;
-
+  void _openMediaViewer(int messageId, int attachmentIndex, Rect sourceRect) {
     final position = MediaPosition(
       messageId: messageId,
       attachmentIndex: attachmentIndex,
@@ -345,7 +332,6 @@ class _MessagesListState extends State<MessagesList> {
 
     MediaViewerScreen.open(
       context,
-      messageBloc: widget.messageBloc,
       chat: widget.chat,
       initialPosition: position,
       sourceRect: sourceRect,
