@@ -63,8 +63,40 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
-    _initialPageIndex = 0;
+
+    // 👇 Пытаемся получить сообщения из кэша ЗАРАНЕЕ
+    final messages =
+        sl<MessageRepository>().getCached(widget.chat.id)?.messages ?? [];
+
+    // 👇 Вычисляем initialPage сразу
+    _initialPageIndex = _computeInitialIndex(messages);
+
+    // 👇 Передаём initialPage в конструктор
+    _pageController = PageController(initialPage: _initialPageIndex);
+
+    // 👇 Если данные есть в кэше, строим позиции сразу
+    if (messages.isNotEmpty) {
+      _buildInitialPositions(messages);
+    }
+  }
+
+  /// Вычисляет количество "более новых" медиа относительно initialPosition
+  int _computeInitialIndex(List<Message> messages) {
+    if (messages.isEmpty) return 0;
+
+    int count = 0;
+    var cursor = widget.initialPosition;
+    while (true) {
+      final next = MediaAttachmentLocator.step(
+        messages,
+        cursor,
+        MediaStepDirection.newer,
+      );
+      if (next == null) break;
+      count++;
+      cursor = next;
+    }
+    return count;
   }
 
   @override
@@ -73,11 +105,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     super.dispose();
   }
 
-  /// Строит начальные позиции (новые и старые) при первой загрузке
   void _buildInitialPositions(List<Message> messages) {
     if (_isPositionsBuilt || messages.isEmpty) return;
 
-    // 1. Ищем все более новые
     final newerPositions = <MediaPosition>[];
     var cursor = widget.initialPosition;
     while (true) {
@@ -91,7 +121,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    // 2. Ищем все более старые
     final olderPositions = <MediaPosition>[];
     cursor = widget.initialPosition;
     while (true) {
@@ -105,8 +134,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    _initialPageIndex = newerPositions.length;
-
     _positions.clear();
     _positions.addAll(newerPositions.reversed);
     _positions.add(widget.initialPosition);
@@ -114,13 +141,15 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
     _isPositionsBuilt = true;
 
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(_initialPageIndex);
-    }
+    // 👇 Дополнительная страховка: jumpToPage через addPostFrameCallback,
+    // чтобы гарантировать, что PageView уже построен
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients) {
+        _pageController.jumpToPage(_initialPageIndex);
+      }
+    });
   }
 
-  /// Добавляет ВСЕ доступные старые позиции из текущего списка сообщений.
-  /// Это предотвращает лавину запросов, добавляя сразу всё, что есть в кэше.
   bool _addAllAvailableOlderPositions(List<Message> messages) {
     bool addedAny = false;
     while (true) {
@@ -135,7 +164,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
       if (next == null) break;
 
-      // Защита от дубликатов (на всякий случай)
       if (_positions.any((p) => p == next)) break;
 
       _positions.add(next);
@@ -144,20 +172,16 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     return addedAny;
   }
 
-  /// Проверяет, нужно ли догрузить данные с сервера
   void _ensureMoreData(int pageIndex, List<Message> messages) {
-    // Сначала пробуем добавить всё, что уже есть в памяти
     final added = _addAllAvailableOlderPositions(messages);
     if (added && mounted) {
-      setState(() {}); // Перерисовываем PageView с новым itemCount
+      setState(() {});
     }
 
-    // Проверяем, близко ли мы к концу СПИСКА ПОЗИЦИЙ
     if (pageIndex >= _positions.length - 2) {
       final bloc = context.read<MediaViewerBloc>();
       final state = bloc.state;
 
-      // Грузим только если есть что грузить и мы НЕ грузим прямо сейчас
       if (state is MediaViewerLoaded &&
           state.hasMoreMessages &&
           !state.isLoadingMore) {
@@ -169,8 +193,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   void _loadMoreMessages(List<Message> messages) {
     if (messages.isEmpty) return;
 
-    final oldestId = messages.last.id;
-    if (oldestId == null) return;
+    final oldestId = messages.last.getId;
 
     context.read<MediaViewerBloc>().add(LoadMoreMedia(lastMessageId: oldestId));
   }
@@ -198,8 +221,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             _buildInitialPositions(state.messages);
             if (mounted) setState(() {});
           } else {
-            // Когда подгрузились новые данные, просто проверяем, не нужно ли добавить позиции
-            // НЕ вызываем setState здесь, BlocBuilder сам перерисует
             final page = _pageController.page?.round() ?? _positions.length - 1;
             _ensureMoreData(page, state.messages);
           }
@@ -207,7 +228,19 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       },
       child: BlocBuilder<MediaViewerBloc, MediaViewerState>(
         builder: (context, state) {
-          if (state is MediaViewerLoading || !_isPositionsBuilt) {
+          if (state is MediaViewerError) {
+            return CupertinoPageScaffold(
+              backgroundColor: CupertinoColors.transparent,
+              child: Center(
+                child: Text(
+                  'Ошибка: ${state.message}',
+                  style: const TextStyle(color: CupertinoColors.white),
+                ),
+              ),
+            );
+          }
+
+          if (state is! MediaViewerLoaded || !_isPositionsBuilt) {
             return CupertinoPageScaffold(
               backgroundColor: CupertinoColors.transparent,
               child: const Center(
@@ -215,20 +248,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
               ),
             );
           }
-
-          if (state is MediaViewerError) {
-            return CupertinoPageScaffold(
-              backgroundColor: CupertinoColors.transparent,
-              child: Center(
-                child: Text(
-                  'Ошибка загрузки: ${state.message}',
-                  style: const TextStyle(color: CupertinoColors.white),
-                ),
-              ),
-            );
-          }
-
-          if (state is! MediaViewerLoaded) return const SizedBox.shrink();
 
           final messages = state.messages;
 
@@ -241,10 +260,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                   itemCount: _positions.length,
                   onPageChanged: (index) => _ensureMoreData(index, messages),
                   itemBuilder: (context, index) {
+                    if (index < 0 || index >= _positions.length) {
+                      return const SizedBox.shrink();
+                    }
+
                     final position = _positions[index];
 
                     final actualMessageIndex = messages.indexWhere(
-                      (m) => m.id == position.messageId,
+                      (m) => (m.id ?? m.localGeneratedId) == position.messageId,
                     );
 
                     if (actualMessageIndex == -1) {
@@ -274,7 +297,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                   },
                 ),
 
-                // Индикатор загрузки старых медиа (справа внизу, чтобы не мешать)
                 if (state.isLoadingMore)
                   Positioned(
                     bottom: MediaQuery.of(context).padding.bottom + 20,
