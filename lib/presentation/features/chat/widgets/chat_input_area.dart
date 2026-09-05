@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 const double _kFloatingPanelMargin = 8;
 
 class ChatInputArea extends StatelessWidget {
+  final FocusNode _inputFocusNode;
   final GlobalKey _inputKey;
   final bool _hasEdit;
   final ValueNotifier<bool> _hasText;
@@ -26,18 +27,18 @@ class ChatInputArea extends StatelessWidget {
     required VoidCallback cancelEdit,
     required Function(Message message) onSendMessage,
     required Function(Message message) onApplyEdit,
+    required FocusNode inputFocusNode,
   }) : _inputKey = inputKey,
        _textController = textController,
        _hasEdit = hasEdit,
        _hasText = hasText,
        _cancelEdit = cancelEdit,
        _onSendMessage = onSendMessage,
-       _onApplyEdit = onApplyEdit;
+       _onApplyEdit = onApplyEdit,
+       _inputFocusNode = inputFocusNode;
 
   @override
   Widget build(BuildContext context) {
-    print(_hasEdit);
-
     return Padding(
       key: _inputKey,
       padding: const EdgeInsets.fromLTRB(
@@ -88,6 +89,7 @@ class ChatInputArea extends StatelessWidget {
                       ),
                       child: CupertinoTextField(
                         controller: _textController,
+                        focusNode: _inputFocusNode,
                         minLines: 1,
                         maxLines: 5,
                         padding: const EdgeInsets.symmetric(

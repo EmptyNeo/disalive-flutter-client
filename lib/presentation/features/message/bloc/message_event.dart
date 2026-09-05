@@ -13,6 +13,7 @@ class GetMessages extends MessageEvent {
   final int? aroundId;
   final int? neverThanId;
   final String? searchQuery;
+  final bool showed;
 
   GetMessages({
     required this.chatId,
@@ -23,6 +24,7 @@ class GetMessages extends MessageEvent {
     this.neverThanId,
     this.aroundId,
     this.searchQuery,
+    this.showed = true,
   });
 }
 

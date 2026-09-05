@@ -61,13 +61,13 @@ class SendRequestBar extends StatelessWidget {
                 valueListenable: hasText,
                 builder: (context, enabled, _) => GlassButton(
                   borderRadius: 32,
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(8),
                   accent: enabled,
                   onTap: enabled ? onSend : () {},
                   child: Icon(
                     CupertinoIcons.paperplane_fill,
-                    size: 18,
-                    color: enabled ? AppColors.white : AppColors.greyple,
+                    size: 14,
+                    color: enabled ? AppColors.onBlurple : AppColors.greyple,
                   ),
                 ),
               ),

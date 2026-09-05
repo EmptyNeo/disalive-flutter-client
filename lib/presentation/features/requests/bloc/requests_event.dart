@@ -3,7 +3,11 @@ part of 'requests_bloc.dart';
 @immutable
 abstract class RequestsEvent {}
 
-class GetRequests extends RequestsEvent {}
+class GetRequests extends RequestsEvent {
+  final bool reload;
+
+  GetRequests(this.reload);
+}
 
 class SendRequest extends RequestsEvent {
   final String username;
@@ -21,4 +25,17 @@ class AcceptRequest extends RequestsEvent {
   final String username;
 
   AcceptRequest(this.username);
+}
+
+// В requests_event.dart добавьте:
+class AddRequest extends RequestsEvent {
+  final FriendRequest request;
+
+  AddRequest(this.request);
+}
+
+class RemoveRequest extends RequestsEvent {
+  final int requestId;
+
+  RemoveRequest(this.requestId);
 }

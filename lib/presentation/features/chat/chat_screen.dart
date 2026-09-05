@@ -6,6 +6,7 @@ import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_input_area.dart';
 import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
@@ -13,6 +14,7 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Отступ для плавающих хэдера/поля ввода от краёв карточки чата.
 const double _kFloatingPanelMargin = 8;
@@ -29,7 +31,10 @@ class ChatScreen extends StatefulWidget {
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
-      (context) => ChatScreen(chat: chat),
+      (context) => BlocProvider.value(
+        value: sl<ChatBloc>(),
+        child: ChatScreen(chat: chat),
+      ),
     );
   }
 
@@ -40,6 +45,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   late final TextEditingController _textController;
   final ValueNotifier<bool> _hasText = ValueNotifier(false);
+  final FocusNode _inputFocusNode = FocusNode();
   int? _editingMessageId;
 
   late final MessageBloc _messageBloc;
@@ -51,9 +57,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool get _hasEdit => _editingMessageId != null;
 
+  late Chat _currentChat;
+
   @override
   void initState() {
     super.initState();
+    _currentChat = widget.chat;
     _textController = TextEditingController();
     _textController.addListener(_onTextChanged);
 
@@ -97,69 +106,99 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.dispose();
     _hasText.dispose();
     _messageBloc.close();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.transparent,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: AppColors.mainBackground,
-              border: Border.all(
-                color: AppColors.white.withValues(alpha: 0.12),
-                width: 1,
+    return BlocListener<ChatBloc, ChatState>(
+      listener: (context, state) {
+        if (state is ChatLoaded) {
+          // Ищем обновленный чат в списке
+          final updatedChat = state.chats.firstWhere(
+            (c) => c.id == _currentChat.id,
+            orElse: () => _currentChat,
+          );
+
+          if (updatedChat != _currentChat) {
+            setState(() {
+              _currentChat = updatedChat;
+            });
+          }
+        }
+      },
+      child: CupertinoPageScaffold(
+        backgroundColor: CupertinoColors.transparent,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                color: AppColors.mainBackground,
+                border: Border.all(
+                  color: AppColors.white.withValues(alpha: 0.12),
+                  width: 1,
+                ),
               ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: RepaintBoundary(
-                      child: MessagesList(
-                        messageBloc: _messageBloc,
-                        chat: widget.chat,
-                        currentUserId: _currentUserId,
-                        inputReserve: _inputReserve,
-                        onSendMessage: _onSendMessage,
-                        onEditMessage: _onEditMessage,
-                        onDeleteMessage: _onDeleteMessage,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: RepaintBoundary(
+                        child: MessagesList(
+                          messageBloc: _messageBloc,
+                          chat: widget.chat,
+                          currentUserId: _currentUserId,
+                          inputReserve: _inputReserve,
+                          onSendMessage: _onSendMessage,
+                          onEditMessage: _onEditMessage,
+                          onDeleteMessage: _onDeleteMessage,
+                          onFocusInput: _focusInput,
+                          onUnfocusInput: _unfocusInput,
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: ChatHeader(chat: widget.chat),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: ChatInputArea(
-                      inputKey: _inputKey,
-                      textController: _textController,
-                      hasEdit: _hasEdit,
-                      hasText: _hasText,
-                      cancelEdit: _cancelEdit,
-                      onSendMessage: _onSendMessage,
-                      onApplyEdit: _onApplyEdit,
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: ChatHeader(chat: _currentChat),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: ChatInputArea(
+                        key: const ValueKey('chat_input_area'),
+                        inputKey: _inputKey,
+                        textController: _textController,
+                        hasEdit: _hasEdit,
+                        hasText: _hasText,
+                        cancelEdit: _cancelEdit,
+                        onSendMessage: _onSendMessage,
+                        onApplyEdit: _onApplyEdit,
+                        inputFocusNode: _inputFocusNode,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _focusInput() {
+    _inputFocusNode.requestFocus();
+  }
+
+  void _unfocusInput() {
+    _inputFocusNode.unfocus();
   }
 
   void _onSendMessage(Message message) {

@@ -135,17 +135,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             hasMoreMessages: cachedResponse.messages.isNotEmpty,
           ),
         );
-        return; // Есть кэш — не запрашиваем сервер
+        return;
       }
     } else {
       final currentState = state;
       if (currentState is MessageLoaded) {
-        // Проверяем, есть ли старые сообщения в кэше
         final cached = _messageRepository.getCached(event.chatId);
         if (cached != null && cached.messages.isNotEmpty) {
           final oldestId = event.lastIdMessage;
 
-          // Ищем сообщения старее oldestId в кэше
           final olderMessages =
               cached.messages
                   .where((m) => (m.id ?? 0) < oldestId && (m.id ?? 0) > 0)
@@ -153,30 +151,38 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                 ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
 
           if (olderMessages.isNotEmpty) {
-            // Берём из кэша — не отправляем запрос!
             final mergedMessages = [...currentState.messages, ...olderMessages];
             final uniqueMessages = _removeDuplicates(mergedMessages);
+
+            // Если showed = false — не эмитим, только добавляем в кэш
+            if (!event.showed) {
+              return;
+            }
 
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: currentState.actions,
                 isLoadingMore: false,
-                hasMoreMessages: true, // Может быть ещё старее
+                hasMoreMessages: true,
               ),
             );
             return;
           }
         }
 
-        // Если старых сообщений нет в кэше — показываем индикатор
-        emit(
-          MessageLoaded(
-            messages: currentState.messages,
-            actions: currentState.actions,
-            isLoadingMore: true,
-          ),
-        );
+        // Если старых сообщений нет в кэше
+        if (!event.showed) {
+          // Не эмитим, просто запрашиваем сервер
+        } else {
+          emit(
+            MessageLoaded(
+              messages: currentState.messages,
+              actions: currentState.actions,
+              isLoadingMore: true,
+            ),
+          );
+        }
       }
     }
 
@@ -194,6 +200,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
     result.fold(
       (failure) {
+        if (!event.showed) return; // Не эмитим при ошибке, если showed = false
+
         if (state is! MessageLoaded) {
           emit(MessageFailure(failure.message));
         } else {
@@ -209,8 +217,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       },
       (response) {
         if (isInitialLoad) {
-          // Сохраняем в кэш
           _messageRepository.cacheMessages(event.chatId, response.messages);
+
+          if (!event.showed) return; // Не эмитим
 
           emit(
             MessageLoaded(
@@ -223,7 +232,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           final currentState = state;
           if (currentState is MessageLoaded) {
             if (response.messages.isEmpty) {
-              // Больше нет старых сообщений
+              if (!event.showed) return;
+
               emit(
                 MessageLoaded(
                   messages: currentState.messages,
@@ -241,19 +251,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             ];
             final uniqueMessages = _removeDuplicates(mergedMessages);
 
-            final mergedActions = [
-              ...currentState.actions,
-              ...response.actions,
-            ];
-            final uniqueActions = _removeDuplicateActions(mergedActions);
-
-            // Обновляем кэш — все сообщения
             _messageRepository.cacheMessages(event.chatId, uniqueMessages);
+
+            if (!event.showed) return; // Не эмитим
 
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
-                actions: uniqueActions,
+                actions: currentState.actions,
                 isLoadingMore: false,
                 hasMoreMessages: true,
               ),

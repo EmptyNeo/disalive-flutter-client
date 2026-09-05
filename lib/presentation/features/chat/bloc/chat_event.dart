@@ -32,6 +32,13 @@ class DeleteChat extends ChatEvent {
   DeleteChat(this.chatId);
 }
 
+// В chat_event.dart добавьте:
+class UpdateUserInChat extends ChatEvent {
+  final UserModel user;
+
+  UpdateUserInChat(this.user);
+}
+
 class SearchChats extends ChatEvent {
   final String query;
 

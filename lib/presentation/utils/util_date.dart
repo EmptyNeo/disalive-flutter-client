@@ -30,14 +30,16 @@ class UtilDate {
     return date?.toLocal();
   }
 
-  /// Парсит бэкендовую строку времени ("2026-08-20 21:24:36" и т.п.) и
-  /// возвращает короткое читаемое представление: "21:24" сегодня, "Вчера",
-  /// "20.08" в этом году, иначе "20.08.25". При невозможности распарсить
-  /// возвращает исходную строку, чтобы не потерять данные молча.
   static String? formatChatTime(String? raw) {
     if (raw == null || raw.isEmpty) return null;
-    final local = parseDateTime(raw);
-    if (local == null) return raw;
+
+    // Нормализуем: добавляем Z для UTC
+    final normalized = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
+    final utcTime = DateTime.tryParse('${normalized}Z');
+
+    if (utcTime == null) return raw;
+
+    final local = utcTime.toLocal();
 
     final now = DateTime.now();
 

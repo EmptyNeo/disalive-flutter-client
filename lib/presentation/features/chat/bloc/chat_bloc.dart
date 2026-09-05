@@ -5,6 +5,7 @@ import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -20,6 +21,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final WsEventBus _eventBus;
 
   StreamSubscription<WsEvent>? _messageCreateSubscription;
+  StreamSubscription<WsEvent>? _userUpdateSubscription;
   StreamSubscription<WsEvent>? _chatCreateSubscription;
   StreamSubscription<WsEvent>? _chatUpdateSubscription;
   StreamSubscription<WsEvent>? _chatDeleteSubscription;
@@ -31,6 +33,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<AddChat>(_onAddChat);
     on<UpdateChat>(_onUpdateChat);
     on<DeleteChat>(_onDeleteChat);
+    on<UpdateUserInChat>(_onUpdateUserInChat);
 
     _setupWsListeners();
   }
@@ -46,6 +49,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         if (messageData is Map<String, dynamic>) {
           final message = Message.fromMap(messageData);
           add(AddMessageToChat(message: message, isSelf: event.isSelf));
+        }
+      },
+    );
+
+    _userUpdateSubscription = _eventBus.subscribe(
+      table: 'User',
+      action: ActionType.update,
+      onData: (event) {
+        final userData = event.data['user'];
+        if (userData is Map<String, dynamic>) {
+          final user = UserModel.fromMap(userData);
+          add(UpdateUserInChat(user));
         }
       },
     );
@@ -125,7 +140,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final index = cachedChats.indexWhere((c) => c.id == event.chat.id);
 
     if (index != -1) {
-      cachedChats[index] = event.chat;
+      final oldChat = cachedChats[index];
+      final newChat = event.chat;
+
+      // Обновляем только name и pathImage — то, что реально меняется
+      cachedChats[index] = oldChat.copyWith(
+        name: newChat.name,
+        pathImage: newChat.pathImage ?? oldChat.pathImage,
+      );
+
+      // Сортируем (имя могло измениться)
       cachedChats.sort(ChatSorter.compare);
 
       emit(ChatLoaded(cachedChats));
@@ -167,6 +191,29 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
+  void _onUpdateUserInChat(UpdateUserInChat event, Emitter<ChatState> emit) {
+    final cachedChats = _chatRepository.getCached();
+
+    for (int i = 0; i < cachedChats.length; i++) {
+      final chat = cachedChats[i];
+
+      // Проверяем, является ли чат личным
+      if (chat.isPersonalChat && chat.user?.id == event.user.id) {
+        // Обновляем user в чате
+        cachedChats[i] = chat.copyWith(
+          user: event.user,
+          name: event.user.displayName, // Обновляем имя чата
+          pathImage: event.user.pathImage, // Обновляем аватар чата
+        );
+      }
+    }
+
+    // Сортируем (если нужно)
+    cachedChats.sort(ChatSorter.compare);
+
+    emit(ChatLoaded(cachedChats));
+  }
+
   void _onSearchChats(SearchChats event, Emitter<ChatState> emit) {
     final query = event.query.trim().toLowerCase();
 
@@ -188,6 +235,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   @override
   Future<void> close() {
     _messageCreateSubscription?.cancel();
+    _userUpdateSubscription?.cancel();
     _chatCreateSubscription?.cancel();
     _chatUpdateSubscription?.cancel();
     _chatDeleteSubscription?.cancel();

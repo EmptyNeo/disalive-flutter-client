@@ -1,7 +1,7 @@
-// lib/domain/models/link_preview.dart
+// lib/domain/models/link_data.dart
 import 'package:equatable/equatable.dart';
 
-class LinkPreview extends Equatable {
+class LinkData extends Equatable {
   final String? url;
   final String? title;
   final String? description;
@@ -9,7 +9,7 @@ class LinkPreview extends Equatable {
   final String? siteName;
   final String? video;
 
-  const LinkPreview({
+  const LinkData({
     this.url,
     this.title,
     this.description,
@@ -18,8 +18,8 @@ class LinkPreview extends Equatable {
     this.video,
   });
 
-  factory LinkPreview.fromMap(Map<String, dynamic> map) {
-    return LinkPreview(
+  factory LinkData.fromMap(Map<String, dynamic> map) {
+    return LinkData(
       url: map['url'],
       title: map['title'],
       description: map['description'],
@@ -40,7 +40,7 @@ class LinkPreview extends Equatable {
     };
   }
 
-  LinkPreview copyWith({
+  LinkData copyWith({
     String? url,
     String? title,
     String? description,
@@ -48,7 +48,7 @@ class LinkPreview extends Equatable {
     String? siteName,
     String? video,
   }) {
-    return LinkPreview(
+    return LinkData(
       url: url ?? this.url,
       title: title ?? this.title,
       description: description ?? this.description,

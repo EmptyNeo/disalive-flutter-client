@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
+import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/friend_request.dart';
+import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'requests_event.dart';
@@ -9,12 +14,68 @@ part 'requests_state.dart';
 
 class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
   final RequestsRepository _friendsRepository;
+  final WsEventBus _eventBus;
 
-  RequestsBloc(this._friendsRepository) : super(RequestsInitial()) {
+  StreamSubscription<WsEvent>? _createSubscription;
+  StreamSubscription<WsEvent>? _deleteSubscription;
+
+  RequestsBloc(this._friendsRepository, this._eventBus)
+    : super(RequestsInitial()) {
     on<GetRequests>(_onGetRequests);
     on<SendRequest>(_onSendRequest);
     on<CancelRequest>(_onCancelRequest);
     on<AcceptRequest>(_onAcceptRequest);
+    on<AddRequest>(_onAddRequest);
+    on<RemoveRequest>(_onRemoveRequest);
+
+    _setupWsListeners();
+  }
+
+  void _setupWsListeners() {
+    // Создание запроса в друзья (когда кто-то отправил тебе)
+    _createSubscription = _eventBus.subscribe(
+      table: 'FriendRequest',
+      action: ActionType.create,
+      onData: (event) {
+        final requestData = event.data['request'];
+        if (requestData is Map<String, dynamic>) {
+          final request = FriendRequest.fromMap(requestData);
+          add(AddRequest(request));
+        }
+      },
+    );
+
+    // Удаление запроса (когда отменили или приняли)
+    _deleteSubscription = _eventBus.subscribe(
+      table: 'FriendRequest',
+      action: ActionType.delete,
+      onData: (event) {
+        final requestId = event.data['requestId'] ?? event.data['id'];
+        if (requestId != null) {
+          add(RemoveRequest(requestId));
+        }
+      },
+    );
+  }
+
+  void _onAddRequest(AddRequest event, Emitter<RequestsState> emit) {
+    final requests = _friendsRepository.getCached();
+
+    // Проверяем, нет ли уже такого запроса
+    final exists = requests.any((r) => r.id == event.request.id);
+    if (!exists) {
+      requests.insert(0, event.request); // В начало списка
+    }
+
+    emit(RequestsLoaded(requests));
+  }
+
+  void _onRemoveRequest(RemoveRequest event, Emitter<RequestsState> emit) {
+    final requests = _friendsRepository.getCached();
+
+    requests.removeWhere((r) => r.id == event.requestId);
+
+    emit(RequestsLoaded(requests));
   }
 
   Future<void> _onGetRequests(
@@ -22,6 +83,13 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
     Emitter<RequestsState> emit,
   ) async {
     emit(RequestsLoading());
+
+    final cached = _friendsRepository.getCached();
+
+    if (cached.isNotEmpty && event.reload == false) {
+      emit(RequestsLoaded(cached));
+      return;
+    }
 
     final result = await _friendsRepository.get();
 
@@ -39,15 +107,14 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
 
     result.fold(
       (failure) {
-        // Можно показать ошибку
         if (state is RequestsLoaded) {
           final currentState = state as RequestsLoaded;
           emit(RequestsLoaded(currentState.requests));
         }
       },
       (success) {
-        // После отправки — обновляем список
-        add(GetRequests());
+        List<FriendRequest> requests = _friendsRepository.getCached();
+        emit(RequestsLoaded(requests));
       },
     );
   }
@@ -66,11 +133,8 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
         }
       },
       (success) {
-        // Обновляем список из кэша репозитория
-        if (state is RequestsLoaded) {
-          List<FriendRequest> requests = _friendsRepository.getCached();
-          emit(RequestsLoaded(requests));
-        }
+        List<FriendRequest> requests = _friendsRepository.getCached();
+        emit(RequestsLoaded(requests));
       },
     );
   }
@@ -89,12 +153,16 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
         }
       },
       (success) {
-        // После принятия — обновляем список
-        if (state is RequestsLoaded) {
-          List<FriendRequest> requests = _friendsRepository.getCached();
-          emit(RequestsLoaded(requests));
-        }
+        List<FriendRequest> requests = _friendsRepository.getCached();
+        emit(RequestsLoaded(requests));
       },
     );
+  }
+
+  @override
+  Future<void> close() {
+    _createSubscription?.cancel();
+    _deleteSubscription?.cancel();
+    return super.close();
   }
 }

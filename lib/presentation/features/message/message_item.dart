@@ -4,12 +4,16 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/presentation/features/message/widgets/answer_preview.dart';
+import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/media/grids/images_grid.dart';
 import 'package:disalive/presentation/utils/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
 class MessageItem extends StatelessWidget {
+  final void Function(int attachmentIndex)? onTapImage;
+
   const MessageItem({
     super.key,
     required this.message,
@@ -24,6 +28,7 @@ class MessageItem extends StatelessWidget {
     this.backgroundMessage,
     this.isLoading,
     this.hasError = false,
+    this.onTapImage,
   });
 
   final Message message;
@@ -155,7 +160,11 @@ class MessageItem extends StatelessWidget {
                       const SizedBox(height: 4),
                     ],
 
-                    if (hasAnswer) _stubLine('Ответ на сообщение'),
+                    if (hasAnswer)
+                      AnswerPreview(
+                        message: message.answerMessage,
+                        isMine: isMine,
+                      ),
 
                     if ((contentMessage.text ?? '').isNotEmpty)
                       Text(
@@ -165,14 +174,21 @@ class MessageItem extends StatelessWidget {
                         ),
                       ),
 
-                    if (hasLinkPreview) _stubLine('Превью ссылки'),
+                    if (hasLinkPreview)
+                      LinkPreview(
+                        link: contentMessage.linkPreview!,
+                        isMine: isMine,
+                      ),
                     if (hasInviteData) _stubLine('Приглашение'),
                     if (imageAttachments.isNotEmpty) ...[
                       if ((contentMessage.text ?? '').isNotEmpty ||
                           hasAnswer ||
                           hasForward)
                         const SizedBox(height: 4),
-                      ImagesGrid(images: imageAttachments),
+                      ImagesGrid(
+                        images: imageAttachments,
+                        onTapImage: onTapImage,
+                      ),
                       const SizedBox(height: 2),
                     ],
                     if (hasOtherAttachments) _stubLine('Вложения'),

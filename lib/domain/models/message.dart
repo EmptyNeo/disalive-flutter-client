@@ -1,7 +1,7 @@
 // lib/domain/models/message.dart
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/invite_data.dart';
-import 'package:disalive/domain/models/link_preview.dart';
+import 'package:disalive/domain/models/link_data.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/file_message.dart';
@@ -14,7 +14,7 @@ class Message extends Equatable {
   final int? userId;
   final String? text;
   final String? time;
-  final LinkPreview? linkPreview;
+  final LinkData? linkPreview;
   final InviteData? inviteData;
   final UserModel? user;
   final List<FileMessage>? attachments;
@@ -23,6 +23,7 @@ class Message extends Equatable {
   final Message? forwardMessage;
   final int? answerMessageId;
   final int? forwardMessageId;
+  final int? amountFiles;
 
   final ActionType? hasError;
   final ActionType? hasLoading;
@@ -43,6 +44,7 @@ class Message extends Equatable {
     this.forwardMessage,
     this.answerMessageId,
     this.forwardMessageId,
+    this.amountFiles,
     this.hasError,
     this.hasLoading,
   });
@@ -55,7 +57,7 @@ class Message extends Equatable {
       text: map['text'],
       time: map['time'],
       linkPreview: map['linkPreview'] != null
-          ? LinkPreview.fromMap(map['linkPreview'] as Map<String, dynamic>)
+          ? LinkData.fromMap(map['linkPreview'] as Map<String, dynamic>)
           : null,
       inviteData: map['inviteData'] != null
           ? InviteData.fromMap(map['inviteData'] as Map<String, dynamic>)
@@ -79,6 +81,7 @@ class Message extends Equatable {
       forwardMessage: map['forwardMessage'] != null
           ? Message.fromMap(map['forwardMessage'] as Map<String, dynamic>)
           : null,
+      amountFiles: map['amountFiles'],
     );
   }
 
@@ -110,7 +113,7 @@ class Message extends Equatable {
     int? userId,
     String? text,
     String? time,
-    LinkPreview? linkPreview,
+    LinkData? linkPreview,
     InviteData? inviteData,
     UserModel? user,
     List<FileMessage>? attachments,
@@ -156,8 +159,6 @@ class Message extends Equatable {
 
   bool get hasInvite => inviteData != null;
 
-  int? get amountFiles => attachments?.length;
-
   bool get hasErrorMessage => hasError != null;
 
   bool get isLoadingIcon => hasLoading != null;
@@ -183,6 +184,6 @@ class Message extends Equatable {
     answerMessageId,
     forwardMessageId,
     hasError,
-    hasLoading
+    hasLoading,
   ];
 }

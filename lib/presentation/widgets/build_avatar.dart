@@ -55,7 +55,7 @@ class _BuildAvatarState extends State<BuildAvatar> {
     final hasValidUrl = widget.url != null && widget.url!.isNotEmpty;
     final hasDefaultImage =
         (widget.url?.endsWith(AppAssets.defaultUserImage) ?? false) ||
-            (widget.url?.endsWith(AppAssets.defaultGroupImage) ?? false);
+        (widget.url?.endsWith(AppAssets.defaultGroupImage) ?? false);
 
     final hasStatus = widget.status != null;
 
@@ -87,7 +87,7 @@ class _BuildAvatarState extends State<BuildAvatar> {
             // это вырезанная дырка выше, а не что-то, что рисует сам
             // StatusDot, поэтому его собственный фон делаем прозрачным.
             child: StatusDot(
-              status: widget.status!,
+              status: widget.status ?? UserStatus.offline,
               size: widget.statusSize,
               backgroundColor: CupertinoColors.transparent,
             ),

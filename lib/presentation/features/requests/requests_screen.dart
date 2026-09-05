@@ -7,7 +7,6 @@ import 'package:disalive/presentation/features/requests/widgets/request_item.dar
 import 'package:disalive/presentation/features/requests/widgets/requests_header.dart';
 import 'package:disalive/presentation/features/requests/widgets/send_request_bar.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
-import 'package:disalive/presentation/widgets/custom_divider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -30,11 +29,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
   late final TextEditingController _usernameController;
   final ValueNotifier<bool> _hasText = ValueNotifier(false);
 
+  List<FriendRequest>? _cachedRequests;
+
   @override
   void initState() {
     super.initState();
     _requestsBloc = sl<RequestsBloc>();
-    _requestsBloc.add(GetRequests());
+    _requestsBloc.add(GetRequests(false));
 
     _usernameController = TextEditingController();
     _usernameController.addListener(_onTextChanged);
@@ -65,6 +66,13 @@ class _RequestsScreenState extends State<RequestsScreen> {
     FocusScope.of(context).unfocus();
   }
 
+  Future<void> _refresh() async {
+    _requestsBloc.add(GetRequests(true));
+    await _requestsBloc.stream.firstWhere(
+      (s) => s is RequestsLoaded || s is RequestsFailure,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -85,18 +93,78 @@ class _RequestsScreenState extends State<RequestsScreen> {
               borderRadius: BorderRadius.circular(24),
               child: BlocProvider.value(
                 value: _requestsBloc,
-                child: Column(
-                  children: [
-                    const RequestsHeader(),
-                    SendRequestBar(
-                      controller: _usernameController,
-                      hasText: _hasText,
-                      onSend: _onSendRequest,
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    CupertinoSliverRefreshControl(onRefresh: _refresh),
+
+                    const SliverToBoxAdapter(child: RequestsHeader()),
+                    SliverToBoxAdapter(
+                      child: SendRequestBar(
+                        controller: _usernameController,
+                        hasText: _hasText,
+                        onSend: _onSendRequest,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    // Единый фон всего экрана — сплошной AppColors.mainBackground
-                    // у карточки (child ниже), снаружи карточки — прозрачно.
-                    const Expanded(child: _RequestsBody()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                    BlocBuilder<RequestsBloc, RequestsState>(
+                      builder: (context, state) {
+                        // Сохраняем актуальный список, когда он успешно загружен
+                        if (state is RequestsLoaded) {
+                          _cachedRequests = state.requests;
+                        }
+
+                        // Если данные загружаются, но у нас уже есть старый список — показываем его
+                        if (state is RequestsLoading &&
+                            _cachedRequests != null) {
+                          if (_cachedRequests!.isEmpty) {
+                            return const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyView(),
+                            );
+                          }
+                          return _RequestsSliverList(
+                            requests: _cachedRequests!,
+                          );
+                        }
+
+                        // Если данных вообще нет (первый запуск) — крутилка в центре
+                        if (state is RequestsInitial ||
+                            state is RequestsLoading) {
+                          return const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(child: CupertinoActivityIndicator()),
+                          );
+                        }
+
+                        if (state is RequestsFailure) {
+                          // Если произошла ошибка при обновлении, но есть кэш — лучше показать кэш или ошибку.
+                          // Здесь при ошибке показываем экран ошибки, но если нужно, можно тоже fallback на кэш.
+                          return SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _ErrorView(
+                              message: state.error,
+                              onRetry: () =>
+                                  _requestsBloc.add(GetRequests(true)),
+                            ),
+                          );
+                        }
+
+                        final requests = (state as RequestsLoaded).requests;
+                        if (requests.isEmpty) {
+                          return const SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _EmptyView(),
+                          );
+                        }
+
+                        return _RequestsSliverList(requests: requests);
+                      },
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ],
                 ),
               ),
@@ -104,49 +172,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _RequestsBody extends StatelessWidget {
-  const _RequestsBody();
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<RequestsBloc, RequestsState>(
-      builder: (context, state) {
-        if (state is RequestsInitial || state is RequestsLoading) {
-          return const Center(child: CupertinoActivityIndicator());
-        }
-
-        if (state is RequestsFailure) {
-          return _ErrorView(
-            message: state.error,
-            onRetry: () => context.read<RequestsBloc>().add(GetRequests()),
-          );
-        }
-
-        final requests = (state as RequestsLoaded).requests;
-        if (requests.isEmpty) return const _EmptyView();
-
-        return CustomScrollView(
-          slivers: [
-            CupertinoSliverRefreshControl(onRefresh: () => _refresh(context)),
-            _RequestsSliverList(requests: requests),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-          ],
-        );
-      },
-    );
-  }
-
-  // Ждём новый результат после GetRequests, чтобы CupertinoSliverRefreshControl
-  // знал, когда убрать спиннер.
-  Future<void> _refresh(BuildContext context) {
-    final bloc = context.read<RequestsBloc>();
-    bloc.add(GetRequests());
-    return bloc.stream.firstWhere(
-      (s) => s is RequestsLoaded || s is RequestsFailure,
     );
   }
 }
@@ -163,13 +188,10 @@ class _RequestsSliverList extends StatelessWidget {
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final request = requests[index];
-        // Заявка идентифицируется на бэке по username пользователя —
-        // предполагаю, что UserModel его отдаёт (нужен для Accept/Cancel).
-        // Если поле называется иначе, поправить нужно только здесь.
         final username = request.user?.username ?? '';
 
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: RequestItem(
             request: request,
             onAccept: request.isIncoming

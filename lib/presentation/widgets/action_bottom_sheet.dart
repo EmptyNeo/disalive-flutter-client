@@ -101,7 +101,10 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
     animation.addListener(listener);
     _slideController.forward(from: 0).whenComplete(() {
       animation.removeListener(listener);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        FocusScope.of(context).unfocus();
+        Navigator.of(context).pop();
+      }
     });
   }
 

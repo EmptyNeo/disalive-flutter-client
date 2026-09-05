@@ -4,8 +4,11 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
+import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
+import 'package:disalive/presentation/utils/app_clipboard.dart';
 import 'package:disalive/presentation/utils/message_grouper.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
@@ -25,8 +28,12 @@ class MessagesList extends StatefulWidget {
   final Function(Message message) onSendMessage;
   final Function(Message message) onEditMessage;
   final Function(Message message) onDeleteMessage;
+  final VoidCallback? onFocusInput;
+  final VoidCallback? onUnfocusInput;
 
-  const MessagesList({
+  final Map<int, GlobalKey> _messageKeys = {};
+
+  MessagesList({
     super.key,
     required this.messageBloc,
     required this.chat,
@@ -35,6 +42,8 @@ class MessagesList extends StatefulWidget {
     required this.onSendMessage,
     required this.onEditMessage,
     required this.onDeleteMessage,
+    this.onFocusInput,
+    this.onUnfocusInput,
   });
 
   @override
@@ -184,8 +193,13 @@ class _MessagesListState extends State<MessagesList> {
             final grouped = groupedMessages[index];
             final message = grouped.message;
 
+            final key = widget._messageKeys.putIfAbsent(
+              message.id ?? message.localGeneratedId.hashCode,
+              () => GlobalKey(),
+            );
+
             return RepaintBoundary(
-              key: ValueKey(message.id ?? message.localGeneratedId),
+              key: key,
               child: MessageItem(
                 key: ValueKey(message.id ?? message.localGeneratedId),
                 message: message,
@@ -201,6 +215,17 @@ class _MessagesListState extends State<MessagesList> {
                 onTap: () => FocusScope.of(context).unfocus(),
                 isLoading: message.hasLoading,
                 hasError: message.hasErrorMessage,
+                onTapImage: (attachmentIndex) {
+                  // Получаем sourceRect из key
+                  final renderBox =
+                      key.currentContext?.findRenderObject() as RenderBox?;
+                  if (renderBox == null) return;
+
+                  final sourceRect =
+                      renderBox.localToGlobal(Offset.zero) & renderBox.size;
+
+                  _openMediaViewer(index, attachmentIndex, sourceRect);
+                },
               ),
             );
           },
@@ -210,6 +235,8 @@ class _MessagesListState extends State<MessagesList> {
   }
 
   void _showMessageActions(Message message) {
+    widget.onUnfocusInput?.call();
+
     final isMyMessage =
         widget.currentUserId != null && message.userId == widget.currentUserId;
 
@@ -234,7 +261,7 @@ class _MessagesListState extends State<MessagesList> {
         icon: CupertinoIcons.arrow_turn_up_left,
         label: 'Ответить',
         onTap: () {
-          // TODO: Логика ответа на сообщение
+          widget.onFocusInput?.call();
         },
       ),
 
@@ -244,7 +271,7 @@ class _MessagesListState extends State<MessagesList> {
           icon: CupertinoIcons.square_on_square,
           label: 'Копировать',
           onTap: () {
-            // TODO: Копирование в буфер обмена
+            AppClipboard.copyText(context, message.text!);
           },
         ),
 
@@ -264,6 +291,7 @@ class _MessagesListState extends State<MessagesList> {
           label: 'Редактировать',
           onTap: () {
             widget.onEditMessage(message);
+            widget.onFocusInput?.call();
           },
         ),
 
@@ -295,5 +323,27 @@ class _MessagesListState extends State<MessagesList> {
       case ActionType.delete:
         return 'Удалить повторно';
     }
+  }
+
+  void _openMediaViewer(
+    int messageIndex,
+    int attachmentIndex,
+    Rect sourceRect, // Передаём из itemBuilder
+  ) {
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return;
+
+    final position = MediaPosition(
+      messageIndex: messageIndex,
+      attachmentIndex: attachmentIndex,
+    );
+
+    MediaViewerScreen.open(
+      context,
+      messageBloc: widget.messageBloc,
+      chat: widget.chat,
+      initialPosition: position,
+      sourceRect: sourceRect,
+    );
   }
 }

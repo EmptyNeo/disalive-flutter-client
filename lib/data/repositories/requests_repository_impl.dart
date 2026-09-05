@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
@@ -43,16 +42,12 @@ class RequestsRepositoryImpl extends RequestsRepository {
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        bool success = json['success'] == true;
-        if (success) {
-          final request = FriendRequest.fromMap(json['message']);
-
-          final exists = _requests.any((r) => r.id == request.id);
-          if (!exists) {
-            _requests.add(request);
-          }
+        final request = FriendRequest.fromMap(json as Map<String, dynamic>);
+        final exists = _requests.any((r) => r.id == request.id);
+        if (!exists) {
+          _requests.insert(0, request);
         }
-        return success;
+        return true;
       },
     );
 
@@ -81,7 +76,7 @@ class RequestsRepositoryImpl extends RequestsRepository {
   @override
   Future<Either<Failure, bool>> accept(String username) async {
     final result = await _httpClient.postFormData<bool>(
-      endpoint: 'requests/accept.php',
+      endpoint: 'friends/create.php',
       data: {'username': username},
       apiType: ApiType.v1,
       requireAuth: true,
