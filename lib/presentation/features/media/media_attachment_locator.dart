@@ -7,21 +7,21 @@ import 'package:disalive/domain/models/message.dart';
 /// вложения внутри message.attachments.
 class MediaPosition {
   const MediaPosition({
-    required this.messageIndex,
+    required this.messageId, // <-- Заменили messageIndex на messageId
     required this.attachmentIndex,
   });
 
-  final int messageIndex;
+  final int? messageId; // Может быть null для локальных сообщений
   final int attachmentIndex;
 
   @override
   bool operator ==(Object other) =>
       other is MediaPosition &&
-      other.messageIndex == messageIndex &&
+      other.messageId == messageId &&
       other.attachmentIndex == attachmentIndex;
 
   @override
-  int get hashCode => Object.hash(messageIndex, attachmentIndex);
+  int get hashCode => Object.hash(messageId, attachmentIndex);
 }
 
 /// Находит соседнее вложение при свайпе, перетекая из одного сообщения в
@@ -39,13 +39,16 @@ class MediaAttachmentLocator {
     MediaPosition from,
     MediaStepDirection direction,
   ) {
-    if (messages.isEmpty || from.messageIndex >= messages.length) return null;
+    if (messages.isEmpty) return null;
+
+    // Находим текущий индекс по ID
+    final currentIndex = messages.indexWhere((m) => m.id == from.messageId);
+    if (currentIndex == -1) return null;
 
     final delta = direction == MediaStepDirection.older ? 1 : -1;
 
-    // Фильтруем только изображения и видео
     final current =
-        messages[from.messageIndex].attachments
+        messages[currentIndex].attachments
             ?.where((a) => a.isImageFile || a.isVideoFile)
             .toList() ??
         const [];
@@ -53,15 +56,15 @@ class MediaAttachmentLocator {
     final withinMessage = from.attachmentIndex + delta;
     if (withinMessage >= 0 && withinMessage < current.length) {
       return MediaPosition(
-        messageIndex: from.messageIndex,
+        messageId: from.messageId,
         attachmentIndex: withinMessage,
       );
     }
 
-    var messageIndex = from.messageIndex + delta;
-    while (messageIndex >= 0 && messageIndex < messages.length) {
+    var searchIndex = currentIndex + delta;
+    while (searchIndex >= 0 && searchIndex < messages.length) {
       final attachments =
-          messages[messageIndex].attachments
+          messages[searchIndex].attachments
               ?.where((a) => a.isImageFile || a.isVideoFile)
               .toList() ??
           const [];
@@ -69,11 +72,11 @@ class MediaAttachmentLocator {
       if (attachments.isNotEmpty) {
         final landingIndex = delta > 0 ? 0 : attachments.length - 1;
         return MediaPosition(
-          messageIndex: messageIndex,
+          messageId: messages[searchIndex].id, // Возвращаем ID, а не индекс
           attachmentIndex: landingIndex,
         );
       }
-      messageIndex += delta;
+      searchIndex += delta;
     }
 
     return null;

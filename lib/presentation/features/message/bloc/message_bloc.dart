@@ -133,6 +133,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             messages: cachedResponse.messages,
             actions: cachedResponse.actions,
             hasMoreMessages: cachedResponse.messages.isNotEmpty,
+            isLoadingMore: false, // Явно указываем
           ),
         );
         return;
@@ -154,16 +155,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             final mergedMessages = [...currentState.messages, ...olderMessages];
             final uniqueMessages = _removeDuplicates(mergedMessages);
 
-            // Если showed = false — не эмитим, только добавляем в кэш
-            if (!event.showed) {
-              return;
-            }
-
+            // Даже если showed == false, мы должны обновить состояние,
+            // чтобы слушатели (MediaViewer) знали, что данные есть.
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: currentState.actions,
-                isLoadingMore: false,
+                isLoadingMore: false, // Сбрасываем флаг загрузки!
                 hasMoreMessages: true,
               ),
             );
@@ -171,18 +169,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           }
         }
 
-        // Если старых сообщений нет в кэше
-        if (!event.showed) {
-          // Не эмитим, просто запрашиваем сервер
-        } else {
-          emit(
-            MessageLoaded(
-              messages: currentState.messages,
-              actions: currentState.actions,
-              isLoadingMore: true,
-            ),
-          );
-        }
+        // Если старых сообщений нет в кэше, мы все равно должны эмитить isLoadingMore: true,
+        // иначе UI не будет знать, что процесс пошел (опционально, но безопасно)
+        emit(
+          MessageLoaded(
+            messages: currentState.messages,
+            actions: currentState.actions,
+            isLoadingMore: true,
+          ),
+        );
       }
     }
 
@@ -200,8 +195,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
     result.fold(
       (failure) {
-        if (!event.showed) return; // Не эмитим при ошибке, если showed = false
-
+        // ВАЖНО: Даже при ошибке и showed: false мы должны сбросить флаг загрузки,
+        // иначе интерфейс зависнет навсегда.
         if (state is! MessageLoaded) {
           emit(MessageFailure(failure.message));
         } else {
@@ -210,7 +205,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             MessageLoaded(
               messages: currentState.messages,
               actions: currentState.actions,
-              isLoadingMore: false,
+              isLoadingMore: false, // Сбрасываем флаг
             ),
           );
         }
@@ -219,27 +214,24 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         if (isInitialLoad) {
           _messageRepository.cacheMessages(event.chatId, response.messages);
 
-          if (!event.showed) return; // Не эмитим
-
           emit(
             MessageLoaded(
               messages: response.messages,
               actions: response.actions,
               hasMoreMessages: response.messages.isNotEmpty,
+              isLoadingMore: false,
             ),
           );
         } else {
           final currentState = state;
           if (currentState is MessageLoaded) {
             if (response.messages.isEmpty) {
-              if (!event.showed) return;
-
               emit(
                 MessageLoaded(
                   messages: currentState.messages,
                   actions: currentState.actions,
                   isLoadingMore: false,
-                  hasMoreMessages: false,
+                  hasMoreMessages: false, // Сообщения действительно закончились
                 ),
               );
               return;
@@ -253,14 +245,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
             _messageRepository.cacheMessages(event.chatId, uniqueMessages);
 
-            if (!event.showed) return; // Не эмитим
-
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: currentState.actions,
-                isLoadingMore: false,
-                hasMoreMessages: true,
+                isLoadingMore: false, // Критически важно сбросить этот флаг!
+                hasMoreMessages:
+                    response.messages.length >=
+                    event.limit, // Более точная проверка
               ),
             );
           }

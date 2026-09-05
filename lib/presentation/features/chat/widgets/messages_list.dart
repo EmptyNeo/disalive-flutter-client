@@ -224,7 +224,7 @@ class _MessagesListState extends State<MessagesList> {
                   final sourceRect =
                       renderBox.localToGlobal(Offset.zero) & renderBox.size;
 
-                  _openMediaViewer(index, attachmentIndex, sourceRect);
+                  _openMediaViewer(message.getId, attachmentIndex, sourceRect);
                 },
               ),
             );
@@ -326,7 +326,7 @@ class _MessagesListState extends State<MessagesList> {
   }
 
   void _openMediaViewer(
-    int messageIndex,
+    int messageId,
     int attachmentIndex,
     Rect sourceRect, // Передаём из itemBuilder
   ) {
@@ -334,7 +334,7 @@ class _MessagesListState extends State<MessagesList> {
     if (state is! MessageLoaded) return;
 
     final position = MediaPosition(
-      messageIndex: messageIndex,
+      messageId: messageId,
       attachmentIndex: attachmentIndex,
     );
 

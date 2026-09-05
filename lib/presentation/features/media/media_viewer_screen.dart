@@ -76,6 +76,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late List<MediaPosition> _positions;
   bool _isRequestingMore = false;
 
+  late final int _initialPageIndex;
+
   List<Message> get _messages {
     final cached = sl<MessageRepository>().getCached(widget.chat.id);
     return cached?.messages ?? [];
@@ -92,7 +94,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
     final messages = _messages;
 
-    // Строим "более новые" (newer) — в начало списка
+    // 1. Строим "более новые"
     final newerPositions = <MediaPosition>[];
     var cursor = widget.initialPosition;
     while (true) {
@@ -106,7 +108,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    // Строим "более старые" (older) — в конец списка
+    // 2. Строим "более старые"
     final olderPositions = <MediaPosition>[];
     cursor = widget.initialPosition;
     while (true) {
@@ -120,16 +122,17 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       cursor = next;
     }
 
-    // Итог: [newer..., initial, older...]
+    // 3. Сохраняем изначальный индекс ДО объединения массивов!
+    _initialPageIndex = newerPositions.length;
+
+    // 4. Итоговый массив
     _positions = [
       ...newerPositions.reversed,
       widget.initialPosition,
       ...olderPositions,
     ];
 
-    _pageController = PageController(
-      initialPage: newerPositions.length, // Индекс initialPosition
-    );
+    _pageController = PageController(initialPage: _initialPageIndex);
   }
 
   @override
@@ -183,16 +186,19 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   }
 
   void _handleClose() {
-    final pageIndex = _pageController.page?.round() ?? _positions.length - 1;
-    final current = _positions[pageIndex];
-    final initial = widget.initialPosition;
+    // Получаем текущий индекс страницы (округляем до целого)
+    final currentPageIndex = _pageController.page?.round() ?? _initialPageIndex;
 
-    if (current.messageIndex == initial.messageIndex) {
+    if (currentPageIndex == _initialPageIndex) {
+      // Мы на той же странице, с которой начали -> летим обратно к источнику
       widget.setCloseMode(MediaCloseMode.toSource);
-    } else if (current.messageIndex < initial.messageIndex) {
-      // Меньший индекс -> сообщение новее -> визуально ниже исходного.
+    } else if (currentPageIndex < _initialPageIndex) {
+      // Индекс меньше -> мы ушли влево по PageView -> это более НОВЫЕ сообщения.
+      // В чате (reverse: true) новые сообщения находятся ВИЗУАЛЬНО НИЖЕ.
       widget.setCloseMode(MediaCloseMode.collapseDown);
     } else {
+      // Индекс больше -> мы ушли вправо по PageView -> это более СТАРЫЕ сообщения.
+      // В чате старые сообщения находятся ВИЗУАЛЬНО ВЫШЕ.
       widget.setCloseMode(MediaCloseMode.collapseUp);
     }
 
@@ -224,7 +230,12 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 final position = _positions[index];
                 final messages = _messages;
 
-                if (position.messageIndex >= messages.length) {
+                // Динамически находим актуальный индекс сообщения по его ID
+                final actualMessageIndex = messages.indexWhere(
+                  (m) => m.id == position.messageId,
+                );
+
+                if (actualMessageIndex == -1) {
                   return const Center(
                     child: CupertinoActivityIndicator(
                       color: CupertinoColors.white,
@@ -233,10 +244,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 }
 
                 final attachments =
-                    messages[position.messageIndex].attachments
+                    messages[actualMessageIndex].attachments
                         ?.where((a) => a.isImageFile || a.isVideoFile)
                         .toList() ??
                     const [];
+
                 if (position.attachmentIndex >= attachments.length) {
                   return const SizedBox.shrink();
                 }
