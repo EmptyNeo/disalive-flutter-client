@@ -51,4 +51,9 @@ class ChatRepositoryImpl implements ChatRepository {
   void setCurrentChat(Chat chat) {
     _currentChat = chat;
   }
+
+  @override
+  bool isCurrentChat(int chatId) {
+    return _currentChat?.id == chatId;
+  }
 }

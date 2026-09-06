@@ -1,17 +1,15 @@
 // presentation/features/media/media_viewer_screen.dart
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/ui/media_close_mode.dart';
 import 'package:disalive/domain/enums/ui/media_step_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/presentation/features/media/bloc/media_viewer_bloc.dart';
 import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
 import 'package:disalive/presentation/features/media/media_viewer_route.dart';
 import 'package:disalive/presentation/features/media/widgets/media_page.dart';
-import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -297,8 +295,12 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       );
                     }
 
+                    final currentMessage = messages[actualMessageIndex];
+                    final contentMessage =
+                        currentMessage.forwardMessage ?? currentMessage;
+
                     final attachments =
-                        messages[actualMessageIndex].attachments
+                        contentMessage.attachments
                             ?.where((a) => a.isImageFile || a.isVideoFile)
                             .toList() ??
                         const [];

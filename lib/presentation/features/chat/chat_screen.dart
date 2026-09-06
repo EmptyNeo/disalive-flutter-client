@@ -29,11 +29,15 @@ class ChatScreen extends StatefulWidget {
 
   static Future<void> open(BuildContext context, Chat chat) {
     ChatBloc chatBloc = context.read<ChatBloc>();
+    MessageBloc messageBloc = context.read<MessageBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
-      (context) => BlocProvider.value(
-        value: chatBloc,
+      (context) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: chatBloc),
+          BlocProvider.value(value: messageBloc),
+        ],
         child: ChatScreen(chat: chat),
       ),
     );
@@ -70,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController = TextEditingController();
     _textController.addListener(_onTextChanged);
 
-    _messageBloc = sl<MessageBloc>();
+    _messageBloc = context.read<MessageBloc>();
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
@@ -109,7 +113,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _hasText.dispose();
-    _messageBloc.close();
     _inputFocusNode.dispose();
     super.dispose();
   }

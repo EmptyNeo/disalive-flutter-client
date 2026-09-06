@@ -21,6 +21,7 @@ part 'message_state.dart';
 
 class MessageBloc extends Bloc<MessageEvent, MessageState> {
   final MessageRepository _messageRepository;
+  final ChatRepository _chatRepository;
   final WsEventBus _eventBus;
 
   StreamSubscription? _createSubscription;
@@ -29,17 +30,17 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
   final String tableName = 'Message';
 
-  MessageBloc(this._messageRepository, this._eventBus)
+  MessageBloc(this._messageRepository, this._chatRepository, this._eventBus)
     : super(MessageInitial()) {
     on<GetMessages>(_onGetMessages);
     on<CreateMessage>(_onCreateMessage);
     on<DeleteMessage>(_onDeleteMessage);
     on<UpdateMessage>(_onUpdateMessage);
-
-    _setupWsListeners();
   }
 
-  void _setupWsListeners() {
+  void setupListeners() {
+    closeSubs();
+
     _createSubscription = _eventBus.subscribe(
       table: tableName,
       action: ActionType.create,
@@ -463,6 +464,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     if (state is! MessageLoaded) return;
     final cached = _messageRepository.getCached(chatId);
 
+    if (!_chatRepository.isCurrentChat(chatId)) return;
+
     emit(
       MessageLoaded(
         messages: cached?.messages ?? [],
@@ -512,9 +515,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
   @override
   Future<void> close() {
+    closeSubs();
+    return super.close();
+  }
+
+  void closeSubs() {
     _createSubscription?.cancel();
     _updateSubscription?.cancel();
     _deleteSubscription?.cancel();
-    return super.close();
   }
 }

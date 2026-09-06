@@ -34,11 +34,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<UpdateChat>(_onUpdateChat);
     on<DeleteChat>(_onDeleteChat);
     on<UpdateUserInChat>(_onUpdateUserInChat);
-
-    _setupWsListeners();
   }
 
-  void _setupWsListeners() {
+  void setupListeners() {
+    closeSubs();
     print("SETUP WS LISTENERS");
 
     _messageCreateSubscription = _eventBus.subscribe(
@@ -234,11 +233,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   @override
   Future<void> close() {
+    closeSubs();
+    return super.close();
+  }
+
+  void closeSubs() {
     _messageCreateSubscription?.cancel();
     _userUpdateSubscription?.cancel();
     _chatCreateSubscription?.cancel();
     _chatUpdateSubscription?.cancel();
     _chatDeleteSubscription?.cancel();
-    return super.close();
   }
 }

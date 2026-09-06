@@ -4,7 +4,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
-import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
+import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';

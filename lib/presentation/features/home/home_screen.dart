@@ -7,6 +7,7 @@ import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
+import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/features/home/widgets/supportive/keep_alive_page.dart';
@@ -65,86 +66,103 @@ class _HomeScreenState extends State<HomeScreen> {
         BlocProvider<RequestsBloc>(
           create: (_) => sl<RequestsBloc>()..add(GetRequests(true)),
         ),
+        BlocProvider<MessageBloc>(create: (_) => sl<MessageBloc>()),
       ],
-      child: BlocBuilder<ProfileBloc, ProfileState>(
-        builder: (context, state) {
-          if (state is ProfileLoading) {
-            return CupertinoPageScaffold(
-              backgroundColor: AppColors.mainBackground,
-              child: const Center(child: CupertinoActivityIndicator()),
-            );
+      // 🎯 ДОБАВЛЯЕМ BlocListener ДЛЯ ChatServerBloc ЗДЕСЬ
+      child: BlocListener<ChatServerBloc, ChatServerState>(
+        listener: (context, state) {
+          // Когда сервер успешно подключился, инициализируем слушатели событий
+          if (state is ChatServerConnected) {
+            // Вызываем публичные методы setupListeners() в обоих блоках
+            context.read<ChatBloc>().setupListeners();
+            context.read<MessageBloc>().setupListeners();
           }
-
-          if (state is ProfileLoaded) {
-            final bottomSafeArea = MediaQuery.of(context).padding.bottom;
-            final menuBottomMargin = bottomSafeArea > 0 ? bottomSafeArea : 16.0;
-
-            return CupertinoPageScaffold(
-              backgroundColor: AppColors.mainBackground,
-              child: Stack(
-                children: [
-                  // Основной контент с поддержкой свайпов
-                  _buildBody(state.user),
-
-                  // Кнопка создания чата (FAB)
-                  Positioned(
-                    bottom: menuBottomMargin + 80,
-                    right: 20,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: AppColors.blurple,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.blurple.withOpacity(0.4),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: GlassIconButton(
-                        filled: true,
-                        icon: CupertinoIcons.add,
-                        onTap: () {},
-                      ),
-                    ),
-                  ),
-
-                  // Стеклянное плавающее нижнее меню
-                  Positioned(
-                    bottom: menuBottomMargin,
-                    left: 16,
-                    right: 16,
-                    child: BottomMenu(
-                      user: state.user,
-                      onTapTapped: _onTabTapped,
-                      currentIndex: _currentIndex,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          if (state is ProfileFailure) {
-            return CupertinoPageScaffold(
-              backgroundColor: AppColors.mainBackground,
-              child: Center(
-                child: Text(
-                  'Ошибка: ${state.error}',
-                  style: const TextStyle(color: CupertinoColors.white),
-                ),
-              ),
-            );
-          }
-
-          return CupertinoPageScaffold(
-            backgroundColor: AppColors.mainBackground,
-            child: const Center(child: CupertinoActivityIndicator(radius: 12)),
-          );
         },
+        // Твой существующий BlocBuilder для Profile теперь внутри Listener'а
+        child: BlocBuilder<ProfileBloc, ProfileState>(
+          builder: (context, state) {
+            if (state is ProfileLoading) {
+              return CupertinoPageScaffold(
+                backgroundColor: AppColors.mainBackground,
+                child: const Center(child: CupertinoActivityIndicator()),
+              );
+            }
+
+            if (state is ProfileLoaded) {
+              final bottomSafeArea = MediaQuery.of(context).padding.bottom;
+              final menuBottomMargin = bottomSafeArea > 0
+                  ? bottomSafeArea
+                  : 16.0;
+
+              return CupertinoPageScaffold(
+                backgroundColor: AppColors.mainBackground,
+                child: Stack(
+                  children: [
+                    // Основной контент с поддержкой свайпов
+                    _buildBody(state.user),
+
+                    // Кнопка создания чата (FAB)
+                    Positioned(
+                      bottom: menuBottomMargin + 80,
+                      right: 20,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.blurple,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.blurple.withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: GlassIconButton(
+                          filled: true,
+                          icon: CupertinoIcons.add,
+                          onTap: () {},
+                        ),
+                      ),
+                    ),
+
+                    // Стеклянное плавающее нижнее меню
+                    Positioned(
+                      bottom: menuBottomMargin,
+                      left: 16,
+                      right: 16,
+                      child: BottomMenu(
+                        user: state.user,
+                        onTapTapped: _onTabTapped,
+                        currentIndex: _currentIndex,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (state is ProfileFailure) {
+              return CupertinoPageScaffold(
+                backgroundColor: AppColors.mainBackground,
+                child: Center(
+                  child: Text(
+                    'Ошибка: ${state.error}',
+                    style: const TextStyle(color: CupertinoColors.white),
+                  ),
+                ),
+              );
+            }
+
+            return CupertinoPageScaffold(
+              backgroundColor: AppColors.mainBackground,
+              child: const Center(
+                child: CupertinoActivityIndicator(radius: 12),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

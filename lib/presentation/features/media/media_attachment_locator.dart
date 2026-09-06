@@ -1,28 +1,8 @@
 // presentation/features/media/media_attachment_locator.dart
 import 'package:disalive/domain/enums/ui/media_step_direction.dart';
+import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
-
-/// Координата конкретного вложения: индекс сообщения в том же списке
-/// [Message], которым уже пользуется MessageBloc/MessagesList, и индекс
-/// вложения внутри message.attachments.
-class MediaPosition {
-  const MediaPosition({
-    required this.messageId, // <-- Заменили messageIndex на messageId
-    required this.attachmentIndex,
-  });
-
-  final int? messageId; // Может быть null для локальных сообщений
-  final int attachmentIndex;
-
-  @override
-  bool operator ==(Object other) =>
-      other is MediaPosition &&
-      other.messageId == messageId &&
-      other.attachmentIndex == attachmentIndex;
-
-  @override
-  int get hashCode => Object.hash(messageId, attachmentIndex);
-}
+import 'package:disalive/domain/models/ui/media_position.dart';
 
 /// Находит соседнее вложение при свайпе, перетекая из одного сообщения в
 /// другое, когда вложения текущего сообщения заканчиваются.
@@ -33,6 +13,14 @@ class MediaPosition {
 /// hasMoreMessages из MessageBloc).
 class MediaAttachmentLocator {
   const MediaAttachmentLocator._();
+
+  static List<FileMessage> _getAttachments(Message m) {
+    final contentMessage = m.forwardMessage ?? m;
+    return contentMessage.attachments
+            ?.where((a) => a.isImageFile || a.isVideoFile)
+            .toList() ??
+        const [];
+  }
 
   static MediaPosition? step(
     List<Message> messages,
@@ -47,11 +35,7 @@ class MediaAttachmentLocator {
 
     final delta = direction == MediaStepDirection.older ? 1 : -1;
 
-    final current =
-        messages[currentIndex].attachments
-            ?.where((a) => a.isImageFile || a.isVideoFile)
-            .toList() ??
-        const [];
+    final current = _getAttachments(messages[currentIndex]);
 
     final withinMessage = from.attachmentIndex + delta;
     if (withinMessage >= 0 && withinMessage < current.length) {
@@ -63,11 +47,7 @@ class MediaAttachmentLocator {
 
     var searchIndex = currentIndex + delta;
     while (searchIndex >= 0 && searchIndex < messages.length) {
-      final attachments =
-          messages[searchIndex].attachments
-              ?.where((a) => a.isImageFile || a.isVideoFile)
-              .toList() ??
-          const [];
+      final attachments = _getAttachments(messages[searchIndex]);
 
       if (attachments.isNotEmpty) {
         final landingIndex = delta > 0 ? 0 : attachments.length - 1;
