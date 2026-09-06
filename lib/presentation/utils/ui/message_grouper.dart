@@ -2,7 +2,7 @@
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/message_grouped.dart';
-import 'package:disalive/presentation/utils/util_date.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
 
 class MessageGrouper {
   MessageGrouper._();

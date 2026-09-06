@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -12,9 +13,10 @@ class ChatInputArea extends StatelessWidget {
   final FocusNode _inputFocusNode;
   final GlobalKey _inputKey;
   final bool _hasEdit;
+  final Message? _answerMessage;
   final ValueNotifier<bool> _hasText;
   final TextEditingController _textController;
-  final VoidCallback _cancelEdit;
+  final VoidCallback _cancelBanner;
   final Function(Message message) _onSendMessage;
   final Function(Message message) _onApplyEdit;
 
@@ -23,22 +25,26 @@ class ChatInputArea extends StatelessWidget {
     required GlobalKey inputKey,
     required TextEditingController textController,
     required bool hasEdit,
+    required Message? answerMessage,
     required ValueNotifier<bool> hasText,
-    required VoidCallback cancelEdit,
+    required VoidCallback cancelBanner,
     required Function(Message message) onSendMessage,
     required Function(Message message) onApplyEdit,
     required FocusNode inputFocusNode,
   }) : _inputKey = inputKey,
        _textController = textController,
        _hasEdit = hasEdit,
+       _answerMessage = answerMessage,
        _hasText = hasText,
-       _cancelEdit = cancelEdit,
+       _cancelBanner = cancelBanner,
        _onSendMessage = onSendMessage,
        _onApplyEdit = onApplyEdit,
        _inputFocusNode = inputFocusNode;
 
   @override
   Widget build(BuildContext context) {
+    bool hasAnswer = _answerMessage != null;
+
     return Padding(
       key: _inputKey,
       padding: const EdgeInsets.fromLTRB(
@@ -52,7 +58,8 @@ class ChatInputArea extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_hasEdit) _buildEditBanner(),
-          if (_hasEdit) const SizedBox(height: 6),
+          if (hasAnswer) _buildAnswerBanner(_answerMessage),
+          if (_hasEdit || hasAnswer) const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -72,39 +79,36 @@ class ChatInputArea extends StatelessWidget {
                     bottomLeft: const Radius.circular(20),
                     bottomRight: const Radius.circular(20),
                   ),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.actionGrey.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(_hasEdit ? 8 : 20),
-                          topRight: Radius.circular(_hasEdit ? 8 : 20),
-                          bottomLeft: const Radius.circular(20),
-                          bottomRight: const Radius.circular(20),
-                        ),
-                        border: Border.all(
-                          color: AppColors.white.withValues(alpha: 0.08),
-                        ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.lightGrey,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(_hasEdit ? 8 : 20),
+                        topRight: Radius.circular(_hasEdit ? 8 : 20),
+                        bottomLeft: const Radius.circular(20),
+                        bottomRight: const Radius.circular(20),
                       ),
-                      child: CupertinoTextField(
-                        controller: _textController,
-                        focusNode: _inputFocusNode,
-                        minLines: 1,
-                        maxLines: 5,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        placeholder: 'Сообщение...',
-                        placeholderStyle: AppText.mediumTextStyle.copyWith(
-                          color: AppColors.greyple,
-                        ),
-                        style: AppText.mediumTextStyle.copyWith(
-                          color: AppColors.white,
-                        ),
-                        decoration: null,
+                      border: Border.all(
+                        color: AppColors.white.withValues(alpha: 0.08),
                       ),
+                    ),
+                    child: CupertinoTextField(
+                      controller: _textController,
+                      focusNode: _inputFocusNode,
+                      minLines: 1,
+                      maxLines: 5,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      placeholder: 'Сообщение...',
+                      placeholderStyle: AppText.mediumTextStyle.copyWith(
+                        color: AppColors.greyple,
+                      ),
+                      style: AppText.mediumTextStyle.copyWith(
+                        color: AppColors.white,
+                      ),
+                      decoration: null,
                     ),
                   ),
                 ),
@@ -143,63 +147,23 @@ class ChatInputArea extends StatelessWidget {
   }
 
   Widget _buildEditBanner() {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(20),
-        topRight: Radius.circular(20),
-        bottomLeft: Radius.circular(8),
-        bottomRight: Radius.circular(8),
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.actionGrey.withValues(alpha: 0.35),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-              bottomLeft: Radius.circular(8),
-              bottomRight: Radius.circular(8),
-            ),
-            border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 10,
-                backgroundColor: AppColors.blurple,
-                child: Icon(
-                  CupertinoIcons.pencil,
-                  size: 14,
-                  color: AppColors.onBlurple,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Редактирование сообщения',
-                  style: AppText.lowTextStyle.copyWith(
-                    color: AppColors.white,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _cancelEdit,
-                child: Icon(
-                  CupertinoIcons.xmark,
-                  size: 16,
-                  color: AppColors.greyple,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return InputBannerTop(
+      title: 'Редактирование сообщения',
+      icon: CupertinoIcons.pencil,
+      onClose: _cancelBanner,
+    );
+  }
+
+  Widget _buildAnswerBanner(Message message) {
+    final user = message.user;
+    if (user == null) {
+      return SizedBox.shrink();
+    }
+
+    return InputBannerTop(
+      title: 'Ответ ${_answerMessage?.user?.displayName ?? ''}',
+      icon: CupertinoIcons.arrow_turn_up_left,
+      onClose: _cancelBanner,
     );
   }
 }

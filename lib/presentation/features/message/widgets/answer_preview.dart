@@ -1,8 +1,7 @@
 // lib/presentation/features/message/widgets/answer_preview.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/message.dart';
-import 'package:disalive/presentation/features/message/widgets/media/image_item.dart';
-import 'package:disalive/presentation/utils/pluralize.dart';
+import 'package:disalive/presentation/utils/ui/pluralize.dart';
 import 'package:flutter/cupertino.dart';
 
 /// Превью сообщения, на которое отвечают ("Ответ на сообщение") — цветная

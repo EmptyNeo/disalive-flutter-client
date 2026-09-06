@@ -12,7 +12,7 @@ import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
-import 'package:disalive/presentation/utils/message_grouper.dart';
+import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'message_event.dart';

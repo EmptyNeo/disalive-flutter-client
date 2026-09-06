@@ -25,11 +25,13 @@ class BottomMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      // Изменил на 32, чтобы совпадало с высотой 64 (идеальная пилюля)
+      // и с радиусом внутреннего Container. Если дизайн требует 24, верните 24.
+      borderRadius: BorderRadius.circular(32),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          height: 64, // Фиксируем общую высоту для корректной работы Stack
+          height: 64,
           decoration: BoxDecoration(
             color: AppColors.darkGrey.withOpacity(0.65),
             borderRadius: BorderRadius.circular(32),
@@ -40,59 +42,59 @@ class BottomMenu extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              // Высчитываем ширину одной секции (всего их 3)
               final itemWidth = constraints.maxWidth / 3;
               double containerWidth = currentIndex == 0 ? 54 : 74;
-
-              return Stack(
-                children: [
-                  // Анимированный плавающий фон активного элемента
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    // Плавная iOS-подобная кривая
-                    left: currentIndex * itemWidth,
-                    top: 6,
-                    bottom: 6,
-                    child: Container(
-                      width: itemWidth,
-                      alignment: Alignment.center,
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: Stack(
+                  children: [
+                    // Анимированный плавающий фон активного элемента
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      left: currentIndex * itemWidth,
+                      top: 6,
+                      bottom: 6,
                       child: Container(
-                        width: containerWidth, // Ширина самой плашки
-                        decoration: BoxDecoration(
-                          color: AppColors.darkGrey,
-                          borderRadius: BorderRadius.circular(32),
+                        width: itemWidth,
+                        alignment: Alignment.center,
+                        child: Container(
+                          width: containerWidth,
+                          decoration: BoxDecoration(
+                            color: AppColors.darkGrey,
+                            borderRadius: BorderRadius.circular(32),
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  // Сами элементы меню поверх фона
-                  Row(
-                    children: [
-                      _buildNavItem(
-                        width: itemWidth,
-                        index: 0,
-                        icon: currentIndex == 0
-                            ? CupertinoIcons.chat_bubble_2_fill
-                            : CupertinoIcons.chat_bubble_2,
-                        label: 'Чаты',
-                      ),
-                      _buildNavItem(
-                        width: itemWidth,
-                        index: 1,
-                        icon: CupertinoIcons.settings_solid,
-                        label: 'Настройки',
-                      ),
-                      _buildProfileNavItem(
-                        width: itemWidth,
-                        index: 2,
-                        user: user,
-                        label: 'Профиль',
-                      ),
-                    ],
-                  ),
-                ],
+                    // Сами элементы меню поверх фона
+                    Row(
+                      children: [
+                        _buildNavItem(
+                          width: itemWidth,
+                          index: 0,
+                          icon: currentIndex == 0
+                              ? CupertinoIcons.chat_bubble_2_fill
+                              : CupertinoIcons.chat_bubble_2,
+                          label: 'Чаты',
+                        ),
+                        _buildNavItem(
+                          width: itemWidth,
+                          index: 1,
+                          icon: CupertinoIcons.settings_solid,
+                          label: 'Настройки',
+                        ),
+                        _buildProfileNavItem(
+                          width: itemWidth,
+                          index: 2,
+                          user: user,
+                          label: 'Профиль',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               );
             },
           ),

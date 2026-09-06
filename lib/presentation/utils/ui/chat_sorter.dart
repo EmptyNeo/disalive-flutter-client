@@ -1,6 +1,6 @@
 // lib/presentation/utils/chat_sorter.dart
 import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/presentation/utils/util_date.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
 
 class ChatSorter {
   ChatSorter._();

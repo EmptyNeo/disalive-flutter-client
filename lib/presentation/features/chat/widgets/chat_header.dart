@@ -34,44 +34,41 @@ class ChatHeader extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(32),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.mainBackground.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
-                      color: AppColors.white.withValues(alpha: 0.08),
-                    ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.lightGrey,
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.08),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 6.0,
-                    ),
-                    child: Row(
-                      children: [
-                        BuildAvatar(
-                          url: chat.urlAvatar,
-                          wh: 26,
-                          size: 20,
-                          status: chat.user?.status,
-                          statusSize: 6,
-                          isBookmark: chat.isSoloChat ?? false,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            chat.name,
-                            style: AppText.mediumTextStyle.copyWith(
-                              color: AppColors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8.0,
+                    vertical: 6.0,
+                  ),
+                  child: Row(
+                    children: [
+                      BuildAvatar(
+                        url: chat.urlAvatar,
+                        wh: 26,
+                        size: 20,
+                        status: chat.user?.status,
+                        statusSize: 6,
+                        isBookmark: chat.isSoloChat ?? false,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          chat.name,
+                          style: AppText.mediumTextStyle.copyWith(
+                            color: AppColors.white,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),

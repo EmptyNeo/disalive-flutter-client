@@ -6,8 +6,10 @@ import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/presentation/features/message/widgets/answer_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
+import 'package:disalive/presentation/features/message/widgets/media/grids/audios_grid.dart';
+import 'package:disalive/presentation/features/message/widgets/media/grids/files_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/media/grids/images_grid.dart';
-import 'package:disalive/presentation/utils/util_date.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -66,11 +68,22 @@ class MessageItem extends StatelessWidget {
             ?.where((f) => f.isImageFile && f.hasValidPath)
             .toList() ??
         const [];
-    final hasOtherAttachments =
-        contentMessage.attachments?.any(
-          (f) => !f.isImageFile || !f.hasValidPath,
-        ) ??
-        false;
+    final List<FileMessage> audiosAttachments =
+        contentMessage.attachments
+            ?.where((f) => f.isAudioFile && f.hasValidPath)
+            .toList() ??
+        const [];
+    final List<FileMessage> otherAttachments =
+        contentMessage.attachments
+            ?.where(
+              (f) =>
+                  f.isDefaultFile &&
+                  !f.isImageFile &&
+                  !f.isAudioFile &&
+                  f.hasValidPath,
+            )
+            .toList() ??
+        const [];
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
@@ -191,7 +204,23 @@ class MessageItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                     ],
-                    if (hasOtherAttachments) _stubLine('Вложения'),
+                    if (audiosAttachments.isNotEmpty) ...[
+                      if ((contentMessage.text ?? '').isNotEmpty ||
+                          hasAnswer ||
+                          hasForward ||
+                          imageAttachments.isNotEmpty)
+                        const SizedBox(height: 4),
+                      AudiosGrid(audios: audiosAttachments, isMine: isMine),
+                    ],
+                    if (otherAttachments.isNotEmpty) ...[
+                      if ((contentMessage.text ?? '').isNotEmpty ||
+                          hasAnswer ||
+                          hasForward ||
+                          imageAttachments.isNotEmpty ||
+                          audiosAttachments.isNotEmpty)
+                        const SizedBox(height: 4),
+                      FilesGrid(files: otherAttachments, isMine: isMine),
+                    ],
                     if (hasReactions) _stubLine('Реакции'),
 
                     if (showStatusRow) ...[

@@ -5,7 +5,7 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
-import 'package:disalive/presentation/utils/chat_sorter.dart';
+import 'package:disalive/presentation/utils/ui/chat_sorter.dart';
 
 class ChatRepositoryImpl implements ChatRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();

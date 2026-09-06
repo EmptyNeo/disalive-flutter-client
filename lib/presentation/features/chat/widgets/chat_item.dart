@@ -1,7 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
-import 'package:disalive/presentation/utils/util_date.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 

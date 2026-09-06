@@ -1,4 +1,5 @@
 // lib/domain/models/file_message.dart
+import 'package:disalive/data/network/domain.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
@@ -11,6 +12,7 @@ class FileMessage extends Equatable {
   final String? originalName;
   final double? size;
   final String? unit;
+  final double? duration;
   final FileContentType contentType;
   final String? objectKey;
   final int? isSpoiler;
@@ -25,6 +27,7 @@ class FileMessage extends Equatable {
     this.originalName,
     this.size,
     this.unit,
+    this.duration,
     this.contentType = FileContentType.defaultFile,
     this.objectKey,
     this.isSpoiler,
@@ -45,6 +48,7 @@ class FileMessage extends Equatable {
       originalName: originalName,
       size: (map['size'] as num?)?.toDouble(),
       unit: map['unit'],
+      duration: (map['duration'] as num?)?.toDouble(),
       contentType: FileContentType.fromString(map['type']),
       objectKey: map['objectKey'],
       isSpoiler: map['isSpoiler'],
@@ -64,6 +68,7 @@ class FileMessage extends Equatable {
       if (originalName != null) 'originalName': originalName,
       if (size != null) 'size': size,
       if (unit != null) 'unit': unit,
+      if (duration != null) 'duration': duration,
       if (contentType != FileContentType.defaultFile) 'type': contentType.value,
       if (objectKey != null) 'objectKey': objectKey,
       if (isSpoiler != null) 'isSpoiler': isSpoiler,
@@ -79,6 +84,7 @@ class FileMessage extends Equatable {
     String? originalName,
     double? size,
     String? unit,
+    double? duration,
     FileContentType? contentType,
     String? objectKey,
     int? isSpoiler,
@@ -93,6 +99,7 @@ class FileMessage extends Equatable {
       originalName: originalName ?? this.originalName,
       size: size ?? this.size,
       unit: unit ?? this.unit,
+      duration: duration ?? this.duration,
       contentType: contentType ?? this.contentType,
       objectKey: objectKey ?? this.objectKey,
       isSpoiler: isSpoiler ?? this.isSpoiler,
@@ -131,24 +138,14 @@ class FileMessage extends Equatable {
 
   String get formattedSize {
     if (size == null) return '';
-    return '${_formatSize(size!)} ${unit ?? 'B'}';
-  }
-
-  String _formatSize(double size) {
-    if (size >= 1024 * 1024 * 1024) {
-      return '${(size / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-    } else if (size >= 1024 * 1024) {
-      return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
-    } else if (size >= 1024) {
-      return '${(size / 1024).toStringAsFixed(1)} KB';
-    } else {
-      return '${size.toStringAsFixed(0)} B';
-    }
+    return '$size $unit';
   }
 
   String get extension {
     return _getExtension(originalName) ?? '';
   }
+
+  String get urlPath => Domain.transformUrl(pathFile);
 
   @override
   List<Object?> get props => [
@@ -159,6 +156,7 @@ class FileMessage extends Equatable {
     originalName,
     size,
     unit,
+    duration,
     contentType,
     objectKey,
     isSpoiler,

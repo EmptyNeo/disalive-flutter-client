@@ -10,6 +10,9 @@ import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/presentation/features/media/bloc/media_viewer_bloc.dart';
 import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
 import 'package:disalive/presentation/features/media/media_viewer_route.dart';
+import 'package:disalive/presentation/features/media/widgets/media_page.dart';
+import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
+import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -64,23 +67,17 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   void initState() {
     super.initState();
 
-    // 👇 Пытаемся получить сообщения из кэша ЗАРАНЕЕ
     final messages =
         sl<MessageRepository>().getCached(widget.chat.id)?.messages ?? [];
 
-    // 👇 Вычисляем initialPage сразу
     _initialPageIndex = _computeInitialIndex(messages);
-
-    // 👇 Передаём initialPage в конструктор
     _pageController = PageController(initialPage: _initialPageIndex);
 
-    // 👇 Если данные есть в кэше, строим позиции сразу
     if (messages.isNotEmpty) {
       _buildInitialPositions(messages);
     }
   }
 
-  /// Вычисляет количество "более новых" медиа относительно initialPosition
   int _computeInitialIndex(List<Message> messages) {
     if (messages.isEmpty) return 0;
 
@@ -90,7 +87,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       final next = MediaAttachmentLocator.step(
         messages,
         cursor,
-        MediaStepDirection.newer,
+        MediaStepDirection.older,
       );
       if (next == null) break;
       count++;
@@ -135,22 +132,25 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     }
 
     _positions.clear();
-    _positions.addAll(newerPositions.reversed);
+    _positions.addAll(olderPositions.reversed);
     _positions.add(widget.initialPosition);
-    _positions.addAll(olderPositions);
+    _positions.addAll(newerPositions);
 
     _isPositionsBuilt = true;
 
-    // 👇 Дополнительная страховка: jumpToPage через addPostFrameCallback,
-    // чтобы гарантировать, что PageView уже построен
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _pageController.hasClients) {
         _pageController.jumpToPage(_initialPageIndex);
       }
+
+      if (mounted) {
+        _ensureMoreData(messages, _initialPageIndex);
+      }
     });
   }
 
-  bool _addAllAvailableOlderPositions(List<Message> messages) {
+  /// Добавляет новые позиции в конец (для WebSocket-сообщений)
+  bool _addAllAvailableNewerPositions(List<Message> messages) {
     bool addedAny = false;
     while (true) {
       if (_positions.isEmpty) break;
@@ -159,11 +159,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       final next = MediaAttachmentLocator.step(
         messages,
         lastPos,
-        MediaStepDirection.older,
+        MediaStepDirection.newer,
       );
 
       if (next == null) break;
-
       if (_positions.any((p) => p == next)) break;
 
       _positions.add(next);
@@ -172,13 +171,24 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     return addedAny;
   }
 
-  void _ensureMoreData(int pageIndex, List<Message> messages) {
-    final added = _addAllAvailableOlderPositions(messages);
-    if (added && mounted) {
-      setState(() {});
+  void _ensureMoreData(List<Message> messages, [int? forcedPageIndex]) {
+    int pageIndex;
+
+    // Если индекс передан явно, используем его. Иначе пытаемся взять из контроллера.
+    if (forcedPageIndex != null) {
+      pageIndex = forcedPageIndex;
+    } else {
+      try {
+        pageIndex = _pageController.page?.round() ?? _initialPageIndex;
+      } catch (e) {
+        // Защита: если PageView ещё не успел прикрепиться к контроллеру,
+        // используем изначальный индекс как безопасный фолбэк.
+        pageIndex = _initialPageIndex;
+      }
     }
 
-    if (pageIndex >= _positions.length - 2) {
+    // Близко к началу (старые) — догружаем
+    if (pageIndex <= 2) {
       final bloc = context.read<MediaViewerBloc>();
       final state = bloc.state;
 
@@ -187,6 +197,12 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           !state.isLoadingMore) {
         _loadMoreMessages(messages);
       }
+    }
+
+    // Добавляем новые позиции справа (если пришли через WebSocket)
+    final added = _addAllAvailableNewerPositions(messages);
+    if (added && mounted) {
+      setState(() {});
     }
   }
 
@@ -204,9 +220,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     if (currentPageIndex == _initialPageIndex) {
       widget.setCloseMode(MediaCloseMode.toSource);
     } else if (currentPageIndex < _initialPageIndex) {
-      widget.setCloseMode(MediaCloseMode.collapseDown);
-    } else {
       widget.setCloseMode(MediaCloseMode.collapseUp);
+    } else {
+      widget.setCloseMode(MediaCloseMode.collapseDown);
     }
 
     Navigator.of(context).pop();
@@ -221,8 +237,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             _buildInitialPositions(state.messages);
             if (mounted) setState(() {});
           } else {
-            final page = _pageController.page?.round() ?? _positions.length - 1;
-            _ensureMoreData(page, state.messages);
+            _insertLoadedOlderMessages(state.messages);
+
+            if (mounted) {
+              _ensureMoreData(state.messages);
+            }
           }
         }
       },
@@ -258,7 +277,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 PageView.builder(
                   controller: _pageController,
                   itemCount: _positions.length,
-                  onPageChanged: (index) => _ensureMoreData(index, messages),
+                  onPageChanged: (index) => _ensureMoreData(messages, index),
                   itemBuilder: (context, index) {
                     if (index < 0 || index >= _positions.length) {
                       return const SizedBox.shrink();
@@ -288,23 +307,22 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       return const SizedBox.shrink();
                     }
 
-                    return GestureDetector(
-                      onTap: _handleClose,
-                      child: _MediaPage(
-                        attachment: attachments[position.attachmentIndex],
-                      ),
+                    return MediaPage(
+                      attachment: attachments[position.attachmentIndex],
+                      onClose: _handleClose, // Передаем функцию закрытия внутрь
                     );
                   },
                 ),
 
                 if (state.isLoadingMore)
                   Positioned(
-                    bottom: MediaQuery.of(context).padding.bottom + 20,
-                    left: 0,
-                    right: 0,
+                    left: 16,
+                    top: 0,
+                    bottom: 0,
                     child: const Center(
                       child: CupertinoActivityIndicator(
                         color: CupertinoColors.white,
+                        radius: 14,
                       ),
                     ),
                   ),
@@ -312,13 +330,11 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 Positioned(
                   top: MediaQuery.of(context).padding.top + 8,
                   right: 12,
-                  child: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: _handleClose,
-                    child: const Icon(
-                      CupertinoIcons.xmark_circle_fill,
-                      color: CupertinoColors.white,
-                      size: 32,
+                  child: Padding(
+                    padding: EdgeInsets.all(10),
+                    child: GlassIconButton(
+                      icon: CupertinoIcons.xmark,
+                      onTap: _handleClose,
                     ),
                   ),
                 ),
@@ -329,42 +345,51 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       ),
     );
   }
-}
 
-class _MediaPage extends StatelessWidget {
-  const _MediaPage({required this.attachment});
+  /// КЛЮЧЕВОЙ МЕТОД: вставляет старые позиции в начало массива
+  /// и ПРЫГАЕТ PageController на новую позицию, чтобы пользователь остался на том же медиа
+  void _insertLoadedOlderMessages(List<Message> messages) {
+    if (_positions.isEmpty) return;
 
-  final FileMessage attachment;
+    final oldestPos = _positions.first;
 
-  @override
-  Widget build(BuildContext context) {
-    if (attachment.isVideoFile) {
-      return const Center(
-        child: Icon(
-          CupertinoIcons.play_circle,
-          color: CupertinoColors.white,
-          size: 64,
-        ),
+    final newOlderPositions = <MediaPosition>[];
+    var cursor = oldestPos;
+    while (true) {
+      final next = MediaAttachmentLocator.step(
+        messages,
+        cursor,
+        MediaStepDirection.older,
       );
+      if (next == null) break;
+      if (_positions.any((p) => p == next)) break;
+      newOlderPositions.add(next);
+      cursor = next;
     }
 
-    return Center(
-      child: CachedNetworkImage(
-        imageUrl: attachment.pathFile ?? '',
-        fit: BoxFit.contain,
-        cacheKey: attachment.id?.toString(),
-        fadeInDuration: const Duration(milliseconds: 200),
-        fadeOutDuration: const Duration(milliseconds: 200),
-        placeholder: (context, url) =>
-            const CupertinoActivityIndicator(color: CupertinoColors.white),
-        errorWidget: (context, url, error) => const Icon(
-          CupertinoIcons.exclamationmark_triangle,
-          color: CupertinoColors.white,
-          size: 40,
-        ),
-        maxWidthDiskCache: 2000,
-        maxHeightDiskCache: 2000,
-      ),
-    );
+    if (newOlderPositions.isEmpty) return;
+
+    // 1. Запоминаем текущую физическую позицию пользователя
+    final currentPage = _pageController.page?.round() ?? _initialPageIndex;
+
+    // 2. Вставляем в начало (старые слева)
+    _positions.insertAll(0, newOlderPositions.reversed);
+
+    // 3. Корректируем индекс исходной страницы (с которой открыли)
+    _initialPageIndex += newOlderPositions.length;
+
+    // 4. Новая позиция пользователя = старая + количество вставленных
+    final newCurrentPage = currentPage + newOlderPositions.length;
+
+    if (mounted) {
+      setState(() {});
+
+      // 5. ПРЫГАЕМ на новую позицию после обновления itemCount
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(newCurrentPage);
+        }
+      });
+    }
   }
 }

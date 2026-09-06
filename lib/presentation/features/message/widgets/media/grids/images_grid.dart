@@ -1,6 +1,6 @@
 // lib/presentation/features/message/widgets/media_grid.dart
 import 'package:disalive/domain/models/file_message.dart';
-import 'package:disalive/presentation/features/message/widgets/media/image_item.dart';
+import 'package:disalive/presentation/features/message/widgets/media/items/image_item.dart';
 import 'package:flutter/cupertino.dart';
 
 /// Раскладка группы фото в сообщении в стиле Telegram.
@@ -198,8 +198,8 @@ class ImagesGrid extends StatelessWidget {
     BorderRadius radius = BorderRadius.zero,
   }) {
     final image = ImageItem(
-      key: ValueKey(file.id ?? file.objectKey ?? file.pathFile ?? index),
-      pathImage: file.pathFile ?? '',
+      key: ValueKey(file.id ?? file.objectKey ?? file.urlPath),
+      pathImage: file.urlPath,
       width: width,
       height: height,
       borderRadius: radius,

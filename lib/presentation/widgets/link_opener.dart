@@ -28,6 +28,7 @@ class LinkOpener {
           CupertinoDialogAction(
             isDefaultAction: true,
             onPressed: () => Navigator.of(context).pop(true),
+            isDestructiveAction: true,
             child: const Text('Открыть'),
           ),
         ],

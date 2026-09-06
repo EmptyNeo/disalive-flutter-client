@@ -9,7 +9,7 @@ import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
-import 'package:disalive/presentation/utils/chat_sorter.dart';
+import 'package:disalive/presentation/utils/ui/chat_sorter.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'chat_event.dart';

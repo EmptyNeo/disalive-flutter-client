@@ -28,11 +28,12 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.chat});
 
   static Future<void> open(BuildContext context, Chat chat) {
+    ChatBloc chatBloc = context.read<ChatBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
       (context) => BlocProvider.value(
-        value: sl<ChatBloc>(),
+        value: chatBloc,
         child: ChatScreen(chat: chat),
       ),
     );
@@ -43,10 +44,13 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final GlobalKey<MessagesListState> _messagesListKey =
+      GlobalKey<MessagesListState>();
   late final TextEditingController _textController;
   final ValueNotifier<bool> _hasText = ValueNotifier(false);
   final FocusNode _inputFocusNode = FocusNode();
   int? _editingMessageId;
+  Message? _answerMessage;
 
   late final MessageBloc _messageBloc;
 
@@ -147,17 +151,21 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: RepaintBoundary(
-                        child: MessagesList(
-                          messageBloc: _messageBloc,
-                          chat: widget.chat,
-                          currentUserId: _currentUserId,
-                          inputReserve: _inputReserve,
-                          onSendMessage: _onSendMessage,
-                          onEditMessage: _onEditMessage,
-                          onDeleteMessage: _onDeleteMessage,
-                          onFocusInput: _focusInput,
-                          onUnfocusInput: _unfocusInput,
+                      child: TextFieldTapRegion(
+                        child: RepaintBoundary(
+                          child: MessagesList(
+                            key: _messagesListKey,
+                            messageBloc: _messageBloc,
+                            chat: widget.chat,
+                            currentUserId: _currentUserId,
+                            inputReserve: _inputReserve,
+                            onSendMessage: _onSendMessage,
+                            onEditMessage: _onEditMessage,
+                            onDeleteMessage: _onDeleteMessage,
+                            onAnswerMessage: _onAnswerMessage,
+                            onFocusInput: _focusInput,
+                            onUnfocusInput: _unfocusInput,
+                          ),
                         ),
                       ),
                     ),
@@ -176,8 +184,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         inputKey: _inputKey,
                         textController: _textController,
                         hasEdit: _hasEdit,
+                        answerMessage: _answerMessage,
                         hasText: _hasText,
-                        cancelEdit: _cancelEdit,
+                        cancelBanner: _cancelBanner,
                         onSendMessage: _onSendMessage,
                         onApplyEdit: _onApplyEdit,
                         inputFocusNode: _inputFocusNode,
@@ -217,6 +226,8 @@ class _ChatScreenState extends State<ChatScreen> {
       userId: _currentUserId,
       text: message.text,
       time: DateTime.now().toUtc().toString(),
+      answerMessageId: _answerMessage?.getId,
+      answerMessage: _answerMessage,
     );
 
     _messageBloc.add(
@@ -228,6 +239,14 @@ class _ChatScreenState extends State<ChatScreen> {
         message: localMessage,
       ),
     );
+
+    if (_answerMessage != null) {
+      _cancelBanner();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messagesListKey.currentState?.scrollToBottom(animated: true);
+    });
   }
 
   void _onEditMessage(Message message) {
@@ -235,18 +254,24 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.selection = TextSelection.fromPosition(
       TextPosition(offset: _textController.text.length),
     );
+
     setState(() {
+      _answerMessage = null;
       _editingMessageId = message.id;
-      _inputReserve += 5;
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
 
-  void _cancelEdit() {
+  void _cancelBanner() {
     setState(() {
       _editingMessageId = null;
-      _inputReserve -= 5;
+      _answerMessage = null;
     });
     _textController.clear();
+    _unfocusInput();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
 
   void _onApplyEdit(Message message) {
@@ -267,7 +292,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    _editingMessageId = null;
+    _cancelBanner();
   }
 
   void _onDeleteMessage(Message message) {
@@ -279,5 +304,18 @@ class _ChatScreenState extends State<ChatScreen> {
         messageId: message.getId,
       ),
     );
+  }
+
+  void _onAnswerMessage(Message message) {
+    setState(() {
+      _editingMessageId = null;
+      _answerMessage = message;
+    });
+
+    // Измеряем высоту уже после того, как баннер отрисовался
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusInput();
+      _measureInput();
+    });
   }
 }

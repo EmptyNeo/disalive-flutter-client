@@ -8,8 +8,9 @@ import 'package:disalive/presentation/features/media/media_attachment_locator.da
 import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
+import 'package:disalive/presentation/features/message/widgets/swipes/swipe_to_reply_message.dart';
 import 'package:disalive/presentation/utils/app_clipboard.dart';
-import 'package:disalive/presentation/utils/message_grouper.dart';
+import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,6 +29,7 @@ class MessagesList extends StatefulWidget {
   final Function(Message message) onSendMessage;
   final Function(Message message) onEditMessage;
   final Function(Message message) onDeleteMessage;
+  final Function(Message message) onAnswerMessage;
   final VoidCallback? onFocusInput;
   final VoidCallback? onUnfocusInput;
 
@@ -42,15 +44,16 @@ class MessagesList extends StatefulWidget {
     required this.onSendMessage,
     required this.onEditMessage,
     required this.onDeleteMessage,
+    required this.onAnswerMessage,
     this.onFocusInput,
     this.onUnfocusInput,
   });
 
   @override
-  State<MessagesList> createState() => _MessagesListState();
+  State<MessagesList> createState() => MessagesListState();
 }
 
-class _MessagesListState extends State<MessagesList> {
+class MessagesListState extends State<MessagesList> {
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -77,6 +80,20 @@ class _MessagesListState extends State<MessagesList> {
     final position = _scrollController.position;
     if (position.pixels >= position.maxScrollExtent - _kLoadMoreThreshold) {
       _loadMore(state.messages);
+    }
+  }
+
+  void scrollToBottom({bool animated = true}) {
+    if (!_scrollController.hasClients) return;
+
+    if (animated) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _scrollController.jumpTo(0.0);
     }
   }
 
@@ -178,6 +195,8 @@ class _MessagesListState extends State<MessagesList> {
             });
             return index == -1 ? null : index;
           },
+
+          // lib/presentation/features/chat/widgets/messages_list.dart
           itemBuilder: (context, index) {
             if (isLoadingMore && index == messages.length) {
               return const Padding(
@@ -195,36 +214,41 @@ class _MessagesListState extends State<MessagesList> {
               () => GlobalKey(),
             );
 
-            return RepaintBoundary(
-              key: key,
-              child: MessageItem(
-                // ValueKey гарантирует, что Flutter переиспользует RenderObject,
-                // а не пересоздаст виджет с нуля при сдвиге индексов!
-                key: ValueKey(messageId),
-                message: message,
-                isMine:
-                    widget.currentUserId != null &&
-                    message.userId == widget.currentUserId,
-                showSender: widget.chat.isGroupChat,
-                showAvatar: grouped.showAvatar,
-                showTime: grouped.showTime,
-                tailDirection: grouped.tailDirection,
-                hasMessageAbove: grouped.hasMessageAbove,
-                onLongPress: () => _showMessageActions(message),
-                onTap: () => FocusScope.of(context).unfocus(),
-                isLoading: message.hasLoading,
-                hasError: message.hasErrorMessage,
-                onTapImage: (attachmentIndex) {
-                  final renderBox =
-                      key.currentContext?.findRenderObject() as RenderBox?;
-                  if (renderBox == null) return;
+            return SwipeToReplyMessage(
+              key: ValueKey(messageId),
+              onReply: () {
+                widget.onAnswerMessage(message);
+              },
+              child: RepaintBoundary(
+                key: key,
+                child: MessageItem(
+                  key: ValueKey(messageId),
+                  message: message,
+                  isMine:
+                      widget.currentUserId != null &&
+                      message.userId == widget.currentUserId,
+                  showSender: widget.chat.isGroupChat,
+                  showAvatar: grouped.showAvatar,
+                  showTime: grouped.showTime,
+                  tailDirection: grouped.tailDirection,
+                  hasMessageAbove: grouped.hasMessageAbove,
+                  onLongPress: () => _showMessageActions(message),
+                  isLoading: message.hasLoading,
+                  hasError: message.hasErrorMessage,
+                  onTapImage: (attachmentIndex) {
+                    final renderBox =
+                        key.currentContext?.findRenderObject() as RenderBox?;
+                    if (renderBox == null) return;
 
-                  final sourceRect =
-                      renderBox.localToGlobal(Offset.zero) & renderBox.size;
-
-                  // Передаем messageId вместо messageIndex (согласно предыдущему рефакторингу)
-                  _openMediaViewer(message.getId, attachmentIndex, sourceRect);
-                },
+                    final sourceRect =
+                        renderBox.localToGlobal(Offset.zero) & renderBox.size;
+                    _openMediaViewer(
+                      message.getId,
+                      attachmentIndex,
+                      sourceRect,
+                    );
+                  },
+                ),
               ),
             );
           },
@@ -260,6 +284,7 @@ class _MessagesListState extends State<MessagesList> {
         icon: CupertinoIcons.arrow_turn_up_left,
         label: 'Ответить',
         onTap: () {
+          widget.onAnswerMessage(message);
           widget.onFocusInput?.call();
         },
       ),

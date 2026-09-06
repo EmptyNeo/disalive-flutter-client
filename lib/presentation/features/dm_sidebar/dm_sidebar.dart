@@ -55,7 +55,7 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
             topLeft: Radius.circular(_panelRadius),
           ),
           border: Border.all(
-            color: AppColors.white.withOpacity(0.10),
+            color: AppColors.white.withValues(alpha: 0.10),
             width: 1,
           ),
         ),
@@ -63,70 +63,67 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(_panelRadius),
           ),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    AppColors.lightGrey.withOpacity(0.72),
-                    AppColors.lightGrey.withOpacity(0.55),
-                  ],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Анимированная область заголовка/поиска
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder:
-                        (Widget child, Animation<double> animation) {
-                          return SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0.1, 0.0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            ),
-                          );
-                        },
-                    child: _isSearchActive
-                        ? DmSearchBar(
-                            key: const ValueKey('search'),
-                            searchController: _searchController,
-                            toggleSearch: _toggleSearch,
-                          )
-                        : DmNormalHeader(
-                            key: const ValueKey('header'),
-                            onSearchTap: () => _toggleSearch(true),
-                          ),
-                  ),
-
-                  // Уменьшенный отступ снизу (было 14, стало 8)
-                  const SizedBox(height: 8),
-
-                  Container(
-                    width: double.infinity,
-                    height: 1,
-                    color: AppColors.white.withOpacity(0.10),
-                  ),
-
-                  Expanded(
-                    child: DmListArea(
-                      chats: widget.chats,
-                      isLoading: widget.isLoading,
-                      isSearchActive: _isSearchActive,
-                    ),
-                  ),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.lightGrey.withValues(alpha: 0.72),
+                  AppColors.lightGrey.withValues(alpha: 0.55),
                 ],
               ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Анимированная область заголовка/поиска
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        return SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.1, 0.0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          ),
+                        );
+                      },
+                  child: _isSearchActive
+                      ? DmSearchBar(
+                          key: const ValueKey('search'),
+                          searchController: _searchController,
+                          toggleSearch: _toggleSearch,
+                        )
+                      : DmNormalHeader(
+                          key: const ValueKey('header'),
+                          onSearchTap: () => _toggleSearch(true),
+                        ),
+                ),
+
+                // Уменьшенный отступ снизу (было 14, стало 8)
+                const SizedBox(height: 8),
+
+                Container(
+                  width: double.infinity,
+                  height: 1,
+                  color: AppColors.white.withOpacity(0.10),
+                ),
+
+                Expanded(
+                  child: DmListArea(
+                    chats: widget.chats,
+                    isLoading: widget.isLoading,
+                    isSearchActive: _isSearchActive,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
