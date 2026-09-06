@@ -151,21 +151,19 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: TextFieldTapRegion(
-                        child: RepaintBoundary(
-                          child: MessagesList(
-                            key: _messagesListKey,
-                            messageBloc: _messageBloc,
-                            chat: widget.chat,
-                            currentUserId: _currentUserId,
-                            inputReserve: _inputReserve,
-                            onSendMessage: _onSendMessage,
-                            onEditMessage: _onEditMessage,
-                            onDeleteMessage: _onDeleteMessage,
-                            onAnswerMessage: _onAnswerMessage,
-                            onFocusInput: _focusInput,
-                            onUnfocusInput: _unfocusInput,
-                          ),
+                      child: RepaintBoundary(
+                        child: MessagesList(
+                          key: _messagesListKey,
+                          messageBloc: _messageBloc,
+                          chat: widget.chat,
+                          currentUserId: _currentUserId,
+                          inputReserve: _inputReserve,
+                          onSendMessage: _onSendMessage,
+                          onEditMessage: _onEditMessage,
+                          onDeleteMessage: _onDeleteMessage,
+                          onAnswerMessage: _onAnswerMessage,
+                          onFocusInput: _focusInput,
+                          onUnfocusInput: _unfocusInput,
                         ),
                       ),
                     ),

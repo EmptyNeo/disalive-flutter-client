@@ -122,18 +122,50 @@ class _SwipeToDismissGestureAreaState
     extends State<_SwipeToDismissGestureArea> {
   bool _dragActive = false;
 
+  /// Направление ещё не определено (нет данных о нём в DragStartDetails —
+  /// оно появляется только в первой DragUpdateDetails.delta).
+  bool? _isRightwardGesture;
+
   void _handleDragStart(DragStartDetails details) {
     final edgeStartOffset = widget.route.edgeStartOffset;
     if (edgeStartOffset != null &&
         details.globalPosition.dx > edgeStartOffset) {
       _dragActive = false;
+      _isRightwardGesture = false;
       return;
     }
-    _dragActive = true;
-    widget.route.navigator?.didStartUserGesture();
+    // ВАЖНО: не активируем жест здесь и не зовём didStartUserGesture().
+    // HorizontalDragGestureRecognizer вызывает onStart, как только
+    // движение признано горизонтальным — но ЕЩЁ до того, как известно
+    // направление (влево или вправо): у DragStartDetails просто нет
+    // дельты. А сам вызов didStartUserGesture() — это то место, где
+    // ModalRoute временно снимает фокус с полей ввода (защита от фокуса
+    // во время интерактивного перехода маршрута). Если звать его здесь
+    // безусловно, ЛЮБОЙ горизонтальный свайп на экране — в том числе
+    // свайп-влево "ответить" на сообщении — будет анфокусить поле ввода,
+    // хотя к закрытию экрана (только вправо) он не имеет отношения.
+    // Поэтому решение "наш ли это жест" откладываем до первого onUpdate,
+    // где уже есть реальная дельта.
+    _isRightwardGesture = null;
+    _dragActive = false;
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
+    if (_isRightwardGesture == null) {
+      // Решаем по первой же дельте направления. Если она влево (или
+      // нулевая) — это не наш жест: не трогаем controller и не зовём
+      // didStartUserGesture() до конца этого касания вообще, событие
+      // просто проходит мимо (например, до Listener'а свайпа-ответа на
+      // сообщении, которому дела нет до этой gesture arena).
+      _isRightwardGesture = details.delta.dx > 0;
+      if (_isRightwardGesture!) {
+        _dragActive = true;
+        widget.route.navigator?.didStartUserGesture();
+      } else {
+        return;
+      }
+    }
+
     if (!_dragActive) return;
     final controller = widget.route.controller;
     if (controller == null) return;
@@ -145,8 +177,10 @@ class _SwipeToDismissGestureAreaState
   }
 
   void _handleDragEnd(DragEndDetails details) {
-    if (!_dragActive) return;
+    final wasActive = _dragActive;
     _dragActive = false;
+    _isRightwardGesture = null;
+    if (!wasActive) return;
 
     final controller = widget.route.controller;
     final navigator = widget.route.navigator;
@@ -185,6 +219,20 @@ class _SwipeToDismissGestureAreaState
     }
   }
 
+  void _handleDragCancel() {
+    // Защита на случай, если распознаватель отменит жест без onEnd
+    // (например, его перехватит другой участник арены): если мы уже
+    // успели вызвать didStartUserGesture(), обязательно парно закрываем
+    // его didStopUserGesture(), иначе навигатор останется в состоянии
+    // "идёт пользовательский жест" до следующего кадра/жеста.
+    final wasActive = _dragActive;
+    _dragActive = false;
+    _isRightwardGesture = null;
+    if (wasActive) {
+      widget.route.navigator?.didStopUserGesture();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -192,6 +240,7 @@ class _SwipeToDismissGestureAreaState
       onHorizontalDragStart: _handleDragStart,
       onHorizontalDragUpdate: _handleDragUpdate,
       onHorizontalDragEnd: _handleDragEnd,
+      onHorizontalDragCancel: _handleDragCancel,
       child: widget.child,
     );
   }
