@@ -1,4 +1,5 @@
 // lib/domain/models/invite_data.dart
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 
 class InviteData extends Equatable {
@@ -33,7 +34,7 @@ class InviteData extends Equatable {
       pathAvatar: map['pathAvatar'] ?? map['path_avatar'],
       memberCount: map['memberCount'],
       onlineMemberCount: map['onlineMemberCount'],
-      revoked: map['revoked'],
+      revoked: DataParser.parseBool(map['revoked']),
       expiresAt: map['expiresAt'],
       maxInvite: map['maxInvite'],
       currentCountInvite: map['currentCountInvite'],
@@ -83,6 +84,7 @@ class InviteData extends Equatable {
   }
 
   bool get isRevoked => revoked ?? false;
+
   bool get hasAvatar => pathAvatar != null && pathAvatar!.isNotEmpty;
 
   @override
