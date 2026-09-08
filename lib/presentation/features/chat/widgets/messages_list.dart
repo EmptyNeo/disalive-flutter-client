@@ -168,7 +168,7 @@ class MessagesListState extends State<MessagesList> {
 
         final groupedMessages = MessageGrouper.group(
           messages as List<Message>,
-          isGroup: widget.chat.isGroupChat,
+          isGroup: widget.chat.isGroup,
           currentUserId: widget.currentUserId,
         );
 
@@ -227,7 +227,7 @@ class MessagesListState extends State<MessagesList> {
                   isMine:
                       widget.currentUserId != null &&
                       message.userId == widget.currentUserId,
-                  showSender: widget.chat.isGroupChat,
+                  showSender: widget.chat.isGroup,
                   showAvatar: grouped.showAvatar,
                   showTime: grouped.showTime,
                   tailDirection: grouped.tailDirection,
@@ -275,6 +275,7 @@ class MessagesListState extends State<MessagesList> {
               ActionType.create => widget.onSendMessage(message),
               ActionType.update => widget.onEditMessage(message),
               ActionType.delete => widget.onDeleteMessage(message),
+              ActionType.block => null,
             },
           },
         ),
@@ -346,6 +347,8 @@ class MessagesListState extends State<MessagesList> {
         return 'Обновить повторно';
       case ActionType.delete:
         return 'Удалить повторно';
+      case ActionType.block:
+        return '';
     }
   }
 

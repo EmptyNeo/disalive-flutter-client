@@ -1,4 +1,5 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/features/server/widgets/unread_badge.dart';
 import 'package:flutter/cupertino.dart';
 
 class ServerItem extends StatelessWidget {
@@ -6,17 +7,21 @@ class ServerItem extends StatelessWidget {
   final bool isActive;
   final bool isSpecial;
   final bool isAction;
+  final int unreadCount;
 
   const ServerItem({
     super.key,
     required this.icon,
     required this.isActive,
+    required this.unreadCount,
     this.isSpecial = false,
     this.isAction = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasUnread = unreadCount > 0;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -32,22 +37,36 @@ class ServerItem extends StatelessWidget {
         ),
         const SizedBox(width: 8),
 
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isActive
-                ? AppColors.blurple
-                : CupertinoColors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(isActive ? 16 : 24),
-          ),
-          child: Icon(
-            icon,
-            color: isAction
-                ? CupertinoColors.activeGreen
-                : CupertinoColors.white,
-            size: 24,
-          ),
+        // clipBehavior: Clip.none — бейдж специально выходит за пределы
+        // 48x48 иконки в правый нижний угол, обрезать его нельзя.
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.blurple
+                    : CupertinoColors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(isActive ? 16 : 24),
+              ),
+              child: Icon(
+                icon,
+                color: isAction
+                    ? CupertinoColors.activeGreen
+                    : CupertinoColors.white,
+                size: 24,
+              ),
+            ),
+            if (hasUnread)
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: UnreadBadge(count: unreadCount),
+              ),
+          ],
         ),
         const SizedBox(width: 12),
       ],

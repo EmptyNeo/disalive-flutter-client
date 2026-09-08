@@ -35,6 +35,8 @@ class UserModel extends Equatable {
   final bool? allowOnlyFriendsComments;
   final bool? onlyIBlocked;
   final bool? onlyTheyBlocked;
+  final bool? bothBlocked;
+  final bool? isAnyBlocked;
   final String? totpSecret;
   final int? totpEnabled;
   final List<BadgeModel>? badges;
@@ -71,6 +73,8 @@ class UserModel extends Equatable {
     this.allowOnlyFriendsComments,
     this.onlyIBlocked,
     this.onlyTheyBlocked,
+    this.bothBlocked,
+    this.isAnyBlocked,
     this.totpSecret,
     this.totpEnabled,
     this.badges,
@@ -115,6 +119,8 @@ class UserModel extends Equatable {
       ),
       onlyIBlocked: DataParser.parseBool(map['onlyIBlocked']),
       onlyTheyBlocked: DataParser.parseBool(map['onlyTheyBlocked']),
+      bothBlocked: DataParser.parseBool(map['bothBlocked']),
+      isAnyBlocked: DataParser.parseBool(map['isAnyBlocked']),
       totpSecret: map['totpSecret'],
       totpEnabled: DataParser.parseInt(map['totpEnabled']),
       badges: map['badges'] != null
@@ -201,6 +207,8 @@ class UserModel extends Equatable {
     bool? allowOnlyFriendsComments,
     bool? onlyIBlocked,
     bool? onlyTheyBlocked,
+    bool? bothBlocked,
+    bool? isAnyBlocked,
     String? totpSecret,
     int? totpEnabled,
     List<BadgeModel>? badges,
@@ -239,6 +247,8 @@ class UserModel extends Equatable {
           allowOnlyFriendsComments ?? this.allowOnlyFriendsComments,
       onlyIBlocked: onlyIBlocked ?? this.onlyIBlocked,
       onlyTheyBlocked: onlyTheyBlocked ?? this.onlyTheyBlocked,
+      bothBlocked: bothBlocked ?? this.bothBlocked,
+      isAnyBlocked: isAnyBlocked ?? this.isAnyBlocked,
       totpSecret: totpSecret ?? this.totpSecret,
       totpEnabled: totpEnabled ?? this.totpEnabled,
       badges: badges ?? this.badges,
@@ -248,11 +258,11 @@ class UserModel extends Equatable {
   }
 
   // Геттеры для удобства
-  bool get isOnline => status == 'online';
+  bool get isOnline => status == UserStatus.online;
 
-  bool get isOffline => status == 'offline';
+  bool get isOffline => status == UserStatus.offline;
 
-  bool get isInvisible => status == 'invisible';
+  bool get isInvisible => status == UserStatus.invisible;
 
   bool get isBannedUser => isBanned == 1;
 

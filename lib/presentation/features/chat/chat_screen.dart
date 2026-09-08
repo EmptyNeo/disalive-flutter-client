@@ -10,6 +10,7 @@ import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_input_area.dart';
 import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
+import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
@@ -27,9 +28,10 @@ class ChatScreen extends StatefulWidget {
 
   const ChatScreen({super.key, required this.chat});
 
-  static Future<void> open(BuildContext context, Chat chat) {
+  static Future<void> open(BuildContext context, Chat chat, bool isReconnect) {
     ChatBloc chatBloc = context.read<ChatBloc>();
     MessageBloc messageBloc = context.read<MessageBloc>();
+    ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
@@ -37,6 +39,7 @@ class ChatScreen extends StatefulWidget {
         providers: [
           BlocProvider.value(value: chatBloc),
           BlocProvider.value(value: messageBloc),
+          BlocProvider.value(value: chatServerBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -55,6 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _inputFocusNode = FocusNode();
   int? _editingMessageId;
   Message? _answerMessage;
+  bool isReconnect = false;
 
   late final MessageBloc _messageBloc;
 
@@ -119,22 +123,40 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<ChatBloc, ChatState>(
-      listener: (context, state) {
-        if (state is ChatLoaded) {
-          // Ищем обновленный чат в списке
-          final updatedChat = state.chats.firstWhere(
-            (c) => c.id == _currentChat.id,
-            orElse: () => _currentChat,
-          );
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<ChatBloc, ChatState>(
+          listener: (context, state) {
+            if (state is ChatLoaded) {
+              // Ищем обновленный чат в списке
+              final updatedChat = state.chats.firstWhere(
+                (c) => c.id == _currentChat.id,
+                orElse: () => _currentChat,
+              );
 
-          if (updatedChat != _currentChat) {
-            setState(() {
-              _currentChat = updatedChat;
-            });
-          }
-        }
-      },
+              if (updatedChat != _currentChat) {
+                setState(() {
+                  _currentChat = updatedChat;
+                });
+              }
+            }
+          },
+        ),
+        BlocListener<ChatServerBloc, ChatServerState>(
+          listener: (context, state) {
+            if (state is ChatServerConnecting) {
+              setState(() {
+                isReconnect = true;
+              });
+            }
+            if (state is ChatServerConnected) {
+              setState(() {
+                isReconnect = false;
+              });
+            }
+          },
+        ),
+      ],
       child: CupertinoPageScaffold(
         backgroundColor: CupertinoColors.transparent,
         child: SafeArea(
@@ -174,7 +196,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       top: 0,
                       left: 0,
                       right: 0,
-                      child: ChatHeader(chat: _currentChat),
+                      child: ChatHeader(
+                        chat: _currentChat,
+                        isReconnect: isReconnect,
+                      ),
                     ),
                     Positioned(
                       left: 0,
@@ -182,6 +207,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       bottom: 0,
                       child: ChatInputArea(
                         key: const ValueKey('chat_input_area'),
+                        chat: _currentChat,
                         inputKey: _inputKey,
                         textController: _textController,
                         hasEdit: _hasEdit,
@@ -191,6 +217,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         onSendMessage: _onSendMessage,
                         onApplyEdit: _onApplyEdit,
                         inputFocusNode: _inputFocusNode,
+                        isReconnect: isReconnect,
                       ),
                     ),
                   ],

@@ -1,6 +1,8 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
+import 'package:disalive/data/repositories/friends_repository_impl.dart';
+import 'package:disalive/data/repositories/members_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
@@ -10,6 +12,8 @@ import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/friends_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
@@ -59,6 +63,8 @@ Future<void> setupDependencies() async {
     () => ChatServerRepositoryImpl(sl()),
   );
   sl.registerLazySingleton<RequestsRepository>(() => RequestsRepositoryImpl());
+  sl.registerLazySingleton<MembersRepository>(() => MembersRepositoryImpl());
+  sl.registerLazySingleton<FriendsRepository>(() => FriendsRepositoryImpl());
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));

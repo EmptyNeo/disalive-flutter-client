@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/dm_sidebar/widgets/dm_list_area.dart';
@@ -12,10 +10,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class DirectMessagesSidebar extends StatefulWidget {
   final List<Chat> chats;
   final bool isLoading;
+  final bool isReconnect;
 
   const DirectMessagesSidebar({
     super.key,
     required this.chats,
+    required this.isReconnect,
     this.isLoading = false,
   });
 
@@ -103,6 +103,7 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
                         )
                       : DmNormalHeader(
                           key: const ValueKey('header'),
+                          isReconnect: widget.isReconnect,
                           onSearchTap: () => _toggleSearch(true),
                         ),
                 ),
@@ -121,6 +122,7 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
                     chats: widget.chats,
                     isLoading: widget.isLoading,
                     isSearchActive: _isSearchActive,
+                    isReconnect: widget.isReconnect,
                   ),
                 ),
               ],

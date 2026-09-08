@@ -1,7 +1,8 @@
 enum ActionType {
   create('Create'),
   update('Update'),
-  delete('Delete');
+  delete('Delete'),
+  block('UpdateBlockStatus');
 
   final String value;
 

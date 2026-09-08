@@ -7,8 +7,15 @@ import 'package:flutter/cupertino.dart';
 
 class ChatItem extends StatefulWidget {
   final Chat chat;
+  final VoidCallback? onLongPress;
+  final bool isReconnect;
 
-  const ChatItem({super.key, required this.chat});
+  const ChatItem({
+    super.key,
+    required this.chat,
+    required this.isReconnect,
+    required this.onLongPress,
+  });
 
   @override
   State<ChatItem> createState() => _ChatItemState();
@@ -27,16 +34,17 @@ class _ChatItemState extends State<ChatItem> {
     final chat = widget.chat;
     final bool isPinned = chat.member?.isFixed ?? false;
     final bool isMuted = chat.member?.isMuted ?? false;
-    final int unreadCount = chat.newMessagesCount ?? 0;
+    final int unreadCount = chat.unreadCount;
     final bool hasUnread = chat.hasUnreadMessages;
-    final String? time = UtilDate.formatChatTime(chat.lastMessageTime);
+    final String? time = UtilDate.formatChatTime(chat.lastMessageTime, false);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => ChatScreen.open(context, chat),
+      onTap: () => ChatScreen.open(context, chat, widget.isReconnect),
       onTapDown: (_) => _setPressed(true),
       onTapCancel: () => _setPressed(false),
       onTapUp: (_) => _setPressed(false),
+      onLongPress: widget.onLongPress,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
@@ -44,7 +52,7 @@ class _ChatItemState extends State<ChatItem> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: _pressed
-              ? AppColors.white.withOpacity(0.06)
+              ? AppColors.white.withValues(alpha: 0.06)
               : CupertinoColors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -54,7 +62,7 @@ class _ChatItemState extends State<ChatItem> {
             BuildAvatar(
               url: chat.urlAvatar,
               isBookmark: chat.isSoloChat ?? false,
-              isGroup: chat.isGroupChat,
+              isGroup: chat.isGroup,
               wh: 32,
               size: 22,
               status: chat.isPersonalChat ? chat.user?.status : null,
@@ -84,6 +92,14 @@ class _ChatItemState extends State<ChatItem> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (chat.isAnyBlocked) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          CupertinoIcons.lock_fill,
+                          color: AppColors.iconGrey,
+                          size: 13,
+                        ),
+                      ],
                       if (isMuted) ...[
                         const SizedBox(width: 4),
                         Icon(
@@ -116,7 +132,7 @@ class _ChatItemState extends State<ChatItem> {
                   Row(
                     children: [
                       Expanded(
-                        child: (chat.isGroupChat && chat.memberCount != null)
+                        child: (chat.isGroup && chat.memberCount != null)
                             ? Text(
                                 '${chat.memberCount} участников',
                                 style: TextStyle(

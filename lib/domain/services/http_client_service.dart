@@ -112,7 +112,7 @@ class HttpClientService {
       if (data == null) {
         // Для некоторых запросов может не быть data, но success true
         try {
-          return Right(fromJson({}));
+          return Right(fromJson({'success': success}));
         } catch (e) {
           return Left(
             ParsingFailure('Failed to parse empty response: ${e.toString()}'),

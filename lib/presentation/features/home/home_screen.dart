@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
@@ -26,6 +27,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late PageController _pageController;
+  int personalUnredCount = 0;
+  bool isReconnect = false;
 
   @override
   void initState() {
@@ -68,17 +71,35 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         BlocProvider<MessageBloc>(create: (_) => sl<MessageBloc>()),
       ],
-      // 🎯 ДОБАВЛЯЕМ BlocListener ДЛЯ ChatServerBloc ЗДЕСЬ
-      child: BlocListener<ChatServerBloc, ChatServerState>(
-        listener: (context, state) {
-          // Когда сервер успешно подключился, инициализируем слушатели событий
-          if (state is ChatServerConnected) {
-            // Вызываем публичные методы setupListeners() в обоих блоках
-            context.read<ChatBloc>().setupListeners();
-            context.read<MessageBloc>().setupListeners();
-          }
-        },
-        // Твой существующий BlocBuilder для Profile теперь внутри Listener'а
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<ChatServerBloc, ChatServerState>(
+            listener: (context, state) {
+              if (state is ChatServerConnecting) {
+                setState(() {
+                  isReconnect = true;
+                });
+              }
+
+              if (state is ChatServerConnected) {
+                setState(() {
+                  isReconnect = false;
+                });
+                context.read<ChatBloc>().setupListeners();
+                context.read<MessageBloc>().setupListeners();
+              }
+            },
+          ),
+          BlocListener<ChatBloc, ChatState>(
+            listener: (context, state) {
+              if (state is ChatLoaded) {
+                setState(() {
+                  personalUnredCount = state.unreadCount;
+                });
+              }
+            },
+          ),
+        ],
         child: BlocBuilder<ProfileBloc, ProfileState>(
           builder: (context, state) {
             if (state is ProfileLoading) {
@@ -136,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         user: state.user,
                         onTapTapped: _onTabTapped,
                         currentIndex: _currentIndex,
+                        personalUnreadCount: personalUnredCount,
                       ),
                     ),
                   ],
@@ -177,7 +199,13 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       children: [
-        const KeepAlivePage(child: ChatsView()), // Здесь рендерятся чаты
+        KeepAlivePage(
+          child: ChatsView(
+            personalUnreadCount: personalUnredCount,
+            isReconnect: isReconnect,
+          ),
+        ),
+        // Здесь рендерятся чаты
         const KeepAlivePage(
           child: Center(
             child: Text(

@@ -3,7 +3,9 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
@@ -21,10 +23,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final WsEventBus _eventBus;
 
   StreamSubscription<WsEvent>? _messageCreateSubscription;
+  StreamSubscription<WsEvent>? _memberUpdateSubscription;
   StreamSubscription<WsEvent>? _userUpdateSubscription;
   StreamSubscription<WsEvent>? _chatCreateSubscription;
   StreamSubscription<WsEvent>? _chatUpdateSubscription;
   StreamSubscription<WsEvent>? _chatDeleteSubscription;
+  StreamSubscription<WsEvent>? _chatUpdateBlockStatusSubscription;
 
   ChatBloc(this._chatRepository, this._eventBus) : super(ChatInitial()) {
     on<GetChats>(_onGetChats);
@@ -34,6 +38,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<UpdateChat>(_onUpdateChat);
     on<DeleteChat>(_onDeleteChat);
     on<UpdateUserInChat>(_onUpdateUserInChat);
+    on<UpdateMemberInChat>(_onUpdateMemberInChat);
   }
 
   void setupListeners() {
@@ -44,10 +49,26 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'Message',
       action: ActionType.create,
       onData: (event) {
-        final messageData = event.data['message'];
-        if (messageData is Map<String, dynamic>) {
-          final message = Message.fromMap(messageData);
+        final map = event.data['message'];
+        if (map is Map<String, dynamic>) {
+          final message = Message.fromMap(map);
           add(AddMessageToChat(message: message, isSelf: event.isSelf));
+        }
+      },
+    );
+
+    _memberUpdateSubscription = _eventBus.subscribe(
+      table: 'Members',
+      action: ActionType.update,
+      onData: (event) {
+        final map = event.data['member'];
+        final entityId = event.data['entityId'];
+        final entityType = EntityType.fromString(event.data['entityType']);
+        if (map is Map<String, dynamic>) {
+          final member = Member.fromMap(map);
+          if (entityType == EntityType.chat) {
+            add(UpdateMemberInChat(chatId: entityId, member: member));
+          }
         }
       },
     );
@@ -56,10 +77,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'User',
       action: ActionType.update,
       onData: (event) {
-        final userData = event.data['user'];
-        if (userData is Map<String, dynamic>) {
-          final user = UserModel.fromMap(userData);
-          add(UpdateUserInChat(user));
+        final map = event.data['user'];
+        if (map is Map<String, dynamic>) {
+          final user = UserModel.fromMap(map);
+          add(UpdateUserInChat(user, false));
         }
       },
     );
@@ -69,9 +90,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'Chat',
       action: ActionType.create,
       onData: (event) {
-        final chatData = event.data['chat'];
-        if (chatData is Map<String, dynamic>) {
-          final chat = Chat.fromMap(chatData);
+        final map = event.data['chat'];
+        if (map is Map<String, dynamic>) {
+          final chat = Chat.fromMap(map);
           add(AddChat(chat));
         }
       },
@@ -81,9 +102,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'Chat',
       action: ActionType.update,
       onData: (event) {
-        final chatData = event.data['chat'];
-        if (chatData is Map<String, dynamic>) {
-          final chat = Chat.fromMap(chatData);
+        final map = event.data['chat'];
+        if (map is Map<String, dynamic>) {
+          final chat = Chat.fromMap(map);
           add(UpdateChat(chat));
         }
       },
@@ -99,6 +120,20 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         }
       },
     );
+
+    _chatUpdateBlockStatusSubscription = _eventBus.subscribe(
+      table: 'Chat',
+      action: ActionType.block,
+      onData: (event) {
+        print("HELLO");
+        final map = event.data['user'];
+        if (map is Map<String, dynamic>) {
+          final user = UserModel.fromMap(map);
+          print("MAP");
+          add(UpdateUserInChat(user, true));
+        }
+      },
+    );
   }
 
   Future<void> _onGetChats(GetChats event, Emitter<ChatState> emit) async {
@@ -106,7 +141,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     final cachedChats = _chatRepository.getCached();
     if (cachedChats.isNotEmpty) {
-      emit(ChatLoaded(cachedChats));
+      int unreadCount = _chatRepository.getAllUnredCount();
+      emit(ChatLoaded(cachedChats, unreadCount));
     }
 
     final result = await _chatRepository.get();
@@ -116,7 +152,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         emit(ChatFailure(failure.message));
       },
       (chats) {
-        emit(ChatLoaded(chats));
+        int unreadCount = _chatRepository.getAllUnredCount();
+        emit(ChatLoaded(chats, unreadCount));
       },
     );
   }
@@ -130,8 +167,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     cachedChats.add(event.chat);
     cachedChats.sort(ChatSorter.compare);
+    int unreadCount = _chatRepository.getAllUnredCount();
 
-    emit(ChatLoaded(cachedChats));
+    emit(ChatLoaded(cachedChats, unreadCount));
   }
 
   void _onUpdateChat(UpdateChat event, Emitter<ChatState> emit) {
@@ -151,15 +189,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       // Сортируем (имя могло измениться)
       cachedChats.sort(ChatSorter.compare);
 
-      emit(ChatLoaded(cachedChats));
+      int unreadCount = _chatRepository.getAllUnredCount();
+
+      emit(ChatLoaded(cachedChats, unreadCount));
     }
   }
 
   void _onDeleteChat(DeleteChat event, Emitter<ChatState> emit) {
     final cachedChats = _chatRepository.getCached();
     cachedChats.removeWhere((c) => c.id == event.chatId);
-
-    emit(ChatLoaded(cachedChats));
+    int unreadCount = _chatRepository.getAllUnredCount();
+    emit(ChatLoaded(cachedChats, unreadCount));
   }
 
   void _onAddMessageToChat(AddMessageToChat event, Emitter<ChatState> emit) {
@@ -174,20 +214,39 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (chatIndex != -1) {
       cachedChats[chatIndex] = cachedChats[chatIndex].copyWith(
         lastMessageTime: message.time,
+        idLastMessage: message.id,
       );
-
-      if (!event.isSelf) {
-        final currentCount = cachedChats[chatIndex].newMessagesCount ?? 0;
-        cachedChats[chatIndex] = cachedChats[chatIndex].copyWith(
-          newMessagesCount: currentCount + 1,
-        );
-      }
 
       // Сортируем чаты
       cachedChats.sort(ChatSorter.compare);
-
-      emit(ChatLoaded(cachedChats));
+      int unreadCount = _chatRepository.getAllUnredCount();
+      emit(ChatLoaded(cachedChats, unreadCount));
     }
+  }
+
+  void _onUpdateMemberInChat(
+    UpdateMemberInChat event,
+    Emitter<ChatState> emit,
+  ) {
+    final cachedChats = _chatRepository.getCached();
+
+    final chatIndex = cachedChats.indexWhere((c) => c.id == event.chatId);
+    if (chatIndex == -1) return;
+
+    final chat = cachedChats[chatIndex];
+
+    final updatedMember = chat.member?.copyWith(
+      muted: event.member.muted,
+      fixed: event.member.fixed,
+      orderFixed: event.member.orderFixed,
+      lastIdReadMessage: event.member.lastIdReadMessage,
+    );
+
+    cachedChats[chatIndex] = chat.copyWith(member: updatedMember);
+
+    cachedChats.sort(ChatSorter.compare);
+    int unreadCount = _chatRepository.getAllUnredCount();
+    emit(ChatLoaded(cachedChats, unreadCount));
   }
 
   void _onUpdateUserInChat(UpdateUserInChat event, Emitter<ChatState> emit) {
@@ -198,19 +257,33 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       // Проверяем, является ли чат личным
       if (chat.isPersonalChat && chat.user?.id == event.user.id) {
-        // Обновляем user в чате
-        cachedChats[i] = chat.copyWith(
-          user: event.user,
-          name: event.user.displayName, // Обновляем имя чата
-          pathImage: event.user.pathImage, // Обновляем аватар чата
-        );
+        if (event.isUpdateBlock) {
+          print("UPDATE BLOCK");
+          cachedChats[i] = chat.copyWith(
+            user: chat.user?.copyWith(
+              onlyIBlocked: event.user.onlyIBlocked,
+              onlyTheyBlocked: event.user.onlyTheyBlocked,
+              isAnyBlocked: event.user.isAnyBlocked,
+              bothBlocked: event.user.bothBlocked,
+            ),
+            isBlocked: event.user.isAnyBlocked,
+          );
+          print(cachedChats[i]);
+        } else {
+          // Обновляем user в чате
+          cachedChats[i] = chat.copyWith(
+            user: event.user,
+            name: event.user.displayName, // Обновляем имя чата
+            pathImage: event.user.pathImage, // Обновляем аватар чата
+          );
+        }
       }
     }
 
     // Сортируем (если нужно)
     cachedChats.sort(ChatSorter.compare);
-
-    emit(ChatLoaded(cachedChats));
+    int unreadCount = _chatRepository.getAllUnredCount();
+    emit(ChatLoaded(cachedChats, unreadCount));
   }
 
   void _onSearchChats(SearchChats event, Emitter<ChatState> emit) {
@@ -219,7 +292,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (query.isEmpty) {
       // Показываем все чаты
       final cachedChats = _chatRepository.getCached();
-      emit(ChatLoaded(cachedChats));
+      int unreadCount = _chatRepository.getAllUnredCount();
+      emit(ChatLoaded(cachedChats, unreadCount));
       return;
     }
 
@@ -227,8 +301,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final filteredChats = cachedChats
         .where((chat) => chat.name.toLowerCase().contains(query))
         .toList();
-
-    emit(ChatLoaded(filteredChats));
+    int unreadCount = _chatRepository.getAllUnredCount();
+    emit(ChatLoaded(filteredChats, unreadCount));
   }
 
   @override
@@ -239,9 +313,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   void closeSubs() {
     _messageCreateSubscription?.cancel();
+    _memberUpdateSubscription?.cancel();
     _userUpdateSubscription?.cancel();
     _chatCreateSubscription?.cancel();
     _chatUpdateSubscription?.cancel();
     _chatDeleteSubscription?.cancel();
+    _chatUpdateBlockStatusSubscription?.cancel();
   }
 }

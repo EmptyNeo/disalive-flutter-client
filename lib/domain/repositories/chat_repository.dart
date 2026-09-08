@@ -12,4 +12,6 @@ abstract class ChatRepository {
   void setCurrentChat(Chat chat);
 
   bool isCurrentChat(int chatId);
+
+  int getAllUnredCount();
 }

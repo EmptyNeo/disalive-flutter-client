@@ -10,8 +10,9 @@ class ChatLoading extends ChatState {}
 
 class ChatLoaded extends ChatState {
   final List<Chat> chats;
+  final int unreadCount;
 
-  ChatLoaded(this.chats);
+  ChatLoaded(this.chats, this.unreadCount);
 }
 
 class ChatFailure extends ChatState {

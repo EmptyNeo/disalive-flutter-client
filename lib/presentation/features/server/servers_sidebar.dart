@@ -3,7 +3,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 
 class ServersSidebar extends StatelessWidget {
-  const ServersSidebar({super.key});
+  final int personalUnreadCount;
+
+  const ServersSidebar({super.key, required this.personalUnreadCount});
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +23,7 @@ class ServersSidebar extends StatelessWidget {
               icon: CupertinoIcons.chat_bubble_fill,
               isActive: true,
               isSpecial: true,
+              unreadCount: personalUnreadCount,
             ),
 
             Padding(
@@ -36,6 +39,7 @@ class ServersSidebar extends StatelessWidget {
               icon: CupertinoIcons.add,
               isActive: false,
               isAction: true,
+              unreadCount: 0,
             ),
 
             // Здесь будет ListView с остальными серверами
@@ -51,6 +55,7 @@ class ServersSidebar extends StatelessWidget {
                     child: ServerItem(
                       icon: CupertinoIcons.group_solid,
                       isActive: false,
+                      unreadCount: 0,
                     ),
                   );
                 },

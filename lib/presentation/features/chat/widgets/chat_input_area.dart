@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
@@ -10,6 +11,8 @@ import 'package:flutter/material.dart';
 const double _kFloatingPanelMargin = 8;
 
 class ChatInputArea extends StatelessWidget {
+  final Chat _chat;
+  final bool _isReconnect;
   final FocusNode _inputFocusNode;
   final GlobalKey _inputKey;
   final bool _hasEdit;
@@ -22,6 +25,8 @@ class ChatInputArea extends StatelessWidget {
 
   const ChatInputArea({
     super.key,
+    required Chat chat,
+    required bool isReconnect,
     required GlobalKey inputKey,
     required TextEditingController textController,
     required bool hasEdit,
@@ -31,7 +36,9 @@ class ChatInputArea extends StatelessWidget {
     required Function(Message message) onSendMessage,
     required Function(Message message) onApplyEdit,
     required FocusNode inputFocusNode,
-  }) : _inputKey = inputKey,
+  }) : _chat = chat,
+       _isReconnect = isReconnect,
+       _inputKey = inputKey,
        _textController = textController,
        _hasEdit = hasEdit,
        _answerMessage = answerMessage,
@@ -44,6 +51,7 @@ class ChatInputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool hasAnswer = _answerMessage != null;
+    final bool isInputAllowed = !_chat.isAnyBlocked && !_isReconnect;
 
     return Padding(
       key: _inputKey,
@@ -63,14 +71,16 @@ class ChatInputArea extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              GlassIconButton(
-                icon: CupertinoIcons.add,
-                onTap: () {
-                  // TODO: Логика прикрепления медиа
-                },
-                size: 36,
-              ),
-              const SizedBox(width: 10),
+              if (isInputAllowed) ...[
+                GlassIconButton(
+                  icon: CupertinoIcons.add,
+                  onTap: () {
+                    // TODO: Логика прикрепления медиа
+                  },
+                  size: 36,
+                ),
+                const SizedBox(width: 10),
+              ],
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
@@ -95,50 +105,59 @@ class ChatInputArea extends StatelessWidget {
                     child: CupertinoTextField(
                       controller: _textController,
                       focusNode: _inputFocusNode,
+                      readOnly: !isInputAllowed,
                       minLines: 1,
                       maxLines: 5,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 10,
                       ),
-                      placeholder: 'Сообщение...',
+                      placeholder: isInputAllowed
+                          ? 'Сообщение...'
+                          : getRestrictionMessage(),
                       placeholderStyle: AppText.mediumTextStyle.copyWith(
                         color: AppColors.greyple,
                       ),
                       style: AppText.mediumTextStyle.copyWith(
-                        color: AppColors.white,
+                        color: _chat.isAnyBlocked
+                            ? AppColors.white.withValues(alpha: 0.7)
+                            : AppColors.white,
                       ),
                       decoration: null,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              ValueListenableBuilder<bool>(
-                valueListenable: _hasText,
-                builder: (context, hasText, _) {
-                  return GlassIconButton(
-                    icon: _hasEdit
-                        ? CupertinoIcons.checkmark_alt
-                        : hasText
-                        ? CupertinoIcons.arrow_up
-                        : CupertinoIcons.mic_solid,
-                    filled: hasText || _hasEdit,
-                    onTap: () {
-                      final message = Message(text: _textController.value.text);
-                      if (_hasEdit) {
-                        _onApplyEdit(message);
-                      } else if (hasText) {
-                        _onSendMessage(message);
-                      } else {
-                        // TODO: Логика записи голосового сообщения
-                      }
-                      _textController.clear();
-                    },
-                    size: 36,
-                  );
-                },
-              ),
+              if (isInputAllowed) ...[
+                const SizedBox(width: 10),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _hasText,
+                  builder: (context, hasText, _) {
+                    return GlassIconButton(
+                      icon: _hasEdit
+                          ? CupertinoIcons.checkmark_alt
+                          : hasText
+                          ? CupertinoIcons.arrow_up
+                          : CupertinoIcons.mic_solid,
+                      filled: hasText || _hasEdit,
+                      onTap: () {
+                        final message = Message(
+                          text: _textController.value.text,
+                        );
+                        if (_hasEdit) {
+                          _onApplyEdit(message);
+                        } else if (hasText) {
+                          _onSendMessage(message);
+                        } else {
+                          // TODO: Логика записи голосового сообщения
+                        }
+                        _textController.clear();
+                      },
+                      size: 36,
+                    );
+                  },
+                ),
+              ],
             ],
           ),
         ],
@@ -165,5 +184,27 @@ class ChatInputArea extends StatelessWidget {
       icon: CupertinoIcons.arrow_turn_up_left,
       onClose: _cancelBanner,
     );
+  }
+
+  String? getRestrictionMessage() {
+    String? displayName = _chat.user?.displayName;
+
+    if (_isReconnect) {
+      return "Соединение с сервером...";
+    }
+
+    if (_chat.user?.onlyIBlocked == true) {
+      return 'Вы заблокировали пользователя $displayName';
+    }
+
+    if (_chat.user?.onlyTheyBlocked == true) {
+      return 'Вас заблокировал пользователь $displayName';
+    }
+
+    if (_chat.user?.bothBlocked == true) {
+      return 'Вы и пользователь $displayName заблокировали друг друга';
+    }
+
+    return null;
   }
 }

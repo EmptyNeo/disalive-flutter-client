@@ -6,14 +6,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 
 class ChatsView extends StatelessWidget {
-  const ChatsView({super.key});
+  final bool isReconnect;
+  final int personalUnreadCount;
+
+  const ChatsView({
+    super.key,
+    required this.isReconnect,
+    required this.personalUnreadCount,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         // Левый сайдбар (Сервера)
-        const ServersSidebar(),
+        ServersSidebar(personalUnreadCount: personalUnreadCount),
 
         // Правая часть (Личные сообщения / Чаты)
         Expanded(
@@ -29,12 +36,14 @@ class ChatsView extends StatelessWidget {
                   return DirectMessagesSidebar(
                     chats: [],
                     isLoading: true,
+                    isReconnect: isReconnect,
                   );
                 }
 
                 if (state is ChatLoaded) {
                   return DirectMessagesSidebar(
                     chats: state.chats,
+                    isReconnect: isReconnect,
                   );
                 }
 

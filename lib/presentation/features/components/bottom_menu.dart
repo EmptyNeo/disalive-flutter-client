@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/presentation/features/components/widgets/nav_unread_badge.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -9,12 +10,14 @@ class BottomMenu extends StatelessWidget {
   final UserModel user;
   final ValueChanged<int> onTapTapped;
   final int currentIndex;
+  final int personalUnreadCount;
 
   const BottomMenu({
     super.key,
     required this.user,
     required this.onTapTapped,
     required this.currentIndex,
+    required this.personalUnreadCount,
   });
 
   void _onTabTapped(int index) {
@@ -78,6 +81,7 @@ class BottomMenu extends StatelessWidget {
                               ? CupertinoIcons.chat_bubble_2_fill
                               : CupertinoIcons.chat_bubble_2,
                           label: 'Чаты',
+                          unreadCount: personalUnreadCount,
                         ),
                         _buildNavItem(
                           width: itemWidth,
@@ -108,6 +112,7 @@ class BottomMenu extends StatelessWidget {
     required int index,
     required IconData icon,
     required String label,
+    int unreadCount = 0,
   }) {
     final isSelected = currentIndex == index;
     final color = isSelected ? AppColors.blurple : AppColors.iconGrey;
@@ -121,7 +126,21 @@ class BottomMenu extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           // Центрируем по вертикали
           children: [
-            Icon(icon, color: color, size: 24),
+            // Positioned работает только внутри Stack — оборачиваем сюда
+            // именно иконку (не всю колонку), чтобы бейдж сидел строго
+            // у её угла, а не у угла всего таба.
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(icon, color: color, size: 24),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -2,
+                    child: NavUnreadBadge(count: unreadCount),
+                  ),
+              ],
+            ),
             const SizedBox(height: 4),
             Text(
               label,

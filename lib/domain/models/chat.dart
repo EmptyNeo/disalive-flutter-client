@@ -5,6 +5,7 @@ import 'package:disalive/domain/models/user.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/role_member.dart';
+import 'dart:math' as math;
 
 class Chat extends Equatable {
   final int id;
@@ -149,19 +150,24 @@ class Chat extends Equatable {
     );
   }
 
-  bool get hasUnreadMessages => (newMessagesCount ?? 0) > 0;
+  bool get hasUnreadMessages => unreadCount > 0;
 
   bool get isPersonalChat => isPersonal ?? false;
 
-  bool get isGroupChat => !(isPersonal ?? false) && !(isSoloChat ?? false);
+  bool get isGroup => !(isPersonal ?? false) && !(isSoloChat ?? false);
 
-  bool get isSoloChatType => isSoloChat ?? false;
+  bool get isSolo => isSoloChat ?? false;
 
-  bool get isChatOwner => isCreator ?? false;
+  bool get isOwner => isCreator ?? false;
 
   bool get isChatBlocked => isBlocked ?? false;
 
+  bool get isAnyBlocked => user?.isAnyBlocked ?? false;
+
   String get urlAvatar => Domain.transformUrl(pathImage);
+
+  int get unreadCount =>
+      math.max(0, (idLastMessage ?? 0) - (member?.lastIdReadMessage ?? 0));
 
   @override
   List<Object?> get props => [

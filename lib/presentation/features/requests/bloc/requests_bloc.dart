@@ -19,6 +19,10 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
   StreamSubscription<WsEvent>? _createSubscription;
   StreamSubscription<WsEvent>? _deleteSubscription;
 
+  final _errorStreamController = StreamController<String>.broadcast();
+
+  Stream<String> get errorStream => _errorStreamController.stream;
+
   RequestsBloc(this._friendsRepository, this._eventBus)
     : super(RequestsInitial()) {
     on<GetRequests>(_onGetRequests);
@@ -107,10 +111,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
 
     result.fold(
       (failure) {
-        if (state is RequestsLoaded) {
-          final currentState = state as RequestsLoaded;
-          emit(RequestsLoaded(currentState.requests));
-        }
+        _errorStreamController.add(failure.message);
       },
       (success) {
         List<FriendRequest> requests = _friendsRepository.getCached();
@@ -127,10 +128,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
 
     result.fold(
       (failure) {
-        if (state is RequestsLoaded) {
-          final currentState = state as RequestsLoaded;
-          emit(RequestsLoaded(currentState.requests));
-        }
+        _errorStreamController.add(failure.message);
       },
       (success) {
         List<FriendRequest> requests = _friendsRepository.getCached();
@@ -147,10 +145,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
 
     result.fold(
       (failure) {
-        if (state is RequestsLoaded) {
-          final currentState = state as RequestsLoaded;
-          emit(RequestsLoaded(currentState.requests));
-        }
+        _errorStreamController.add(failure.message);
       },
       (success) {
         List<FriendRequest> requests = _friendsRepository.getCached();
@@ -163,6 +158,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
   Future<void> close() {
     _createSubscription?.cancel();
     _deleteSubscription?.cancel();
+    _errorStreamController.close();
     return super.close();
   }
 }

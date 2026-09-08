@@ -30,7 +30,7 @@ class UtilDate {
     return date?.toLocal();
   }
 
-  static String? formatChatTime(String? raw) {
+  static String? formatChatTime(String? raw, bool dayLabel) {
     if (raw == null || raw.isEmpty) return null;
 
     // Нормализуем: добавляем Z для UTC
@@ -48,6 +48,9 @@ class UtilDate {
         local.month == now.month &&
         local.day == now.day;
     if (isToday) {
+      if (dayLabel) {
+        return 'Сегодня';
+      }
       return '${_two(local.hour)}:${_two(local.minute)}';
     }
 

@@ -35,12 +35,20 @@ class DeleteChat extends ChatEvent {
 // В chat_event.dart добавьте:
 class UpdateUserInChat extends ChatEvent {
   final UserModel user;
+  final bool isUpdateBlock;
 
-  UpdateUserInChat(this.user);
+  UpdateUserInChat(this.user, this.isUpdateBlock);
 }
 
 class SearchChats extends ChatEvent {
   final String query;
 
   SearchChats(this.query);
+}
+
+class UpdateMemberInChat extends ChatEvent {
+  final int chatId;
+  final Member member;
+
+  UpdateMemberInChat({required this.chatId, required this.member});
 }

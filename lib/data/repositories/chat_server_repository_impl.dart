@@ -13,8 +13,13 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class ChatServerRepositoryImpl extends ChatServerRepository {
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
-
   final WsEventBus _eventBus;
+
+  // Поля для авто-переподключения
+  String? _currentToken;
+  Timer? _reconnectTimer;
+  int _retryAttempts = 0;
+  bool _isManualDisconnect = false;
 
   ChatServerRepositoryImpl(this._eventBus);
 
@@ -23,9 +28,20 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   @override
   Future<Either<Failure, void>> connect(String token) async {
+    _isManualDisconnect = false;
+    _currentToken = token;
+    _retryAttempts = 0;
+
+    return _attemptConnection();
+  }
+
+  Future<Either<Failure, void>> _attemptConnection() async {
+    // Отменяем предыдущий таймер переподключения, если он был
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
     try {
       const wsUrl = 'wss://disalive.ru:8081';
-
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
       await _channel!.ready;
@@ -33,36 +49,67 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       _channel!.sink.add(
         jsonEncode({
           'nameAction': 'Connect',
-          'wsToken': token,
+          'wsToken': _currentToken,
           'status': 'online',
         }),
       );
 
-      _subscription = _channel!.stream.listen(
-        (message) {
-          try {
-            final data = jsonDecode(message as String);
-            if (data is Map<String, dynamic>) {
-              _processMessage(data);
-            }
-          } catch (e) {
-            print('Error parsing WebSocket message: $e');
-          }
-        },
-        onError: (error) {
-          print('WebSocket error: $error');
-        },
-        onDone: () {
-          _channel = null;
-          _subscription = null;
-        },
-      );
-
+      _setupStreamListener();
       return const Right(null);
     } catch (e) {
       _channel = null;
+      _scheduleReconnect();
       return Left(ClientFailure(e.toString()));
     }
+  }
+
+  void _setupStreamListener() {
+    _subscription = _channel!.stream.listen(
+      (message) {
+        try {
+          final data = jsonDecode(message as String);
+          if (data is Map<String, dynamic>) {
+            _processMessage(data);
+          }
+        } catch (e) {
+          print('Error parsing WebSocket message: $e');
+        }
+      },
+      onError: (error) {
+        print('WebSocket error: $error');
+        _handleDisconnect();
+      },
+      onDone: () {
+        print('WebSocket connection closed');
+        _handleDisconnect();
+      },
+    );
+  }
+
+  void _handleDisconnect() {
+    _channel = null;
+    _subscription?.cancel();
+    _subscription = null;
+
+    // Если это не было вызвано методом disconnect(), пытаемся переподключиться
+    if (!_isManualDisconnect && _currentToken != null) {
+      _scheduleReconnect();
+    }
+  }
+
+  void _scheduleReconnect() {
+    if (_isManualDisconnect) return;
+
+    // Экспоненциальная задержка: 1с, 2с, 4с, 8с, 12с, максимум 12 секунд
+    final delaySeconds = (1 << _retryAttempts).clamp(1, 12);
+    _retryAttempts++;
+
+    print('Scheduling WebSocket reconnect in $delaySeconds seconds...');
+
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+      print('Attempting to reconnect WebSocket...');
+      _attemptConnection();
+    });
   }
 
   void _processMessage(Map<String, dynamic> data) {
@@ -71,16 +118,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     final isSelf = (data['isSelf'] ?? false) as bool;
     final action = ActionType.fromString(actionStr);
 
-    if (table == null || action == null) {
-      print("table or action is null");
-      return;
-    }
-
-    print('Message from Web Socket');
-    print(table);
-    print(action);
-    print(data);
-    print('End Message From Web Socket');
+    if (table == null || action == null) return;
 
     _eventBus.dispatch(
       WsEvent(table: table, action: action, data: data, isSelf: isSelf),
@@ -89,10 +127,14 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   @override
   void disconnect() {
+    _isManualDisconnect = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     _subscription?.cancel();
     _subscription = null;
     _channel?.sink.close();
     _channel = null;
+    _currentToken = null;
   }
 
   @override
@@ -101,7 +143,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       print('WebSocket is not connected');
       return;
     }
-
     _channel!.sink.add(jsonEncode(data));
   }
 

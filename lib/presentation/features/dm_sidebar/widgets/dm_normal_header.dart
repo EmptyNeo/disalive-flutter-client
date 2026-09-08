@@ -8,21 +8,27 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class DmNormalHeader extends StatelessWidget {
+  final bool isReconnect;
   final VoidCallback onSearchTap;
 
-  const DmNormalHeader({super.key, required this.onSearchTap});
+  const DmNormalHeader({
+    super.key,
+    required this.isReconnect,
+    required this.onSearchTap,
+  });
 
   static const double _buttonRadius = 32;
 
   @override
   Widget build(BuildContext context) {
+    String title = isReconnect ? 'Соединение...' : 'Личные сообщения';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
           child: Text(
-            'Личные сообщения',
+            title,
             style: TextStyle(
               color: AppColors.white,
               fontSize: 16,

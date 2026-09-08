@@ -56,4 +56,23 @@ class ChatRepositoryImpl implements ChatRepository {
   bool isCurrentChat(int chatId) {
     return _currentChat?.id == chatId;
   }
+
+  @override
+  int getAllUnredCount() {
+    int unreadCount = 0;
+    var chats = _chats;
+    if (chats == null) {
+      return 0;
+    }
+
+    if (chats.isEmpty) {
+      return 0;
+    }
+
+    for (var chat in chats) {
+      unreadCount += chat.unreadCount;
+    }
+
+    return unreadCount;
+  }
 }

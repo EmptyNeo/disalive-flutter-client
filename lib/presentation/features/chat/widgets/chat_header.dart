@@ -10,11 +10,13 @@ const double _kFloatingPanelMargin = 8;
 
 class ChatHeader extends StatelessWidget {
   final Chat chat;
+  final bool isReconnect;
 
-  const ChatHeader({super.key, required this.chat});
+  const ChatHeader({super.key, required this.chat, required this.isReconnect});
 
   @override
   Widget build(BuildContext context) {
+    String title = isReconnect ? "Соединение..." : chat.name;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         _kFloatingPanelMargin,
@@ -60,7 +62,7 @@ class ChatHeader extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          chat.name,
+                          title,
                           style: AppText.mediumTextStyle.copyWith(
                             color: AppColors.white,
                           ),

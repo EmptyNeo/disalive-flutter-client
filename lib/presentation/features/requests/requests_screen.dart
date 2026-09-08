@@ -1,4 +1,6 @@
 // lib/presentation/features/requests/requests_screen.dart
+import 'dart:async';
+
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/friend_request.dart';
@@ -8,6 +10,7 @@ import 'package:disalive/presentation/features/requests/widgets/requests_header.
 import 'package:disalive/presentation/features/requests/widgets/send_request_bar.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -38,12 +41,22 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   List<FriendRequest>? _cachedRequests;
 
+  late StreamSubscription<String> _errorSubscription;
+
   @override
   void initState() {
     super.initState();
 
     _usernameController = TextEditingController();
     _usernameController.addListener(_onTextChanged);
+
+    _errorSubscription = context.read<RequestsBloc>().errorStream.listen((
+      errorMessage,
+    ) {
+      if (mounted) {
+        CustomToast.show(context, errorMessage);
+      }
+    });
   }
 
   void _onTextChanged() {
@@ -55,6 +68,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
 
   @override
   void dispose() {
+    _errorSubscription.cancel();
     _usernameController.removeListener(_onTextChanged);
     _usernameController.dispose();
     _hasText.dispose();
@@ -112,14 +126,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-                  BlocConsumer<RequestsBloc, RequestsState>(
-                    listener: (context, state) {
-                      if (state is RequestsLoaded) {
-                        _cachedRequests = state.requests;
-                      }
-                    },
+                  BlocBuilder<RequestsBloc, RequestsState>(
                     builder: (context, state) {
-                      // Сохраняем актуальный список, когда он успешно загружен
                       if (state is RequestsLoaded) {
                         _cachedRequests = state.requests;
                       }
@@ -187,12 +195,9 @@ class _RequestsSliverList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bloc = context.read<RequestsBloc>();
-
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final request = requests[index];
-        final username = request.user?.username ?? '';
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

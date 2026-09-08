@@ -122,48 +122,45 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
             onVerticalDragEnd: _handleGrabberDragEnd,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        AppColors.glassPanelTop.withValues(alpha: 0.78),
-                        AppColors.glassPanelBottom.withValues(alpha: 0.9),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: CupertinoColors.white.withValues(alpha: 0.08),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: CupertinoColors.black.withValues(alpha: 0.35),
-                        blurRadius: 30,
-                        offset: const Offset(0, 12),
-                      ),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.glassPanelTop,
+                      AppColors.glassPanelBottom,
                     ],
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildGrabber(),
-                      if (widget.title != null) _buildHeader(),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final action in widget.actions)
-                              _buildActionTile(context, action),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: CupertinoColors.white.withValues(alpha: 0.08),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.black.withValues(alpha: 0.35),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildGrabber(),
+                    if (widget.title != null) _buildHeader(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final action in widget.actions)
+                            _buildActionTile(context, action),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 ),
               ),
             ),

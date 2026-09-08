@@ -275,6 +275,8 @@ class MessageItem extends StatelessWidget {
         return CupertinoIcons.time;
       case ActionType.delete:
         return CupertinoIcons.trash;
+      case ActionType.block:
+        return CupertinoIcons.lock_fill;
     }
   }
 
