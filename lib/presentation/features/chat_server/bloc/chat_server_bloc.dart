@@ -77,6 +77,11 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
     ConnectToChatServer event,
     Emitter<ChatServerState> emit,
   ) async {
+    if (_chatServerRepository.isConnected) {
+      print("Already connected, skipping ConnectToChatServer.");
+      return;
+    }
+
     print("--------- START CONNECT TO CHAT SERVER ------------------");
 
     final tokenResult = await _wsRepository.getToken();

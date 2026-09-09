@@ -35,6 +35,10 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   @override
   Future<Either<Failure, void>> connect(String token) async {
+    if (_channel != null) {
+      return const Right(null);
+    }
+
     _isManualDisconnect = false;
     _currentToken = token;
     _retryAttempts = 0;

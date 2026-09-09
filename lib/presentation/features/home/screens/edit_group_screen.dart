@@ -1,8 +1,8 @@
-// lib/presentation/features/chat/edit_group_screen.dart
 import 'dart:io';
 
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
@@ -11,9 +11,6 @@ import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 
-/// Экран редактирования группового чата: аватар (тап открывает медиа-пикер),
-/// название (предзаполнено текущим именем чата), плавающая кнопка
-/// "Сохранить" и возможность сбросить оба поля к исходным значениям.
 class EditGroupScreen extends StatefulWidget {
   const EditGroupScreen({super.key, required this.chat});
 
@@ -31,13 +28,15 @@ class EditGroupScreen extends StatefulWidget {
 }
 
 class _EditGroupScreenState extends State<EditGroupScreen> {
-  static const double _avatarSize = 80;
+  static const double _avatarSize = 96;
 
   late final String _initialName;
   late final TextEditingController _nameController;
 
   File? _selectedAvatarFile;
+  bool _isAvatarDeleted = false;
   bool _isSaving = false;
+  String defaultUrlImage = "/resources/DefaultGroupImage.png";
 
   final ValueNotifier<bool> _hasChanges = ValueNotifier(false);
 
@@ -58,9 +57,10 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   }
 
   void _onFieldsChanged() {
-    final changed =
-        _selectedAvatarFile != null ||
-        _nameController.text.trim() != _initialName.trim();
+    final hasAvatarChange = _selectedAvatarFile != null || _isAvatarDeleted;
+    final hasNameChange = _nameController.text.trim() != _initialName.trim();
+    final changed = hasAvatarChange || hasNameChange;
+
     if (_hasChanges.value != changed) {
       _hasChanges.value = changed;
     }
@@ -69,16 +69,23 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   void _resetChanges() {
     setState(() {
       _selectedAvatarFile = null;
+      _isAvatarDeleted = false;
       _nameController.text = _initialName;
     });
     _onFieldsChanged();
   }
 
   Future<void> _pickAvatar() async {
-    final files = await MediaPickerBottomSheet.open(context: context);
+    final files = await MediaPickerBottomSheet.open(
+      context: context,
+      onlyInitialType: true,
+    );
     if (files == null || files.isEmpty) return;
 
-    setState(() => _selectedAvatarFile = files.first);
+    setState(() {
+      _selectedAvatarFile = files.first;
+      _isAvatarDeleted = false;
+    });
     _onFieldsChanged();
   }
 
@@ -91,7 +98,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       widget.chat.id,
       _selectedAvatarFile,
       _nameController.text.trim(),
-      false, //deleted?
+      _isAvatarDeleted,
     );
 
     if (!mounted) return;
@@ -139,8 +146,6 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
                             ),
                           ),
                         ),
-                        // Запас снизу, чтобы поле имени не пряталось под
-                        // нависающей кнопкой "Сохранить" (у неё нет бара).
                         const SizedBox(height: 88),
                       ],
                     ),
@@ -179,7 +184,11 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
               return GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: hasChanges ? _resetChanges : null,
-                child: Icon(CupertinoIcons.refresh, size: 16),
+                child: Icon(
+                  CupertinoIcons.refresh,
+                  size: 16,
+                  color: hasChanges ? AppColors.white : AppColors.greyple,
+                ),
               );
             },
           ),
@@ -189,6 +198,14 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
   }
 
   Widget _buildAvatarPicker() {
+    final bool showDeleteButton =
+        !_isAvatarDeleted &&
+        (_selectedAvatarFile != null ||
+            widget.chat.urlAvatar != defaultUrlImage);
+
+    print(widget.chat.urlAvatar);
+    print(defaultUrlImage);
+
     return GestureDetector(
       onTap: _pickAvatar,
       child: SizedBox(
@@ -198,19 +215,60 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
           clipBehavior: Clip.none,
           children: [
             ClipOval(
-              child: _selectedAvatarFile != null
-                  ? Image.file(
-                      _selectedAvatarFile!,
-                      width: _avatarSize,
-                      height: _avatarSize,
-                      fit: BoxFit.cover,
-                    )
-                  : BuildAvatar(
-                      url: widget.chat.urlAvatar,
+              child: _isAvatarDeleted
+                  ? BuildAvatar(
+                      url: defaultUrlImage,
+                      isGroup: widget.chat.isGroup,
                       wh: _avatarSize,
                       size: _avatarSize * 0.4,
-                    ),
+                    )
+                  : (_selectedAvatarFile != null
+                        ? Image.file(
+                            _selectedAvatarFile!,
+                            width: _avatarSize,
+                            height: _avatarSize,
+                            fit: BoxFit.cover,
+                          )
+                        : BuildAvatar(
+                            url: widget.chat.urlAvatar,
+                            isGroup: widget.chat.isGroup,
+                            wh: _avatarSize,
+                            size: _avatarSize * 0.4,
+                          )),
             ),
+            if (showDeleteButton)
+              Positioned(
+                left: -2,
+                bottom: -2,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedAvatarFile = null;
+                      _isAvatarDeleted = true;
+                    });
+                    _onFieldsChanged();
+                  },
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.errorRed,
+                      border: Border.all(
+                        color: AppColors.mainBackground,
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.trash,
+                      size: 14,
+                      color: CupertinoColors.white,
+                    ),
+                  ),
+                ),
+              ),
+
             Positioned(
               right: -2,
               bottom: -2,
@@ -249,7 +307,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         ),
         child: CupertinoTextField(
           controller: _nameController,
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.start,
           placeholder: 'Название группы',
           placeholderStyle: TextStyle(color: AppColors.greyple, fontSize: 15),
           style: TextStyle(

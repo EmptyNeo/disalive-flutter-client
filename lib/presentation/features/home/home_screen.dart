@@ -76,16 +76,15 @@ class _HomeScreenState extends State<HomeScreen> {
         listeners: [
           BlocListener<ChatServerBloc, ChatServerState>(
             listener: (context, state) {
-              if (state is ChatServerConnecting) {
+              final shouldShowReconnect = state is! ChatServerConnected;
+
+              if (isReconnect != shouldShowReconnect) {
                 setState(() {
-                  isReconnect = true;
+                  isReconnect = shouldShowReconnect;
                 });
               }
 
               if (state is ChatServerConnected) {
-                setState(() {
-                  isReconnect = false;
-                });
                 context.read<ChatBloc>().setupListeners();
                 context.read<MessageBloc>().setupListeners();
               }

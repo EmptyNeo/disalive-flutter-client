@@ -33,13 +33,12 @@ class UtilDate {
   static String? formatDayTime(String? raw, bool dayLabel) {
     if (raw == null || raw.isEmpty) return null;
 
-    // Нормализуем: добавляем Z для UTC
     final normalized = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
-    final utcTime = DateTime.tryParse('${normalized}Z');
+    final date = DateTime.tryParse(normalized);
 
-    if (utcTime == null) return raw;
+    if (date == null) return raw;
 
-    final local = utcTime.toLocal();
+    final local = date.toLocal();
 
     final now = DateTime.now();
 

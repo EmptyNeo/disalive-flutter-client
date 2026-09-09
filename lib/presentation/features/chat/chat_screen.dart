@@ -146,14 +146,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         BlocListener<ChatServerBloc, ChatServerState>(
           listener: (context, state) {
-            if (state is ChatServerConnecting) {
+            final shouldShowReconnect = state is! ChatServerConnected;
+
+            if (isReconnect != shouldShowReconnect) {
               setState(() {
-                isReconnect = true;
-              });
-            }
-            if (state is ChatServerConnected) {
-              setState(() {
-                isReconnect = false;
+                isReconnect = shouldShowReconnect;
               });
             }
           },

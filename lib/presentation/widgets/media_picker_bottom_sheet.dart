@@ -10,23 +10,27 @@ import 'package:disalive/app/theme/app_theme.dart';
 
 class MediaPickerBottomSheet extends StatefulWidget {
   final RequestType initialType;
+  final bool onlyInitialType;
   final bool allowMultiple;
 
   const MediaPickerBottomSheet({
     super.key,
     this.initialType = RequestType.image,
+    this.onlyInitialType = false,
     this.allowMultiple = false,
   });
 
   static Future<List<File>?> open({
     required BuildContext context,
     RequestType type = RequestType.image,
+    bool onlyInitialType = false,
     bool allowMultiple = false,
   }) {
     return showCupertinoModalPopup<List<File>?>(
       context: context,
       builder: (context) => MediaPickerBottomSheet(
         initialType: type,
+        onlyInitialType: onlyInitialType,
         allowMultiple: allowMultiple,
       ),
     );
@@ -84,10 +88,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
   }
 
   Future<void> _loadPage() async {
-    // Явно просим у PhotoManager сортировку "сначала новые" — без этого
-    // на части устройств альбом "Все" отдаётся от старых к новым, и тогда
-    // даже постраничная сортировка внутри одной страницы не помогает:
-    // первой страницей всё равно приходят самые старые фото.
     final albums = await PhotoManager.getAssetPathList(
       type: _currentType,
       onlyAll: true,
@@ -114,8 +114,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
 
     if (mounted) {
       setState(() {
-        // Страницы уже приходят отсортированными от новых к старым,
-        // дополнительная сортировка здесь не нужна.
         _assets.addAll(assets);
         _hasMore = assets.length == 60;
         _currentPage++;
@@ -161,7 +159,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
 
   Future<void> _selectAsset(AssetEntity asset) async {
     if (widget.allowMultiple) {
-      // Множественный выбор
       setState(() {
         if (_selectedAssets.contains(asset)) {
           _selectedAssets.remove(asset);
@@ -170,7 +167,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
         }
       });
     } else {
-      // Одиночный выбор - сразу возвращаем
       final file = await asset.file;
       if (file != null && mounted) {
         Navigator.of(context).pop([file]);
@@ -201,8 +197,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
   }
 
   void _handleGrabberDragUpdate(DragUpdateDetails details) {
-    // Тянуть вверх выше исходной позиции нельзя — карточка не "прыгает"
-    // выше своего места в разложенном виде.
     if (_dragExtent <= 0 && details.delta.dy < 0) return;
     setState(() {
       _dragExtent = (_dragExtent + details.delta.dy).clamp(0, 600);
@@ -229,10 +223,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
         .whenComplete(() => animation.removeListener(listener));
   }
 
-  // Довозим карточку своим Transform полностью за экран и только потом
-  // вызываем pop — иначе встроенная exit-анимация showCupertinoModalPopup
-  // стартует с нулевого смещения поверх уже сдвинутой карточки, и получается
-  // рывок. Так к моменту pop() карточки уже не видно, и он проходит незаметно.
   void _dismissSheet() {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final animation = Tween<double>(
@@ -258,7 +248,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
       maxChildSize: 0.9,
       expand: false,
       builder: (context, scrollController) {
-        // Добавляем слушатель скролла для пагинации
         scrollController.addListener(() {
           if (scrollController.position.pixels >=
               scrollController.position.maxScrollExtent - 200) {
@@ -293,8 +282,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
                         onVerticalDragEnd: _handleGrabberDragEnd,
                         child: _buildHeader(),
                       ),
-
-                      // Сетка
                       Expanded(
                         child: _isLoading
                             ? const Center(child: CupertinoActivityIndicator())
@@ -380,8 +367,6 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
                       ),
                     ],
                   ),
-
-                  // Кнопка "Готово"
                   Positioned(
                     bottom: 16,
                     right: 16,
@@ -444,7 +429,7 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
@@ -454,7 +439,11 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
         ),
       ),
       child: Column(
+        // По умолчанию Column центрирует элементы по горизонтали (crossAxisAlignment: CrossAxisAlignment.center)
+        // Мы просто явно указываем это для ясности кода.
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // 1. Ручка для перетаскивания
           Container(
             width: 36,
             height: 4,
@@ -464,19 +453,25 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Галерея',
-                style: AppText.highTextStyle.copyWith(
-                  color: AppColors.white,
-                  fontSize: 18,
-                ),
-              ),
-              _buildTypeSelector(),
-            ],
+
+          // 2. Заголовок
+          Text(
+            'Галерея',
+            textAlign: TextAlign.center,
+            // На случай, если текст не влезет в одну строку на узких экранах
+            style: AppText.highTextStyle.copyWith(
+              color: AppColors.white,
+              fontSize: 18,
+            ),
           ),
+
+          // 3. Отступ
+          if (!widget.onlyInitialType) ...[
+            const SizedBox(height: 12),
+
+            // 4. Селектор категорий (автоматически встанет по центру, так как он внутри центрированного Column)
+            _buildTypeSelector(),
+          ],
         ],
       ),
     );
