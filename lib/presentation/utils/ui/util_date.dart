@@ -30,7 +30,7 @@ class UtilDate {
     return date?.toLocal();
   }
 
-  static String? formatChatTime(String? raw, bool dayLabel) {
+  static String? formatDayTime(String? raw, bool dayLabel) {
     if (raw == null || raw.isEmpty) return null;
 
     // Нормализуем: добавляем Z для UTC

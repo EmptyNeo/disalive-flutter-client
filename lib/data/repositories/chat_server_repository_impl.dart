@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/ui/ws_connection_status.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
@@ -21,10 +22,16 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   int _retryAttempts = 0;
   bool _isManualDisconnect = false;
 
+  final _statusController = StreamController<WsConnectionStatus>.broadcast();
+
   ChatServerRepositoryImpl(this._eventBus);
 
   @override
   bool get isConnected => _channel != null;
+
+  @override
+  Stream<WsConnectionStatus> get connectionStatusStream =>
+      _statusController.stream;
 
   @override
   Future<Either<Failure, void>> connect(String token) async {
@@ -41,6 +48,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _reconnectTimer = null;
 
     try {
+      _statusController.add(WsConnectionStatus.connecting);
       const wsUrl = 'wss://disalive.ru:8081';
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
@@ -55,9 +63,12 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       );
 
       _setupStreamListener();
+
+      _statusController.add(WsConnectionStatus.connected);
       return const Right(null);
     } catch (e) {
       _channel = null;
+      _statusController.add(WsConnectionStatus.disconnected);
       _scheduleReconnect();
       return Left(ClientFailure(e.toString()));
     }
@@ -90,6 +101,8 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _channel = null;
     _subscription?.cancel();
     _subscription = null;
+
+    _statusController.add(WsConnectionStatus.disconnected);
 
     // Если это не было вызвано методом disconnect(), пытаемся переподключиться
     if (!_isManualDisconnect && _currentToken != null) {
@@ -135,6 +148,8 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _channel?.sink.close();
     _channel = null;
     _currentToken = null;
+
+    _statusController.add(WsConnectionStatus.disconnected);
   }
 
   @override
@@ -147,6 +162,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   }
 
   void dispose() {
+    _statusController.close();
     disconnect();
   }
 }

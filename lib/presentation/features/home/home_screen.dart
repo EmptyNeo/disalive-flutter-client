@@ -6,6 +6,7 @@ import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
@@ -143,7 +144,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: GlassIconButton(
                           filled: true,
                           icon: CupertinoIcons.add,
-                          onTap: () {},
+                          onTap: () {
+                            CreateChatScreen.open(context);
+                          },
                         ),
                       ),
                     ),

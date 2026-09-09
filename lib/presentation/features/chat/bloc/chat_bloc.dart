@@ -143,6 +143,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (cachedChats.isNotEmpty) {
       int unreadCount = _chatRepository.getAllUnredCount();
       emit(ChatLoaded(cachedChats, unreadCount));
+      return;
     }
 
     final result = await _chatRepository.get();

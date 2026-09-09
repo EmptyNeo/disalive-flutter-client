@@ -62,20 +62,22 @@ class UpdateMessage extends MessageEvent {
     this.isWs = false,
   });
 }
+// lib/presentation/features/message/bloc/message_event.dart
 
-// В message_event.dart добавьте:
 class DeleteMessage extends MessageEvent {
   final int chatId;
   final int entityId;
   final EntityType entityType;
-  final int messageId;
+  final int? messageId;
+  final String? localGeneratedId;
   final bool isWs;
 
   DeleteMessage({
     required this.chatId,
     required this.entityId,
     required this.entityType,
-    required this.messageId,
+    this.messageId,
+    this.localGeneratedId,
     this.isWs = false,
   });
 }

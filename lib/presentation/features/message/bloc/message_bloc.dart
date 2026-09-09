@@ -356,36 +356,48 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     DeleteMessage event,
     Emitter<MessageState> emit,
   ) async {
-    if (event.isWs) {
-      _removeMessageFromCache(event.chatId, event.messageId);
+    if (event.localGeneratedId != null) {
+      _removeLocalMessageFromCache(event.chatId, event.localGeneratedId!);
       _emitFromCache(event.chatId, emit);
       return;
     }
 
-    // Помечаем сообщение как удаляемое (показываем индикатор)
-    _markMessageAsLoading(event.chatId, event.messageId, ActionType.delete);
+    if (event.isWs) {
+      _removeMessageFromCache(event.chatId, event.messageId!);
+      _emitFromCache(event.chatId, emit);
+      return;
+    }
+
+    final targetMessageId = event.messageId!;
+
+    _markMessageAsLoading(event.chatId, targetMessageId, ActionType.delete);
     _emitFromCache(event.chatId, emit);
 
     final result = await _messageRepository.delete(
       event.chatId,
       event.entityId,
       event.entityType,
-      event.messageId,
+      targetMessageId,
     );
 
     result.fold(
       (failure) {
         debugPrint('Failed to delete message: ${failure.message}');
-        // Ошибка удаления — показываем ошибку
-        _markMessageAsFailed(event.chatId, event.messageId, ActionType.delete);
+        _markMessageAsFailed(event.chatId, targetMessageId, ActionType.delete);
         _emitFromCache(event.chatId, emit);
       },
       (_) {
-        // Успех — удаляем из кэша
-        _removeMessageFromCache(event.chatId, event.messageId);
+        _removeMessageFromCache(event.chatId, targetMessageId);
         _emitFromCache(event.chatId, emit);
       },
     );
+  }
+
+  void _removeLocalMessageFromCache(int chatId, String localGeneratedId) {
+    final cached = _messageRepository.getCached(chatId);
+    if (cached == null) return;
+
+    cached.messages.removeWhere((m) => m.localGeneratedId == localGeneratedId);
   }
 
   void _addOptimisticLocalMessage(CreateMessage event) {

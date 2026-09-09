@@ -61,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool isReconnect = false;
 
   late final MessageBloc _messageBloc;
+  late final ChatBloc _chatBloc;
 
   final GlobalKey _inputKey = GlobalKey();
   double _inputReserve = _kInputReserveMin;
@@ -79,6 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.addListener(_onTextChanged);
 
     _messageBloc = context.read<MessageBloc>();
+    _chatBloc = context.read<ChatBloc>();
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
@@ -180,6 +182,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         child: MessagesList(
                           key: _messagesListKey,
                           messageBloc: _messageBloc,
+                          chatBloc: _chatBloc,
                           chat: widget.chat,
                           currentUserId: _currentUserId,
                           inputReserve: _inputReserve,
@@ -323,13 +326,16 @@ class _ChatScreenState extends State<ChatScreen> {
     _cancelBanner();
   }
 
+  // lib/presentation/features/chat/screens/chat_screen.dart
+
   void _onDeleteMessage(Message message) {
     _messageBloc.add(
       DeleteMessage(
         chatId: widget.chat.id,
         entityId: widget.chat.id,
         entityType: EntityType.chat,
-        messageId: message.getId,
+        messageId: message.id,
+        localGeneratedId: message.localGeneratedId,
       ),
     );
   }

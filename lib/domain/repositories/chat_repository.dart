@@ -5,6 +5,8 @@ import 'package:disalive/domain/models/chat.dart';
 abstract class ChatRepository {
   Future<Either<Failure, List<Chat>>> get();
 
+  Future<Either<Failure, bool>> create(List<Chat> chats);
+
   List<Chat> getCached();
 
   Chat? getCurrentChat();

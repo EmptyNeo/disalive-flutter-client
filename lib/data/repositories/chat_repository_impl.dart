@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
@@ -33,6 +35,23 @@ class ChatRepositoryImpl implements ChatRepository {
       chats.sort(ChatSorter.compare);
       _chats = chats;
     });
+
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, bool>> create(List<Chat> chats) async {
+    final chatsJson = jsonEncode(chats.map((c) => c.toMap()).toList());
+
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'chats/create.php',
+      data: {'chats': chatsJson},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        return json is Map<String, dynamic>;
+      },
+    );
 
     return result;
   }

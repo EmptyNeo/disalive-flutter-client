@@ -36,7 +36,7 @@ class _ChatItemState extends State<ChatItem> {
     final bool isMuted = chat.member?.isMuted ?? false;
     final int unreadCount = chat.unreadCount;
     final bool hasUnread = chat.hasUnreadMessages;
-    final String? time = UtilDate.formatChatTime(chat.lastMessageTime, false);
+    final String? time = UtilDate.formatDayTime(chat.lastMessageTime, false);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

@@ -5,12 +5,16 @@ import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
+import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
 import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/features/message/widgets/swipes/swipe_to_reply_message.dart';
 import 'package:disalive/presentation/utils/app_clipboard.dart';
 import 'package:disalive/presentation/utils/ui/message_grouper.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -22,6 +26,7 @@ const double _kLoadMoreThreshold = 200;
 
 class MessagesList extends StatefulWidget {
   final MessageBloc messageBloc;
+  final ChatBloc chatBloc;
   final Chat chat;
   final int? currentUserId;
   final double inputReserve;
@@ -38,6 +43,7 @@ class MessagesList extends StatefulWidget {
   MessagesList({
     super.key,
     required this.messageBloc,
+    required this.chatBloc,
     required this.chat,
     required this.currentUserId,
     required this.inputReserve,
@@ -214,7 +220,7 @@ class MessagesListState extends State<MessagesList> {
               () => GlobalKey(),
             );
 
-            return SwipeToReplyMessage(
+            final messageWidget = SwipeToReplyMessage(
               key: ValueKey(messageId),
               onReply: () {
                 widget.onAnswerMessage(message);
@@ -250,6 +256,34 @@ class MessagesListState extends State<MessagesList> {
                   },
                 ),
               ),
+            );
+
+            // Список newest-first, а ListView с reverse: true рисует index 0
+            // внизу и увеличивает индекс вверх — значит groupedMessages[index+1]
+            // хронологически СТАРШЕ и рисуется НАД текущим сообщением. Поэтому
+            // "это сообщение — самое старое в своём дне" проверяем сравнением
+            // с лейблом дня следующего (более старого) сообщения: если лейблы
+            // разошлись (или более старого сообщения вообще нет — это конец
+            // списка), сепаратор для этого дня вставляем НАД текущим слотом.
+            final dayLabel = UtilDate.formatDayTime(message.time, true);
+            if (dayLabel == null) return messageWidget;
+
+            final olderMessage = index + 1 < groupedMessages.length
+                ? groupedMessages[index + 1].message
+                : null;
+            final olderDayLabel = olderMessage != null
+                ? UtilDate.formatDayTime(olderMessage.time, true)
+                : null;
+
+            final isFirstOfDay = dayLabel != olderDayLabel;
+            if (!isFirstOfDay) return messageWidget;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DaySeparator(label: dayLabel),
+                messageWidget,
+              ],
             );
           },
         );
@@ -305,7 +339,12 @@ class MessagesListState extends State<MessagesList> {
         icon: CupertinoIcons.arrow_turn_up_right,
         label: 'Переслать',
         onTap: () {
-          // TODO: Логика пересылки
+          ForwardMessageScreen.open(
+            context,
+            widget.chatBloc,
+            widget.messageBloc,
+            message,
+          );
         },
       ),
 

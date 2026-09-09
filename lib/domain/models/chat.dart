@@ -92,7 +92,7 @@ class Chat extends Equatable {
       if (memberCount != null) 'memberCount': memberCount,
       'name': name,
       if (pathImage != null) 'pathImage': pathImage,
-      if (type != null) 'type': type,
+      if (type != null) 'type': type?.value,
       if (lastActionTime != null) 'lastActionTime': lastActionTime,
       if (lastMessageTime != null) 'lastMessageTime': lastMessageTime,
       if (isBlocked != null) 'isBlocked': isBlocked,

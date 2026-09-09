@@ -13,3 +13,9 @@ class SendChatServerMessage extends ChatServerEvent {
 
   SendChatServerMessage(this.data);
 }
+
+class SetConnection extends ChatServerEvent {}
+
+class SetDisconnection extends ChatServerEvent {}
+
+class SetConnected extends ChatServerEvent {}
