@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/data/network/domain.dart';
@@ -20,6 +21,7 @@ class HttpClientService {
   Future<Either<Failure, T>> postFormData<T>({
     required String endpoint,
     Map<String, dynamic>? data,
+    Map<String, File?>? files,
     required T Function(dynamic json) fromJson,
     ApiType apiType = ApiType.v1,
     bool requireAuth = true,
@@ -51,6 +53,66 @@ class HttpClientService {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: formData,
       );
+
+      return _handleResponse<T>(
+        response: response,
+        fromJson: fromJson,
+        endpoint: endpoint,
+        onUnauthorized: onUnauthorized,
+        errorMessage: errorMessage,
+      );
+    } catch (e) {
+      return Left(NetworkFailure());
+    }
+  }
+
+  Future<Either<Failure, T>> postMultipart<T>({
+    required String endpoint,
+    Map<String, dynamic>? data,
+    required Map<String, File?> files,
+    required T Function(dynamic json) fromJson,
+    ApiType apiType = ApiType.v1,
+    bool requireAuth = true,
+    String? errorMessage,
+    VoidCallback? onUnauthorized,
+  }) async {
+    try {
+      final baseUrl = _getBaseUrl(apiType);
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl$endpoint'),
+      );
+
+      if (requireAuth) {
+        final keySession = await _secureStorage.getKeySession();
+        if (keySession == null) {
+          return Left(UnauthorizedFailure());
+        }
+        request.fields['keySession'] = keySession;
+      }
+
+      if (data != null) {
+        data.forEach((key, value) {
+          if (value != null) {
+            request.fields[key] = value.toString();
+          }
+        });
+      }
+
+      for (final entry in files.entries) {
+        File? file = entry.value;
+        if (file == null) continue;
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            entry.key,
+            file.path,
+            filename: file.uri.pathSegments.last,
+          ),
+        );
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
       return _handleResponse<T>(
         response: response,

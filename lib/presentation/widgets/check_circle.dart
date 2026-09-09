@@ -22,7 +22,7 @@ class CheckCircle extends StatelessWidget {
       ),
       child: isSelected
           ? const Icon(
-              CupertinoIcons.check_mark,
+              CupertinoIcons.checkmark_alt,
               color: CupertinoColors.white,
               size: 14,
             )

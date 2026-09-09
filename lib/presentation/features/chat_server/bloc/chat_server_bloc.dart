@@ -1,6 +1,4 @@
-// lib/presentation/bloc/chat_server/chat_server_bloc.dart
 import 'dart:async';
-
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/ui/ws_connection_status.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
@@ -17,7 +15,6 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
   final ChatServerRepository _chatServerRepository;
 
   bool _wasConnectedBeforeBackground = false;
-
   late final StreamSubscription<WsConnectionStatus> _statusSubscription;
 
   bool get isConnected => _chatServerRepository.isConnected;
@@ -31,29 +28,22 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
     on<SetConnected>(_setConnected);
     on<SetDisconnection>(_setDisconnection);
 
-    // Регистрируем наблюдатель за жизненным циклом приложения
     WidgetsBinding.instance.addObserver(this);
-
-    setupSubscription();
+    _setupSubscription();
   }
 
-  void setupSubscription() {
+  void _setupSubscription() {
     _statusSubscription = _chatServerRepository.connectionStatusStream.listen((
       status,
     ) {
       switch (status) {
         case WsConnectionStatus.connecting:
-          // Если мы не в состоянии ручного отключения, показываем процесс подключения/реконнекта
-          if (state is! ChatServerDisconnected) {
-            add(SetConnection());
-          }
+          add(SetConnection());
           break;
         case WsConnectionStatus.connected:
           add(SetConnected());
           break;
         case WsConnectionStatus.disconnected:
-          // Показываем разрыв только если мы не пытаемся прямо сейчас переподключиться
-          // (хотя кратковременный флеш "Disconnected" перед "Connecting" даже полезен для UX)
           if (state is! ChatServerDisconnected) {
             add(SetDisconnection());
           }
@@ -64,23 +54,19 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
 
   @override
   Future<void> close() {
-    // Обязательно удаляем наблюдатель при уничтожении BLoC
     WidgetsBinding.instance.removeObserver(this);
     _statusSubscription.cancel();
     _chatServerRepository.disconnect();
     return super.close();
   }
 
-  // 🎯 Магия отслеживания фона приложения
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       // Приложение ушло в фон. Запоминаем состояние и корректно закрываем сокет.
-      _wasConnectedBeforeBackground =
-          state == AppLifecycleState.resumed || isConnected;
+      _wasConnectedBeforeBackground = isConnected;
       _chatServerRepository.disconnect();
     } else if (state == AppLifecycleState.resumed) {
-      // Приложение вернулось на передний план. Если оно было подключено, переподключаем.
       if (_wasConnectedBeforeBackground) {
         add(ConnectToChatServer());
       }
@@ -94,12 +80,9 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
     print("--------- START CONNECT TO CHAT SERVER ------------------");
 
     final tokenResult = await _wsRepository.getToken();
-
     if (tokenResult.isLeft()) {
       final failure = tokenResult.fold((l) => l, (r) => null);
-      print(
-        'Initial connection failed, repository will retry: ${failure?.message}',
-      );
+      print('Failed to get WS token: ${failure?.message}');
       return;
     }
 
@@ -108,16 +91,11 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
 
     if (connectResult.isLeft()) {
       final failure = connectResult.fold((l) => l, (r) => null);
-      // Не эмитим Failure здесь, так как Repository уже пытается переподключиться в фоне.
-      // Но можно эмитить состояние "Попытка переподключения", если нужно для UI.
-      print(
-        'Initial connection failed, repository will retry: ${failure?.message}',
-      );
+      print('Initial connection failed, will retry: ${failure?.message}');
       return;
     }
 
     print('Chat server connected successfully');
-    emit(ChatServerConnected());
   }
 
   void _onDisconnect(
@@ -126,6 +104,7 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
   ) {
     _wasConnectedBeforeBackground = false;
     _chatServerRepository.disconnect();
+    // Состояние Disconnected выставится через стрим автоматически
   }
 
   void _onSend(SendChatServerMessage event, Emitter<ChatServerState> emit) {

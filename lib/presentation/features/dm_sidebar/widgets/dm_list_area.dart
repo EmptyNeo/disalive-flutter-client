@@ -9,6 +9,7 @@ import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_item.dart';
+import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -148,6 +149,7 @@ class DmListArea extends StatelessWidget {
           ActionItem(
             icon: CupertinoIcons.pencil,
             label: "Редактировать группу",
+            onTap: () => EditGroupScreen.open(context, chat),
           ),
         ],
         ActionItem(

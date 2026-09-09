@@ -4,6 +4,7 @@ import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
 import 'package:disalive/data/repositories/friends_repository_impl.dart';
 import 'package:disalive/data/repositories/members_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
+import 'package:disalive/data/repositories/permission_repository_impl.dart';
 import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
@@ -15,6 +16,7 @@ import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/permission_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
@@ -61,6 +63,9 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<WsEventBus>(() => WsEventBus());
   sl.registerLazySingleton<ChatServerRepository>(
     () => ChatServerRepositoryImpl(sl()),
+  );
+  sl.registerLazySingleton<PermissionRepository>(
+    () => PermissionRepositoryImpl(),
   );
   sl.registerLazySingleton<RequestsRepository>(() => RequestsRepositoryImpl());
   sl.registerLazySingleton<MembersRepository>(() => MembersRepositoryImpl());

@@ -156,12 +156,16 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
                             bloc: _chatBloc,
                             builder: (context, state) {
                               if (state is ChatLoaded) {
-                                final visibleCount = state.chats.length;
+                                final visibleChats = _chatsFrom(state);
+                                final visibleCount = visibleChats.length;
+                                final selectedInVisibleCount = visibleChats
+                                    .where(
+                                      (chat) => _selected.containsKey(chat.id),
+                                    )
+                                    .length;
+
                                 final remaining =
-                                    (visibleCount - _selected.length).clamp(
-                                      0,
-                                      visibleCount,
-                                    );
+                                    visibleCount - selectedInVisibleCount;
 
                                 return ActionHeader(
                                   title: "Переслать сообщение",

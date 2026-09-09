@@ -123,11 +123,14 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
     return BlocBuilder<ChatBloc, ChatState>(
       bloc: _chatBloc,
       builder: (context, state) {
-        final visibleCount = _chatsFrom(state).length;
-        final remaining = (visibleCount - _selected.length).clamp(
-          0,
-          visibleCount,
-        );
+        final visibleChats = _chatsFrom(state);
+        final visibleCount = visibleChats.length;
+
+        final selectedInVisibleCount = visibleChats
+            .where((chat) => _selected.containsKey(chat.id))
+            .length;
+
+        final remaining = visibleCount - selectedInVisibleCount;
 
         return ActionHeader(
           title: 'Выберите друзей',

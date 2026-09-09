@@ -43,12 +43,12 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   }
 
   Future<Either<Failure, void>> _attemptConnection() async {
+    _statusController.add(WsConnectionStatus.connecting);
     // Отменяем предыдущий таймер переподключения, если он был
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
     try {
-      _statusController.add(WsConnectionStatus.connecting);
       const wsUrl = 'wss://disalive.ru:8081';
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
@@ -67,8 +67,8 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       _statusController.add(WsConnectionStatus.connected);
       return const Right(null);
     } catch (e) {
-      _channel = null;
       _statusController.add(WsConnectionStatus.disconnected);
+      _channel = null;
       _scheduleReconnect();
       return Left(ClientFailure(e.toString()));
     }
@@ -98,11 +98,10 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   }
 
   void _handleDisconnect() {
+    _statusController.add(WsConnectionStatus.disconnected);
     _channel = null;
     _subscription?.cancel();
     _subscription = null;
-
-    _statusController.add(WsConnectionStatus.disconnected);
 
     // Если это не было вызвано методом disconnect(), пытаемся переподключиться
     if (!_isManualDisconnect && _currentToken != null) {
@@ -140,6 +139,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   @override
   void disconnect() {
+    _statusController.add(WsConnectionStatus.disconnected);
     _isManualDisconnect = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
@@ -148,8 +148,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _channel?.sink.close();
     _channel = null;
     _currentToken = null;
-
-    _statusController.add(WsConnectionStatus.disconnected);
   }
 
   @override

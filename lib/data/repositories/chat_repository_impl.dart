@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
@@ -46,6 +47,27 @@ class ChatRepositoryImpl implements ChatRepository {
     final result = await _httpClient.postFormData<bool>(
       endpoint: 'chats/create.php',
       data: {'chats': chatsJson},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        return json is Map<String, dynamic>;
+      },
+    );
+
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, bool>> update(
+    int chatId,
+    File? image,
+    String name,
+    bool deleted,
+  ) async {
+    final result = await _httpClient.postMultipart<bool>(
+      endpoint: 'chats/update.php',
+      data: {'chatId': chatId, 'name': name, 'deleted': deleted},
+      files: {'image': image},
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
