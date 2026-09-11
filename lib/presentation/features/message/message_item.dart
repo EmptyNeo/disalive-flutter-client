@@ -14,12 +14,29 @@ import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
 class MessageItem extends StatelessWidget {
+  final Message message;
+  final bool isMine;
+  final bool isRead;
+  final bool showSender;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onTap;
+  final bool showTime;
+  final MessageTailDirection tailDirection;
+  final bool showAvatar;
+  final bool hasMessageAbove;
+  final Color? backgroundMessage;
+  final ActionType? isLoading;
+  final bool hasError;
+
   final void Function(int attachmentIndex)? onTapImage;
+
+  bool get hasLoading => isLoading != null;
 
   const MessageItem({
     super.key,
     required this.message,
     required this.isMine,
+    required this.isRead,
     this.showSender = false,
     this.onLongPress,
     this.onTap,
@@ -32,21 +49,6 @@ class MessageItem extends StatelessWidget {
     this.hasError = false,
     this.onTapImage,
   });
-
-  final Message message;
-  final bool isMine;
-  final bool showSender;
-  final VoidCallback? onLongPress;
-  final VoidCallback? onTap;
-  final bool showTime;
-  final MessageTailDirection tailDirection;
-  final bool showAvatar;
-  final bool hasMessageAbove;
-  final Color? backgroundMessage;
-  final ActionType? isLoading;
-  final bool hasError;
-
-  bool get hasLoading => isLoading != null;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +89,20 @@ class MessageItem extends StatelessWidget {
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
-    final showStatusRow = showTime || hasLoading || hasError;
+    final showStatusRow = isMine || showTime || hasLoading || hasError;
+    final hasText = (contentMessage.text ?? '').isNotEmpty;
+    // Время/галочки "втекают" в последнюю строку текста (как в Telegram/VK)
+    // только для чистых текстовых сообщений — без медиа, вложений, превью
+    // ссылки, приглашения или реакций, у которых уже есть своя раскладка.
+    final bool useInlineStatus =
+        showStatusRow &&
+        hasText &&
+        !hasLinkPreview &&
+        !hasInviteData &&
+        imageAttachments.isEmpty &&
+        audiosAttachments.isEmpty &&
+        otherAttachments.isEmpty &&
+        !hasReactions;
     var backgroundColor = isMine
         ? AppColors.blurple
         : AppColors.glassPanelBottom;
@@ -179,9 +194,40 @@ class MessageItem extends StatelessWidget {
                         isMine: isMine,
                       ),
 
-                    if ((contentMessage.text ?? '').isNotEmpty)
+                    if (hasText && useInlineStatus)
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Text.rich(
+                            textWidthBasis: TextWidthBasis.longestLine,
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: contentMessage.text!,
+                                  style: AppText.mediumTextStyle.copyWith(
+                                    color: isMine
+                                        ? AppColors.onBlurple
+                                        : AppColors.white,
+                                  ),
+                                ),
+                                WidgetSpan(
+                                  alignment: PlaceholderAlignment.middle,
+                                  child: SizedBox(width: _statusReserveWidth()),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: _buildStatusRow(),
+                          ),
+                        ],
+                      )
+                    else if (hasText)
                       Text(
                         contentMessage.text!,
+                        textWidthBasis: TextWidthBasis.longestLine,
                         style: AppText.mediumTextStyle.copyWith(
                           color: isMine ? AppColors.onBlurple : AppColors.white,
                         ),
@@ -223,38 +269,11 @@ class MessageItem extends StatelessWidget {
                     ],
                     if (hasReactions) _stubLine('Реакции'),
 
-                    if (showStatusRow) ...[
+                    if (showStatusRow && !useInlineStatus) ...[
                       const SizedBox(height: 2),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (hasLoading || hasError) ...[
-                            Icon(
-                              hasError
-                                  ? CupertinoIcons.exclamationmark_circle
-                                  : getLoadingIcon(),
-                              size: 11,
-                              color: hasError
-                                  ? CupertinoColors.systemRed
-                                  : (isMine
-                                        ? AppColors.onBlurple.withValues(
-                                            alpha: 0.7,
-                                          )
-                                        : AppColors.greyple),
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          if (showTime)
-                            Text(
-                              UtilDate.formatTime(message.time),
-                              style: AppText.lowTextStyle.copyWith(
-                                color: isMine
-                                    ? AppColors.onBlurple.withValues(alpha: 0.7)
-                                    : AppColors.greyple,
-                                fontSize: 10,
-                              ),
-                            ),
-                        ],
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildStatusRow(),
                       ),
                     ],
                   ],
@@ -358,6 +377,82 @@ class MessageItem extends StatelessWidget {
     }
   }
 
+  Widget _buildStatusRow() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // 1. Иконка ошибки или загрузки (если есть)
+        if (hasLoading || hasError) ...[
+          Icon(
+            hasError ? CupertinoIcons.exclamationmark_circle : getLoadingIcon(),
+            size: 11,
+            color: hasError
+                ? CupertinoColors.systemRed
+                : (isMine
+                      ? AppColors.onBlurple.withValues(alpha: 0.7)
+                      : AppColors.greyple),
+          ),
+          const SizedBox(width: 4),
+        ],
+
+        // 2. Время (если пришло время его показать)
+        if (showTime) ...[
+          Text(
+            UtilDate.formatTime(message.time),
+            style: AppText.lowTextStyle.copyWith(
+              color: isMine
+                  ? AppColors.onBlurple.withValues(alpha: 0.7)
+                  : AppColors.greyple,
+              fontSize: 10,
+            ),
+          ),
+          // 🎯 Умный отступ: нужен только если рядом будут галочки
+          if (isMine) const SizedBox(width: 4),
+        ],
+
+        if (isMine) _buildReadStatus(),
+      ],
+    );
+  }
+
+  // Сколько горизонтального места "вырезать" в конце текста под время и
+  // галочки, чтобы Positioned-статус в Stack не наезжал на буквы.
+  //
+  // Раньше ширина строки времени была захардкожена ("28"), а не измерена —
+  // из-за этого резерв то не совпадал с реальным виджетом (текст с временем
+  // слипались), то оказывался чуть больше (пустое место справа от статуса).
+  // Теперь ширину "чч:мм" меряем тем же TextPainter'ом и тем же стилем,
+  // которым он реально рисуется в _buildStatusRow(), так что резерв всегда
+  // равен фактическому размеру виджета — плюс явный отступ (_kStatusGap)
+  // между текстом и статусом, как в Telegram.
+  static const double _kStatusGap = 6;
+
+  double _statusReserveWidth() {
+    double width = _kStatusGap;
+    if (hasLoading || hasError) {
+      width += 11 + 4; // иконка + отступ
+    }
+    if (showTime) {
+      final timeStyle = AppText.lowTextStyle.copyWith(fontSize: 10);
+      width += _measureTextWidth(UtilDate.formatTime(message.time), timeStyle);
+      if (isMine) width += 4;
+    }
+    if (isMine) {
+      width += isRead ? 18 : 12; // двойная/одинарная галочка
+    }
+    return width;
+  }
+
+  double _measureTextWidth(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return painter.width;
+  }
+
   Widget _stubLine(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -367,6 +462,40 @@ class MessageItem extends StatelessWidget {
           color: AppColors.greyple,
           fontStyle: FontStyle.italic,
         ),
+      ),
+    );
+  }
+
+  Widget _buildReadStatus() {
+    final Color color = isRead
+        ? AppColors.onBlurple
+        : AppColors.onBlurple.withValues(alpha: 0.7);
+
+    if (!isRead) {
+      return Icon(CupertinoIcons.checkmark_alt, size: 12, color: color);
+    }
+
+    // Раньше вторая галочка сдвигалась через Transform.translate(-6, 0) —
+    // это сдвигает только отрисовку, а не layout. Row всё равно занимал
+    // 12 + 12 = 24px, хотя визуально галочки выглядели как 18px. Эти
+    // "лишние" 6px и были тем самым пустым местом справа от статуса,
+    // о котором речь. SizedBox+Stack ниже фиксирует реальный layout-размер
+    // ровно в 18px — как и предполагает _statusReserveWidth().
+    return SizedBox(
+      width: 18,
+      height: 12,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: color),
+          ),
+          Positioned(
+            left: 6,
+            child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: color),
+          ),
+        ],
       ),
     );
   }

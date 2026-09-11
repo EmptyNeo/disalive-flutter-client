@@ -9,8 +9,10 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
+import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
+import 'package:disalive/presentation/features/settings/settings_screen.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/features/home/widgets/supportive/keep_alive_page.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
@@ -71,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
           create: (_) => sl<RequestsBloc>()..add(GetRequests(true)),
         ),
         BlocProvider<MessageBloc>(create: (_) => sl<MessageBloc>()),
+        BlocProvider<MembersBloc>(create: (_) => sl<MembersBloc>()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -87,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (state is ChatServerConnected) {
                 context.read<ChatBloc>().setupListeners();
                 context.read<MessageBloc>().setupListeners();
+                context.read<MembersBloc>().setupListeners();
               }
             },
           ),
@@ -208,14 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         // Здесь рендерятся чаты
-        const KeepAlivePage(
-          child: Center(
-            child: Text(
-              'Настройки',
-              style: TextStyle(color: CupertinoColors.white),
-            ),
-          ),
-        ),
+        const KeepAlivePage(child: SettingsScreen()),
         KeepAlivePage(
           child: Center(
             child: Text(

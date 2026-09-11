@@ -1,6 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
+import 'package:disalive/presentation/utils/ui/pluralize.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -54,7 +55,7 @@ class _ChatItemState extends State<ChatItem> {
           color: _pressed
               ? AppColors.white.withValues(alpha: 0.06)
               : CupertinoColors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -134,7 +135,7 @@ class _ChatItemState extends State<ChatItem> {
                       Expanded(
                         child: (chat.isGroup && chat.memberCount != null)
                             ? Text(
-                                '${chat.memberCount} участников',
+                                Pluralize.members(chat.memberCount!),
                                 style: TextStyle(
                                   color: AppColors.greyple,
                                   fontSize: 13,
@@ -143,7 +144,7 @@ class _ChatItemState extends State<ChatItem> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               )
-                            : const SizedBox(height: 0),
+                            : const SizedBox.shrink(),
                       ),
                       if (isPinned) ...[
                         Icon(

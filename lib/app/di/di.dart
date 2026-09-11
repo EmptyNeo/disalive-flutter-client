@@ -29,6 +29,7 @@ import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
@@ -78,4 +79,5 @@ Future<void> setupDependencies() async {
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
+  sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
 }

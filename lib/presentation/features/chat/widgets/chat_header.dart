@@ -11,8 +11,14 @@ const double _kFloatingPanelMargin = 8;
 class ChatHeader extends StatelessWidget {
   final Chat chat;
   final bool isReconnect;
+  final VoidCallback? onTap;
 
-  const ChatHeader({super.key, required this.chat, required this.isReconnect});
+  const ChatHeader({
+    super.key,
+    required this.chat,
+    required this.isReconnect,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,43 +40,47 @@ class ChatHeader extends StatelessWidget {
           const SizedBox(width: 12),
 
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(32),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.lightGrey,
-                  borderRadius: BorderRadius.circular(32),
-                  border: Border.all(
-                    color: AppColors.white.withValues(alpha: 0.08),
+            child: GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.lightGrey,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: AppColors.white.withValues(alpha: 0.08),
+                    ),
                   ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 6.0,
-                  ),
-                  child: Row(
-                    children: [
-                      BuildAvatar(
-                        url: chat.urlAvatar,
-                        wh: 26,
-                        size: 20,
-                        status: chat.user?.status,
-                        statusSize: 6,
-                        isBookmark: chat.isSoloChat ?? false,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: AppText.mediumTextStyle.copyWith(
-                            color: AppColors.white,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 6.0,
+                    ),
+                    child: Row(
+                      children: [
+                        BuildAvatar(
+                          url: chat.urlAvatar,
+                          wh: 26,
+                          size: 20,
+                          status: chat.user?.status,
+                          statusSize: 6,
+                          isBookmark: chat.isSoloChat ?? false,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: AppText.mediumTextStyle.copyWith(
+                              color: AppColors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

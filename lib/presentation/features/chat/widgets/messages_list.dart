@@ -2,6 +2,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
@@ -215,6 +216,12 @@ class MessagesListState extends State<MessagesList> {
             final message = grouped.message;
             final messageId = message.id ?? message.localGeneratedId;
 
+            final isRead = isMessageReadByAny(
+              message: message,
+              currentUserId: widget.currentUserId ?? 0,
+              members: widget.chat.members,
+            );
+
             final key = widget.messageKeys.putIfAbsent(
               messageId,
               () => GlobalKey(),
@@ -233,6 +240,7 @@ class MessagesListState extends State<MessagesList> {
                   isMine:
                       widget.currentUserId != null &&
                       message.userId == widget.currentUserId,
+                  isRead: isRead,
                   showSender: widget.chat.isGroup,
                   showAvatar: grouped.showAvatar,
                   showTime: grouped.showTime,
@@ -403,5 +411,37 @@ class MessagesListState extends State<MessagesList> {
       initialPosition: position,
       sourceRect: sourceRect,
     );
+  }
+
+  /// Определяет, прочитано ли сообщение ХОТЯ БЫ ОДНИМ другим участником чата.
+  bool isMessageReadByAny({
+    required Message message,
+    required int currentUserId,
+    required List<Member>? members,
+  }) {
+    // 1. Статус показываем только для своих сообщений
+    if (message.userId != currentUserId) return false;
+
+    final otherMembers =
+        members?.where((m) => m.fkUser != currentUserId).toList() ?? [];
+
+    // 2. Если других участников нет (например, соло-чат), считаем сообщение "прочитанным"
+    // (так как отправитель и получатель — одно лицо, или система доставила его мгновенно)
+    if (otherMembers.isEmpty) return true;
+
+    final msgId = message.id ?? 0;
+
+    // 3. Проверяем, прочитал ли ХОТЯ БЫ ОДИН участник
+    for (final member in otherMembers) {
+      final lastReadId = member.lastIdReadMessage ?? 0;
+
+      // Если чей-то lastIdReadMessage больше или равен ID сообщения, значит, он его видел
+      if (lastReadId >= msgId) {
+        return true;
+      }
+    }
+
+    // 4. Если цикл завершился и никто из остальных не дочитал до этого сообщения
+    return false;
   }
 }

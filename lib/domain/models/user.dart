@@ -21,8 +21,7 @@ class UserModel extends Equatable {
   final String? bageAdditionalColor;
   final String? aboutMe;
   final String? myThink;
-  final int? canSendMeRequest;
-  final int? modeDnd;
+  final bool? canSendMeRequest;
   final int? isBanned;
   final String? banExpiresAt;
   final String? complaintsBlockedUntil;
@@ -60,7 +59,6 @@ class UserModel extends Equatable {
     this.aboutMe,
     this.myThink,
     this.canSendMeRequest,
-    this.modeDnd,
     this.isBanned,
     this.banExpiresAt,
     this.complaintsBlockedUntil,
@@ -101,8 +99,7 @@ class UserModel extends Equatable {
       bageAdditionalColor: map['bageAdditionalColor'],
       aboutMe: map['aboutMe'],
       myThink: map['myThink'],
-      canSendMeRequest: DataParser.parseInt(map['canSendMeRequest']),
-      modeDnd: DataParser.parseInt(map['modeDnd']),
+      canSendMeRequest: DataParser.parseBool(map['canSendMeRequest']),
       isBanned: DataParser.parseInt(map['isBanned']),
       banExpiresAt: map['banExpiresAt'],
       complaintsBlockedUntil: map['complaintsBlockedUntil'],
@@ -154,7 +151,6 @@ class UserModel extends Equatable {
       if (aboutMe != null) 'aboutMe': aboutMe,
       if (myThink != null) 'myThink': myThink,
       if (canSendMeRequest != null) 'canSendMeRequest': canSendMeRequest,
-      if (modeDnd != null) 'modeDnd': modeDnd,
       if (isBanned != null) 'isBanned': isBanned,
       if (banExpiresAt != null) 'banExpiresAt': banExpiresAt,
       if (complaintsBlockedUntil != null)
@@ -193,8 +189,7 @@ class UserModel extends Equatable {
     String? bageAdditionalColor,
     String? aboutMe,
     String? myThink,
-    int? canSendMeRequest,
-    int? modeDnd,
+    bool? canSendMeRequest,
     int? isBanned,
     String? banExpiresAt,
     String? complaintsBlockedUntil,
@@ -232,7 +227,6 @@ class UserModel extends Equatable {
       aboutMe: aboutMe ?? this.aboutMe,
       myThink: myThink ?? this.myThink,
       canSendMeRequest: canSendMeRequest ?? this.canSendMeRequest,
-      modeDnd: modeDnd ?? this.modeDnd,
       isBanned: isBanned ?? this.isBanned,
       banExpiresAt: banExpiresAt ?? this.banExpiresAt,
       complaintsBlockedUntil:
@@ -273,6 +267,10 @@ class UserModel extends Equatable {
   bool get hasPersonalChat => personalChatId != null;
 
   String get urlAvatar => Domain.transformUrl(pathImage);
+
+  String get getDisplayName => displayName ?? 'Пользователь';
+
+  String get getDateRegistration => dateRegistration ?? 'N/A';
 
   @override
   List<Object?> get props => [

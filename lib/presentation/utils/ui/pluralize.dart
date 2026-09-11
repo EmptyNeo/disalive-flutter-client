@@ -26,6 +26,11 @@ class Pluralize {
     }
   }
 
+  /// Удобный метод для участников
+  static String members(int count) {
+    return '$count ${format(count, 'участник', 'участника', 'участников')}';
+  }
+
   /// Удобный метод для вложений
   static String attachments(int count) {
     return '$count ${format(count, 'вложение', 'вложения', 'вложений')}';

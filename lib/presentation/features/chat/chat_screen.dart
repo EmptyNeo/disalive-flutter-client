@@ -11,7 +11,9 @@ import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_input_area.dart';
 import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
+import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:flutter/cupertino.dart';
@@ -32,6 +34,7 @@ class ChatScreen extends StatefulWidget {
     ChatBloc chatBloc = context.read<ChatBloc>();
     MessageBloc messageBloc = context.read<MessageBloc>();
     ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
+    MembersBloc membersBloc = context.read<MembersBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
@@ -40,6 +43,7 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: chatBloc),
           BlocProvider.value(value: messageBloc),
           BlocProvider.value(value: chatServerBloc),
+          BlocProvider.value(value: membersBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -180,7 +184,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           key: _messagesListKey,
                           messageBloc: _messageBloc,
                           chatBloc: _chatBloc,
-                          chat: widget.chat,
+                          chat: _currentChat,
                           currentUserId: _currentUserId,
                           inputReserve: _inputReserve,
                           onSendMessage: _onSendMessage,
@@ -199,6 +203,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: ChatHeader(
                         chat: _currentChat,
                         isReconnect: isReconnect,
+                        onTap: () => DeterminantProfileScreen.open(
+                          context,
+                          chat: widget.chat,
+                        ),
                       ),
                     ),
                     Positioned(

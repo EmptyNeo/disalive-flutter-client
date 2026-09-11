@@ -48,7 +48,38 @@ class SearchChats extends ChatEvent {
 
 class UpdateMemberInChat extends ChatEvent {
   final int chatId;
+  final int userId;
   final Member member;
+  final bool isSelf;
 
-  UpdateMemberInChat({required this.chatId, required this.member});
+  UpdateMemberInChat({
+    required this.chatId,
+    required this.userId,
+    required this.member,
+    required this.isSelf,
+  });
+}
+
+class AddMembersToChat extends ChatEvent {
+  final int? chatId;
+  final List<Member> newMembers;
+  final int memberCount;
+
+  AddMembersToChat({
+    required this.chatId,
+    required this.newMembers,
+    required this.memberCount,
+  });
+}
+
+class RemoveMemberFromChat extends ChatEvent {
+  final int? chatId;
+  final int removedUserId;
+  final int memberCount;
+
+  RemoveMemberFromChat({
+    required this.chatId,
+    required this.removedUserId,
+    required this.memberCount,
+  });
 }

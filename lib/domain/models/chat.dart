@@ -1,4 +1,3 @@
-// lib/domain/models/chat.dart
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/models/user.dart';
@@ -28,6 +27,9 @@ class Chat extends Equatable {
   final RoleMember? role;
   final UserModel? user;
 
+  // 🎯 НОВОЕ ПОЛЕ: Легковесный список участников для статусов прочтения
+  final List<Member>? members;
+
   const Chat({
     required this.id,
     this.fkCreator,
@@ -48,9 +50,18 @@ class Chat extends Equatable {
     this.member,
     this.role,
     this.user,
+    this.members, // 🎯 Добавлено
   });
 
   factory Chat.fromMap(Map<String, dynamic> map) {
+    // 🎯 Парсинг легковесного массива участников
+    List<Member>? parsedMembers;
+    if (map['members'] is List) {
+      parsedMembers = (map['members'] as List)
+          .map((e) => Member.fromMap(e as Map<String, dynamic>))
+          .toList();
+    }
+
     return Chat(
       id: map['chatId'],
       fkCreator: map['fkCreator'],
@@ -58,7 +69,7 @@ class Chat extends Equatable {
       idLastMessage: map['idLastMessage'],
       newMessagesCount: map['newMessagesCount'],
       memberCount: map['memberCount'],
-      name: map['name'],
+      name: map['name'] ?? '',
       pathImage: map['pathImage'],
       type: map['type'] != null
           ? ChatType.fromString(map['type'] as String)
@@ -79,6 +90,7 @@ class Chat extends Equatable {
       user: map['user'] != null
           ? UserModel.fromMap(map['user'] as Map<String, dynamic>)
           : null,
+      members: parsedMembers,
     );
   }
 
@@ -103,6 +115,16 @@ class Chat extends Equatable {
       if (member != null) 'member': member?.toMap(),
       if (role != null) 'role': role?.toMap(),
       if (user != null) 'user': user?.toMap(),
+      // 🎯 Добавлено: сереализуем легковесный формат
+      if (members != null)
+        'members': members
+            ?.map(
+              (m) => {
+                'userId': m.fkUser,
+                'lastIdReadMessage': m.lastIdReadMessage ?? 0,
+              },
+            )
+            .toList(),
     };
   }
 
@@ -126,6 +148,7 @@ class Chat extends Equatable {
     Member? member,
     RoleMember? role,
     UserModel? user,
+    List<Member>? members, // 🎯 Добавлено
   }) {
     return Chat(
       id: chatId ?? id,
@@ -147,6 +170,7 @@ class Chat extends Equatable {
       member: member ?? this.member,
       role: role ?? this.role,
       user: user ?? this.user,
+      members: members ?? this.members, // 🎯 Добавлено
     );
   }
 
@@ -169,6 +193,14 @@ class Chat extends Equatable {
   int get unreadCount =>
       math.max(0, (idLastMessage ?? 0) - (member?.lastIdReadMessage ?? 0));
 
+  // 🎯 НОВЫЙ ГЕТТЕР: Мгновенная карта статусов прочтения (O(1) поиск)
+  // Используется в MessageBloc для отрисовки галочек
+  Map<int, int> get membersReadStatus => {
+    for (final m in members ?? [])
+      if (m.fkUser != null && m.lastIdReadMessage != null)
+        m.fkUser!: m.lastIdReadMessage!,
+  };
+
   @override
   List<Object?> get props => [
     id,
@@ -190,5 +222,6 @@ class Chat extends Equatable {
     member,
     role,
     user,
+    members, // 🎯 Добавлено
   ];
 }
