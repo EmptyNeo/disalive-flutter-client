@@ -77,8 +77,7 @@ class MessageItem extends StatelessWidget {
         hasText &&
         !hasLinkPreview &&
         !hasInviteData &&
-        !MediasGrid.hasOnlyImage(contentMessage) &&
-        !hasReactions;
+        !MediasGrid.hasOnlyImage(contentMessage);
 
     var backgroundColor = isMine
         ? AppColors.blurple
@@ -412,40 +411,6 @@ class MessageItem extends StatelessWidget {
           color: AppColors.greyple,
           fontStyle: FontStyle.italic,
         ),
-      ),
-    );
-  }
-
-  Widget _buildReadStatus() {
-    final Color color = isRead
-        ? AppColors.onBlurple
-        : AppColors.onBlurple.withValues(alpha: 0.7);
-
-    if (!isRead) {
-      return Icon(CupertinoIcons.checkmark_alt, size: 12, color: color);
-    }
-
-    // Раньше вторая галочка сдвигалась через Transform.translate(-6, 0) —
-    // это сдвигает только отрисовку, а не layout. Row всё равно занимал
-    // 12 + 12 = 24px, хотя визуально галочки выглядели как 18px. Эти
-    // "лишние" 6px и были тем самым пустым местом справа от статуса,
-    // о котором речь. SizedBox+Stack ниже фиксирует реальный layout-размер
-    // ровно в 18px — как и предполагает _statusReserveWidth().
-    return SizedBox(
-      width: 18,
-      height: 12,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: color),
-          ),
-          Positioned(
-            left: 6,
-            child: Icon(CupertinoIcons.checkmark_alt, size: 12, color: color),
-          ),
-        ],
       ),
     );
   }
