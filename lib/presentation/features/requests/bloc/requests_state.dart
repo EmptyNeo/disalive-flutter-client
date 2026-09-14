@@ -14,7 +14,7 @@ class RequestsLoaded extends RequestsState {
 }
 
 class RequestsFailure extends RequestsState {
-  final String error;
+  final Failure error;
 
   RequestsFailure(this.error);
 }

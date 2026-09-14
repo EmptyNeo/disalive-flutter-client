@@ -11,6 +11,7 @@ import 'package:flutter/cupertino.dart';
 /// [message] — это уже сам `answerMessage`,url_launcher а не сообщение-обёртка.
 /// [isMine] — от чьего лица бабл, в котором лежит превью (влияет на
 /// цвета, чтобы всё осталось читаемым и на синем, и на сером фоне).
+
 class AnswerPreview extends StatelessWidget {
   const AnswerPreview({
     super.key,
@@ -21,20 +22,17 @@ class AnswerPreview extends StatelessWidget {
 
   final Message? message;
   final bool isMine;
-
-  /// Опционально — например, для перехода к оригиналу сообщения по тапу.
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final amountFiles = message?.amountFiles ?? 0;
-
     final text = message?.text ?? '';
+
     final parts = <String>[
       if (text.isNotEmpty) text,
       if (amountFiles > 0) '[${Pluralize.attachments(amountFiles)}]',
     ];
-
     final previewText = parts.isNotEmpty ? parts.join(' ') : 'Вложение';
 
     final accentColor = isMine ? AppColors.onBlurple : AppColors.blurple;
@@ -44,55 +42,58 @@ class AnswerPreview extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
+        // 🎯 НЕ добавляй сюда width: double.infinity!
         margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: (isMine ? AppColors.onBlurple : AppColors.white).withValues(
             alpha: 0.08,
           ),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 3,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        // 🎯 Убрали IntrinsicHeight. Он не нужен.
+        child: Row(
+          // Row по умолчанию mainAxisSize: max, но можно указать явно для надежности
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 3,
+              height: 32,
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+            ),
+            const SizedBox(width: 8),
+            // 🎯 Expanded займет всё пространство, которое ему даст родитель (MessageItem)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    message?.user?.displayName ?? 'Пользователь',
+                    style: AppText.lowTextStyle.copyWith(
+                      color: nameColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (previewText.isNotEmpty) ...[
+                    const SizedBox(height: 2),
                     Text(
-                      message?.user?.displayName ?? 'Пользователь',
-                      style: AppText.lowTextStyle.copyWith(
-                        color: nameColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
+                      previewText,
+                      style: AppText.lowTextStyle.copyWith(color: textColor),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (previewText.isNotEmpty) ...[
-                      const SizedBox(height: 1),
-                      Text(
-                        previewText,
-                        style: AppText.lowTextStyle.copyWith(color: textColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

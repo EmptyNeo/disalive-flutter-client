@@ -11,6 +11,8 @@ abstract class UserRepository {
     VoidCallback? onUnauthorized,
   });
 
+  Future<Either<Failure, UserModel>> update(UserModel user);
+
   UserModel? getCurrentUser();
 
   void setCurrentUser(UserModel user);

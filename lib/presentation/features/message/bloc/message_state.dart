@@ -23,7 +23,7 @@ class MessageLoaded extends MessageState {
 }
 
 class MessageFailure extends MessageState {
-  final String error;
+  final Failure error;
 
   MessageFailure(this.error);
 }

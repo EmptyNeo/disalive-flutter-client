@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/history_action.dart';
 import 'package:disalive/domain/models/ui/message_grouped.dart';
@@ -199,7 +200,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         // ВАЖНО: Даже при ошибке и showed: false мы должны сбросить флаг загрузки,
         // иначе интерфейс зависнет навсегда.
         if (state is! MessageLoaded) {
-          emit(MessageFailure(failure.message));
+          emit(MessageFailure(failure));
         } else {
           final currentState = state as MessageLoaded;
           emit(

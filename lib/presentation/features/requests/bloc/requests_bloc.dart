@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/friend_request.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
@@ -98,7 +99,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
     final result = await _friendsRepository.get();
 
     result.fold(
-      (failure) => emit(RequestsFailure(failure.message)),
+      (failure) => emit(RequestsFailure(failure)),
       (requests) => emit(RequestsLoaded(requests)),
     );
   }

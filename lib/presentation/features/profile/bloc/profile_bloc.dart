@@ -1,6 +1,7 @@
 // lib/presentation/features/profile/bloc/profile_bloc.dart
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
+import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
@@ -43,7 +44,11 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
 
     result.fold(
       (failure) {
-        emit(ProfileFailure(failure.message));
+        if (failure is UnauthorizedFailure) {
+          emit(AuthLogoutState());
+        } else {
+          emit(ProfileFailure(failure));
+        }
       },
       (user) {
         if (event.userResponseType == UserResponseType.user) {

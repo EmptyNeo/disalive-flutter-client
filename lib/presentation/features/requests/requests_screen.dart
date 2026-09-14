@@ -9,6 +9,7 @@ import 'package:disalive/presentation/features/requests/widgets/request_item.dar
 import 'package:disalive/presentation/features/requests/widgets/requests_header.dart';
 import 'package:disalive/presentation/features/requests/widgets/send_request_bar.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
@@ -157,8 +158,8 @@ class _RequestsScreenState extends State<RequestsScreen> {
                         // Здесь при ошибке показываем экран ошибки, но если нужно, можно тоже fallback на кэш.
                         return SliverFillRemaining(
                           hasScrollBody: false,
-                          child: _ErrorView(
-                            message: state.error,
+                          child: ErrorStateView(
+                            failure: state.error,
                             onRetry: () => context.read<RequestsBloc>().add(
                               GetRequests(true),
                             ),
@@ -261,49 +262,6 @@ class _EmptyView extends StatelessWidget {
               'Заявок пока нет.\nОтправьте заявку по имени пользователя',
               textAlign: TextAlign.center,
               style: AppText.mediumTextStyle.copyWith(color: AppColors.greyple),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              CupertinoIcons.exclamationmark_circle,
-              size: 40,
-              color: AppColors.errorRed,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: AppText.mediumTextStyle.copyWith(color: AppColors.white),
-            ),
-            const SizedBox(height: 12),
-            CupertinoButton(
-              padding: EdgeInsets.zero,
-              onPressed: onRetry,
-              child: Text(
-                'Повторить',
-                style: AppText.mediumTextStyle.copyWith(
-                  color: AppColors.linkBlue,
-                ),
-              ),
             ),
           ],
         ),

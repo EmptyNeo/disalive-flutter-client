@@ -16,7 +16,8 @@ import 'package:disalive/presentation/features/message/widgets/swipes/swipe_to_r
 import 'package:disalive/presentation/utils/app_clipboard.dart';
 import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
-import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';  
+import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -141,18 +142,7 @@ class MessagesListState extends State<MessagesList> {
         if (state is MessageFailure) {
           return Padding(
             padding: reservePadding,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  state.error,
-                  textAlign: TextAlign.center,
-                  style: AppText.mediumTextStyle.copyWith(
-                    color: AppColors.greyple,
-                  ),
-                ),
-              ),
-            ),
+            child: ErrorStateView(failure: state.error),
           );
         }
 
@@ -335,7 +325,7 @@ class MessagesListState extends State<MessagesList> {
       // Копировать (только если есть текст)
       if (message.text?.isNotEmpty == true)
         ActionItem(
-          icon: CupertinoIcons.square_on_square,
+          icon: CupertinoIcons.square_fill_on_square_fill,
           label: 'Копировать',
           onTap: () {
             AppClipboard.copyText(context, message.text!);
@@ -370,7 +360,7 @@ class MessagesListState extends State<MessagesList> {
       // Удалить (только для своих)
       if (isMyMessage && message.hasError != ActionType.delete)
         ActionItem(
-          icon: CupertinoIcons.trash,
+          icon: CupertinoIcons.trash_fill,
           label: 'Удалить',
           isDestructive: true,
           onTap: () {

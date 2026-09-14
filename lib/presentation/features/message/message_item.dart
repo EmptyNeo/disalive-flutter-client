@@ -2,13 +2,11 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
-import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/presentation/features/message/widgets/answer_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
-import 'package:disalive/presentation/features/message/widgets/media/grids/audios_grid.dart';
-import 'package:disalive/presentation/features/message/widgets/media/grids/files_grid.dart';
-import 'package:disalive/presentation/features/message/widgets/media/grids/images_grid.dart';
+import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
+import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -53,68 +51,54 @@ class MessageItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasForward = message.forwardMessage != null;
-    // Пересланное сообщение заменяет контент бабла целиком — текст,
-    // вложения, ссылка и приглашение берутся из оригинала. Реакции и время
-    // остаются от message: это метаданные конкретно этого экземпляра
-    // сообщения в текущем чате, а не оригинала.
     final Message contentMessage = hasForward
         ? message.forwardMessage!
         : message;
 
     final hasLinkPreview = contentMessage.linkPreview != null;
     final hasInviteData = contentMessage.inviteData != null;
-    // Картинки идут в MediaGrid, остальные типы вложений (файлы, видео,
-    // аудио) пока показываем общей заглушкой ниже.
-    final List<FileMessage> imageAttachments =
-        contentMessage.attachments
-            ?.where((f) => f.isImageFile && f.hasValidPath)
-            .toList() ??
-        const [];
-    final List<FileMessage> audiosAttachments =
-        contentMessage.attachments
-            ?.where((f) => f.isAudioFile && f.hasValidPath)
-            .toList() ??
-        const [];
-    final List<FileMessage> otherAttachments =
-        contentMessage.attachments
-            ?.where(
-              (f) =>
-                  f.isDefaultFile &&
-                  !f.isImageFile &&
-                  !f.isAudioFile &&
-                  f.hasValidPath,
-            )
-            .toList() ??
-        const [];
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
     final showStatusRow = isMine || showTime || hasLoading || hasError;
     final hasText = (contentMessage.text ?? '').isNotEmpty;
-    // Время/галочки "втекают" в последнюю строку текста (как в Telegram/VK)
-    // только для чистых текстовых сообщений — без медиа, вложений, превью
-    // ссылки, приглашения или реакций, у которых уже есть своя раскладка.
+
+    final isMediasOnly =
+        MediasGrid.hasOnlyImage(contentMessage) &&
+        !hasText &&
+        !hasLinkPreview &&
+        !hasInviteData &&
+        !hasReactions &&
+        !hasAnswer &&
+        !hasForward;
+
     final bool useInlineStatus =
         showStatusRow &&
         hasText &&
         !hasLinkPreview &&
         !hasInviteData &&
-        imageAttachments.isEmpty &&
-        audiosAttachments.isEmpty &&
-        otherAttachments.isEmpty &&
+        !MediasGrid.hasOnlyImage(contentMessage) &&
         !hasReactions;
+
     var backgroundColor = isMine
         ? AppColors.blurple
         : AppColors.glassPanelBottom;
-    if (backgroundMessage != null) {
+
+    if (isMediasOnly) {
+      backgroundColor = CupertinoColors.transparent;
+    } else if (backgroundMessage != null) {
       backgroundColor = backgroundMessage as Color;
     }
+
+    final paddingMessage = isMediasOnly
+        ? const EdgeInsets.symmetric(horizontal: 0, vertical: 2)
+        : const EdgeInsets.symmetric(horizontal: 10, vertical: 2);
 
     return GestureDetector(
       onLongPress: onLongPress,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        padding: paddingMessage,
         child: Row(
           mainAxisAlignment: isMine
               ? MainAxisAlignment.end
@@ -142,7 +126,9 @@ class MessageItem extends StatelessWidget {
                   borderRadius: _buildBorderRadius(),
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: isMine
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (showSenderInfo && message.user != null) ...[
@@ -160,6 +146,7 @@ class MessageItem extends StatelessWidget {
 
                     if (hasForward) ...[
                       Row(
+                        mainAxisSize: MainAxisSize.min, // 🎯 Добавляем это
                         children: [
                           BuildAvatar(
                             url: message.forwardMessage?.user?.pathImage,
@@ -167,21 +154,19 @@ class MessageItem extends StatelessWidget {
                             size: 10,
                           ),
                           const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              'Переслано от ${message.forwardMessage?.user?.displayName ?? 'Пользователь'}',
-                              style: AppText.lowTextStyle.copyWith(
-                                color: isMine
-                                    ? AppColors.onBlurple.withValues(
-                                        alpha: 0.85,
-                                      )
-                                    : AppColors.linkBlue,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          // 🎯 УБИРАЕМ Flexible отсюда! Текст сам обрежется из-за maxLines: 1,
+                          // а Row не будет растягиваться на всю ширину пузыря.
+                          Text(
+                            'Переслано от ${message.forwardMessage?.user?.getDisplayName}',
+                            style: AppText.lowTextStyle.copyWith(
+                              color: isMine
+                                  ? AppColors.onBlurple.withValues(alpha: 0.85)
+                                  : AppColors.linkBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -220,7 +205,15 @@ class MessageItem extends StatelessWidget {
                           Positioned(
                             right: 0,
                             bottom: 0,
-                            child: _buildStatusRow(),
+                            child: MessageStatusRow(
+                              // 🎯 Используем новый виджет
+                              message: message,
+                              isMine: isMine,
+                              isRead: isRead,
+                              showTime: showTime,
+                              isLoading: isLoading,
+                              hasError: hasError,
+                            ),
                           ),
                         ],
                       )
@@ -239,41 +232,38 @@ class MessageItem extends StatelessWidget {
                         isMine: isMine,
                       ),
                     if (hasInviteData) _stubLine('Приглашение'),
-                    if (imageAttachments.isNotEmpty) ...[
-                      if ((contentMessage.text ?? '').isNotEmpty ||
+
+                    MediasGrid(
+                      message: contentMessage,
+                      isMine: isMine,
+                      hasContentAbove:
+                          (contentMessage.text ?? '').isNotEmpty ||
                           hasAnswer ||
-                          hasForward)
-                        const SizedBox(height: 4),
-                      ImagesGrid(
-                        images: imageAttachments,
-                        onTapImage: onTapImage,
-                      ),
-                      const SizedBox(height: 2),
-                    ],
-                    if (audiosAttachments.isNotEmpty) ...[
-                      if ((contentMessage.text ?? '').isNotEmpty ||
-                          hasAnswer ||
-                          hasForward ||
-                          imageAttachments.isNotEmpty)
-                        const SizedBox(height: 4),
-                      AudiosGrid(audios: audiosAttachments, isMine: isMine),
-                    ],
-                    if (otherAttachments.isNotEmpty) ...[
-                      if ((contentMessage.text ?? '').isNotEmpty ||
-                          hasAnswer ||
-                          hasForward ||
-                          imageAttachments.isNotEmpty ||
-                          audiosAttachments.isNotEmpty)
-                        const SizedBox(height: 4),
-                      FilesGrid(files: otherAttachments, isMine: isMine),
-                    ],
+                          hasForward,
+                      onTapImage: onTapImage,
+                      showTime: showTime,
+                      isRead: isRead,
+                      isLoading: isLoading,
+                      hasError: hasError,
+                    ),
+
                     if (hasReactions) _stubLine('Реакции'),
 
-                    if (showStatusRow && !useInlineStatus) ...[
+                    // 🎯 Используем новый виджет и здесь, если статус не inline
+                    if (showStatusRow &&
+                        !useInlineStatus &&
+                        !MediasGrid.hasOnlyImage(contentMessage)) ...[
                       const SizedBox(height: 2),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: _buildStatusRow(),
+                        child: MessageStatusRow(
+                          message: message,
+                          isMine: isMine,
+                          isRead: isRead,
+                          showTime: showTime,
+                          isLoading: isLoading,
+                          hasError: hasError,
+                        ),
                       ),
                     ],
                   ],
@@ -375,46 +365,6 @@ class MessageItem extends StatelessWidget {
         }
       }
     }
-  }
-
-  Widget _buildStatusRow() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // 1. Иконка ошибки или загрузки (если есть)
-        if (hasLoading || hasError) ...[
-          Icon(
-            hasError ? CupertinoIcons.exclamationmark_circle : getLoadingIcon(),
-            size: 11,
-            color: hasError
-                ? CupertinoColors.systemRed
-                : (isMine
-                      ? AppColors.onBlurple.withValues(alpha: 0.7)
-                      : AppColors.greyple),
-          ),
-          const SizedBox(width: 4),
-        ],
-
-        // 2. Время (если пришло время его показать)
-        if (showTime) ...[
-          Text(
-            UtilDate.formatTime(message.time),
-            style: AppText.lowTextStyle.copyWith(
-              color: isMine
-                  ? AppColors.onBlurple.withValues(alpha: 0.7)
-                  : AppColors.greyple,
-              fontSize: 10,
-            ),
-          ),
-          // 🎯 Умный отступ: нужен только если рядом будут галочки
-          if (isMine) const SizedBox(width: 4),
-        ],
-
-        if (isMine) _buildReadStatus(),
-      ],
-    );
   }
 
   // Сколько горизонтального места "вырезать" в конце текста под время и

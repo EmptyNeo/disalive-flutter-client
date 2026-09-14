@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/enums/api_type.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/domain/services/user_agent_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:flutter/foundation.dart'; // Для kIsWeb, если нужно
 
 class HttpClientService {
   final http.Client _client;
@@ -15,7 +16,7 @@ class HttpClientService {
   HttpClientService({
     http.Client? client,
     required SecureStorageService secureStorage,
-  }) : _client = client ?? http.Client(),
+  }) : _client = client ?? UserAgentClient(http.Client()),
        _secureStorage = secureStorage;
 
   Future<Either<Failure, T>> postFormData<T>({
@@ -38,6 +39,7 @@ class HttpClientService {
         }
         formData['keySession'] = keySession;
       }
+
       if (data != null) {
         data.forEach((key, value) {
           if (value != null) {
@@ -86,7 +88,7 @@ class HttpClientService {
       if (requireAuth) {
         final keySession = await _secureStorage.getKeySession();
         if (keySession == null) {
-          return Left(UnauthorizedFailure());
+          return const Left(UnauthorizedFailure());
         }
         request.fields['keySession'] = keySession;
       }
@@ -100,7 +102,7 @@ class HttpClientService {
       }
 
       for (final entry in files.entries) {
-        File? file = entry.value;
+        final file = entry.value;
         if (file == null) continue;
         request.files.add(
           await http.MultipartFile.fromPath(
@@ -111,7 +113,9 @@ class HttpClientService {
         );
       }
 
-      final streamedResponse = await request.send();
+      final streamedResponse = await _client.send(
+        request,
+      ); // Используем _client.send
       final response = await http.Response.fromStream(streamedResponse);
 
       return _handleResponse<T>(

@@ -40,6 +40,19 @@ class UserRepositoryImpl implements UserRepository {
   }
 
   @override
+  Future<Either<Failure, UserModel>> update(UserModel user) async {
+    final result = await _httpClient.postFormData<UserModel>(
+      endpoint: 'users/update.php',
+      data: user.toMap(),
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) => UserModel.fromMap(json),
+    );
+
+    return result;
+  }
+
+  @override
   UserModel? getCurrentUser() {
     return _currentUser;
   }

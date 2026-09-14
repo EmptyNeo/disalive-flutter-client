@@ -15,7 +15,9 @@ class ProfileLoaded extends ProfileState {
 }
 
 class ProfileFailure extends ProfileState {
-  final String error;
+  final Failure error;
 
   ProfileFailure(this.error);
 }
+
+class AuthLogoutState extends ProfileState {}
