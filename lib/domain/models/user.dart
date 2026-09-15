@@ -272,6 +272,8 @@ class UserModel extends Equatable {
 
   String get getDateRegistration => dateRegistration ?? 'N/A';
 
+  int get getId => id ?? 0;
+
   @override
   List<Object?> get props => [
     id,

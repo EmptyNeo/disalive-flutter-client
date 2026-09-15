@@ -38,8 +38,8 @@ dependencies:
   bloc: ^9.2.0
   get_it: ^9.2.0
   equatable: ^2.0.8
-  # firebase_messaging: ^16.0.4
-  # firebase_core: ^4.2.1
+  firebase_messaging: ^16.0.4
+  firebase_core: ^4.2.1
   flutter_local_notifications: ^17.2.3
   # cloud_firestore: ^6.1.0
   crypto: ^3.0.7

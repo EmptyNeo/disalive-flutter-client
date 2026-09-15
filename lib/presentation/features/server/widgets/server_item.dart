@@ -29,7 +29,8 @@ class ServerItem extends StatelessWidget {
           width: 4,
           height: isActive ? 32 : 0,
           decoration: BoxDecoration(
-            color: CupertinoColors.white,
+            // 🎯 ЗАМЕНЕНО: AppColors.white динамический (белый в Dark, почти чёрный в Light)
+            color: AppColors.blurple,
             borderRadius: const BorderRadius.horizontal(
               right: Radius.circular(4),
             ),
@@ -47,16 +48,14 @@ class ServerItem extends StatelessWidget {
               height: 48,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isActive
-                    ? AppColors.blurple
-                    : CupertinoColors.white.withOpacity(0.05),
+                // 🎯 ЗАМЕНЕНО: AppColors.actionGrey вместо белого с прозрачностью
+                color: isActive ? AppColors.blurple : AppColors.actionGrey,
                 borderRadius: BorderRadius.circular(isActive ? 16 : 24),
               ),
               child: Icon(
                 icon,
-                color: isAction
-                    ? CupertinoColors.activeGreen
-                    : CupertinoColors.white,
+                // 🎯 ЗАМЕНЕНО: AppColors.white для иконки (динамический контраст)
+                color: isAction ? AppColors.onBlurple : AppColors.white,
                 size: 24,
               ),
             ),

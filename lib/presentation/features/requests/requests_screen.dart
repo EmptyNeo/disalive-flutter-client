@@ -103,10 +103,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               color: AppColors.mainBackground,
-              border: Border.all(
-                color: AppColors.white.withValues(alpha: 0.12),
-                width: 1,
-              ),
+              border: Border.all(color: AppColors.divider, width: 1),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),

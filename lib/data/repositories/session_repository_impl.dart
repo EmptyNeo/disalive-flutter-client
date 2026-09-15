@@ -2,6 +2,7 @@
 import 'package:collection/collection.dart';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
+import 'package:disalive/domain/enums/action_session_type.dart';
 import 'package:disalive/domain/enums/api_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/session.dart';
@@ -36,18 +37,18 @@ class SessionRepositoryImpl implements SessionRepository {
   }
 
   @override
-  Future<Either<Failure, bool>> delete(String id, String type) async {
+  Future<Either<Failure, bool>> delete(int id, ActionSessionType type) async {
     try {
       final result = await _httpClient.postFormData<Map<String, dynamic>>(
         endpoint: 'sessions/delete.php',
-        data: {'id': id, 'type': type},
+        data: {'id': id, 'type': type.value},
         apiType: ApiType.v1,
         requireAuth: true,
         fromJson: (json) => json as Map<String, dynamic>,
       );
 
       return result.fold((failure) => Left(failure), (data) {
-        _sessions?.removeWhere((session) => session.id == int.tryParse(id));
+        _sessions?.removeWhere((session) => session.id == id);
         return const Right(true);
       });
     } catch (e) {
@@ -55,6 +56,7 @@ class SessionRepositoryImpl implements SessionRepository {
     }
   }
 
+  @override
   List<SessionModel> getSessions() {
     return _sessions ?? [];
   }

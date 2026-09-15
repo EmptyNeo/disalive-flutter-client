@@ -108,11 +108,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                           const SizedBox(width: 12),
                           Text(
                             'Конфиденциальность',
-                            style: AppText.highTextStyle.copyWith(
-                              color: AppColors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: AppText.highTextStyle,
                           ),
                         ],
                       ),

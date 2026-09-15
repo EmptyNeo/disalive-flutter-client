@@ -23,6 +23,7 @@ class ServersSidebar extends StatelessWidget {
               icon: CupertinoIcons.chat_bubble_fill,
               isActive: true,
               isSpecial: true,
+              isAction: true,
               unreadCount: personalUnreadCount,
             ),
 

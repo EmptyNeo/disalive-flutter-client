@@ -1,18 +1,17 @@
 // lib/domain/models/app_settings.dart
 
+import 'package:disalive/domain/enums/app_theme_mode.dart';
+
 class AppSettings {
   final bool isVoiceHintShown;
-  final String themeMode;
+  final AppThemeMode themeMode;
 
   const AppSettings({
     this.isVoiceHintShown = false,
-    this.themeMode = 'dark',
+    this.themeMode = AppThemeMode.dark,
   });
 
-  AppSettings copyWith({
-    bool? isVoiceHintShown,
-    String? themeMode,
-  }) {
+  AppSettings copyWith({bool? isVoiceHintShown, AppThemeMode? themeMode}) {
     return AppSettings(
       isVoiceHintShown: isVoiceHintShown ?? this.isVoiceHintShown,
       themeMode: themeMode ?? this.themeMode,

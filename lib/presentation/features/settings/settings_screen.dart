@@ -1,7 +1,12 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/presentation/bloc/session/session_bloc.dart';
+import 'package:disalive/presentation/bloc/theme/theme_cubit.dart'; // 🎯 Добавлено
+import 'package:disalive/presentation/bloc/theme/theme_state.dart'; // 🎯 Добавлено
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/settings/screens/privacy_settings_screen.dart';
+import 'package:disalive/presentation/features/settings/screens/sessions_settings_screen.dart';
+import 'package:disalive/presentation/features/settings/screens/theme_settings_screen.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -19,133 +24,153 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ProfileBloc, ProfileState>(
-      builder: (context, state) {
-        if (state is! ProfileLoaded) {
-          return const Center(child: CupertinoActivityIndicator());
-        }
+    // 🎯 1. ДОБАВЛЕНО: Слушаем ThemeCubit, чтобы экран перерисовывался при смене темы
+    return BlocBuilder<ThemeCubit, ThemeState>(
+      builder: (context, themeState) {
+        return BlocBuilder<ProfileBloc, ProfileState>(
+          builder: (context, state) {
+            if (state is! ProfileLoaded) {
+              return const Center(child: CupertinoActivityIndicator());
+            }
 
-        final user = state.user;
+            final user = state.user;
 
-        return SafeArea(
-          bottom: false,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.elliptical(0, _panelRadius),
-              ),
-              border: Border.symmetric(
-                vertical: BorderSide.none,
-                horizontal: BorderSide(
-                  color: AppColors.white.withValues(alpha: 0.10),
-                  width: 1,
-                ),
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.elliptical(0, _panelRadius),
-              ),
+            return SafeArea(
+              bottom: false,
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.lightGrey.withValues(alpha: 0.72),
-                      AppColors.lightGrey.withValues(alpha: 0.55),
-                    ],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.elliptical(0, _panelRadius),
+                  ),
+                  border: Border.symmetric(
+                    vertical: BorderSide.none,
+                    horizontal: BorderSide(
+                      // 🎯 2. ЗАМЕНЕНО: Динамическая рамка вместо белой с альфа-каналом
+                      color: AppColors.divider,
+                      width: 1,
+                    ),
                   ),
                 ),
-                child: Column(
-                  children: [
-                    _buildSettingsHeader(user),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      height: 1,
-                      color: AppColors.white.withValues(alpha: 0.10),
-                    ),
-                    Expanded(
-                      child: CustomScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        slivers: [
-                          const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                          _buildNavigationTile(
-                            icon: CupertinoIcons.lock_shield_fill,
-                            title: 'Конфиденциальность',
-                            subtitle: 'Друзья, комментарии, статус в сети',
-                            onTap: () {
-                              PrivacySettingsScreen.open(context);
-                            },
-                          ),
-
-                          const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                          _buildNavigationTile(
-                            icon: CupertinoIcons.bell_fill,
-                            title: 'Уведомления и звуки',
-                            subtitle: 'Push, звуки сообщений и звонков',
-                            onTap: () {
-                              // TODO: Открыть экран уведомлений
-                            },
-                          ),
-
-                          const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                          _buildNavigationTile(
-                            icon: CupertinoIcons.device_phone_portrait,
-                            title: 'Активные сессии',
-                            subtitle:
-                                'Управление входами на других устройствах',
-                            onTap: () {
-                              // TODO: Открыть экран активных сессий
-                            },
-                          ),
-
-                          const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                          _buildNavigationTile(
-                            icon: CupertinoIcons.paintbrush_fill,
-                            title: 'Тема оформления',
-                            subtitle: 'Светлая, тёмная или системная',
-                            onTap: () {
-                              // TODO: Открыть экран выбора темы
-                            },
-                          ),
-                          const SliverToBoxAdapter(child: SizedBox(height: 4)),
-                          _buildNavigationTile(
-                            icon: CupertinoIcons.globe,
-                            title: 'Язык',
-                            subtitle: 'Русский',
-                            onTap: () {
-                              // TODO: Открыть экран выбора языка
-                            },
-                          ),
-
-                          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-                          // --- ВЫХОД ---
-                          _buildDestructiveTile(
-                            icon: CupertinoIcons.arrow_right_circle_fill,
-                            title: 'Выйти из аккаунта',
-                            onTap: () {
-                              _showLogoutConfirmation(context);
-                            },
-                          ),
-
-                          const SliverToBoxAdapter(
-                            child: SizedBox(height: 100),
-                          ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.elliptical(0, _panelRadius),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          // 🎯 3. ЗАМЕНЕНО: Используем динамические цвета для градиента
+                          AppColors.lightGrey.withValues(alpha: 0.72),
+                          AppColors.lightGrey.withValues(alpha: 0.55),
                         ],
                       ),
                     ),
-                  ],
+                    child: Column(
+                      children: [
+                        _buildSettingsHeader(user),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          height: 1,
+                          // 🎯 4. ЗАМЕНЕНО: Динамический разделитель
+                          color: AppColors.divider,
+                        ),
+                        Expanded(
+                          child: CustomScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            slivers: [
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 4),
+                              ),
+
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.lock_shield_fill,
+                                title: 'Конфиденциальность',
+                                subtitle: 'Друзья, комментарии, статус в сети',
+                                onTap: () {
+                                  PrivacySettingsScreen.open(context);
+                                },
+                              ),
+
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 4),
+                              ),
+
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.bell_fill,
+                                title: 'Уведомления и звуки',
+                                subtitle: 'Push, звуки сообщений и звонков',
+                                onTap: () {
+                                  // TODO: Открыть экран уведомлений
+                                },
+                              ),
+
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 4),
+                              ),
+
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.device_phone_portrait,
+                                title: 'Активные сессии',
+                                subtitle:
+                                    'Управление входами на других устройствах',
+                                onTap: () {
+                                  SessionsSettingsScreen.open(context);
+                                },
+                              ),
+
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 4),
+                              ),
+
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.paintbrush_fill,
+                                title: 'Тема оформления',
+                                subtitle: 'Светлая, тёмная или системная',
+                                onTap: () {
+                                  ThemeSettingsScreen.open(context);
+                                },
+                              ),
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 4),
+                              ),
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.globe,
+                                title: 'Язык',
+                                subtitle: 'Русский',
+                                onTap: () {
+                                  // TODO: Открыть экран выбора языка
+                                },
+                              ),
+
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 8),
+                              ),
+
+                              // --- ВЫХОД ---
+                              _buildDestructiveTile(
+                                icon: CupertinoIcons.arrow_right_circle_fill,
+                                title: 'Выйти из аккаунта',
+                                onTap: () {
+                                  _showLogoutConfirmation(context);
+                                },
+                              ),
+
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 100),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -155,13 +180,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final result =
         await showConfirmationDialog(
           context,
-          title: "Выйти из акканута",
+          title: "Выйти из аккаунта",
           description:
               "Вам придётся войти снова, чтобы продолжить использование приложения.",
         ) ??
         false;
     if (result) {
-      //TODO:: Выход из аккаунта
+      if (context.mounted) {
+        final sessionBloc = context.read<SessionBloc>();
+        sessionBloc.add(Logout());
+      }
     }
   }
 
@@ -174,6 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Text(
             'Настройки',
             style: TextStyle(
+              // AppColors.white уже динамический (белый в Dark, почти чёрный в Light)
               color: AppColors.white,
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -254,10 +283,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             right: 16,
           ),
           decoration: BoxDecoration(
-            color: AppColors.white.withValues(alpha: 0.05),
+            // 🎯 5. ЗАМЕНЕНО: Динамический фон карточки
+            color: AppColors.actionGrey,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.white.withValues(alpha: 0.08),
+              // 🎯 6. ЗАМЕНЕНО: Динамическая рамка карточки
+              color: AppColors.divider,
               width: 1,
             ),
           ),
@@ -320,7 +351,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: AppColors.errorRed.withValues(alpha: 0.08),
+            // 🎯 7. ЗАМЕНЕНО: Чуть увеличена прозрачность для светлой темы, чтобы было видно
+            color: AppColors.errorRed.withValues(
+              alpha: AppColors.isDarkMode() ? 0.08 : 0.15,
+            ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: AppColors.errorRed.withValues(alpha: 0.25),

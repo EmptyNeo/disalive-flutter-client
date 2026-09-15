@@ -26,6 +26,7 @@ import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
+import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
@@ -55,16 +56,16 @@ Future<void> setupDependencies() async {
   sl.registerFactory(() => ThemeCubit(sl<SettingsRepository>()));
 
   // Repositories
+  sl.registerLazySingleton<WsEventBus>(() => WsEventBus());
+  sl.registerLazySingleton<WsRepository>(() => WsRepositoryImpl());
+  sl.registerLazySingleton<ChatServerRepository>(
+    () => ChatServerRepositoryImpl(sl()),
+  );
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl());
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
   sl.registerLazySingleton<MessageRepository>(() => MessageRepositoryImpl());
-  sl.registerLazySingleton<WsRepository>(() => WsRepositoryImpl());
-  sl.registerLazySingleton<WsEventBus>(() => WsEventBus());
-  sl.registerLazySingleton<ChatServerRepository>(
-    () => ChatServerRepositoryImpl(sl()),
-  );
   sl.registerLazySingleton<PermissionRepository>(
     () => PermissionRepositoryImpl(),
   );
@@ -80,4 +81,5 @@ Future<void> setupDependencies() async {
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
+  sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl()));
 }

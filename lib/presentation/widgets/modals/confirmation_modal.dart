@@ -160,7 +160,7 @@ class _ConfirmationModalContent extends StatelessWidget {
                               confirmText,
                               textAlign: TextAlign.center,
                               style: AppText.mediumTextStyle.copyWith(
-                                color: AppColors.white,
+                                color: AppColors.onBlurple,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

@@ -1,8 +1,9 @@
-
 // lib/presentation/screens/login_screen.dart
 import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
+import 'package:disalive/presentation/features/home/home_screen.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -45,33 +46,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty) {
-      _showErrorDialog('Введите email');
+      CustomToast.show(context, 'Введите email');
       return;
     }
 
     if (password.isEmpty) {
-      _showErrorDialog('Введите пароль');
+      CustomToast.show(context, 'Введите пароль');
       return;
     }
 
     context.read<AuthBloc>().add(
       LoginButtonPressed(email: email, password: password),
-    );
-  }
-
-  void _showErrorDialog(String message) {
-    showCupertinoDialog(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: const Text('Ошибка'),
-        content: Text(message),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -82,11 +67,11 @@ class _LoginScreenState extends State<LoginScreen> {
         padding: const EdgeInsets.only(bottom: 8, left: 4),
         child: Text(
           text.toUpperCase(),
-          style: TextStyle(
-            color: CupertinoColors.white.withOpacity(0.7),
-            fontSize: 12,
+          style: AppText.lowTextStyle.copyWith(
+            // 🎯 Динамический цвет для второстепенного текста
+            color: AppColors.greyple,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+            letterSpacing: 0.8,
           ),
         ),
       ),
@@ -95,23 +80,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   BoxDecoration _glassInputDecoration(bool hasFocus) {
     return BoxDecoration(
-      color: CupertinoColors.black.withOpacity(0.25),
-      borderRadius: BorderRadius.circular(10),
+      // 🎯 AppColors.actionGrey уже динамический (тёмно-серый / светло-серый)
+      color: AppColors.actionGrey,
+      borderRadius: BorderRadius.circular(12),
       border: Border.all(
-        color: hasFocus
-            ? AppColors.blurple
-            : CupertinoColors.white.withOpacity(0.15),
-        width: 1,
+        // 🎯 Динамическая рамка: blurple при фокусе, divider в покое
+        color: hasFocus ? AppColors.blurple : AppColors.divider,
+        width: hasFocus ? 1.5 : 1.0,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDarkMode();
+
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthFailure) {
-          _showErrorDialog(state.error);
+          CustomToast.show(context, state.error);
+        } else if (state is AuthAuthenticated) {
+          Navigator.of(context).pushAndRemoveUntil(
+            CupertinoPageRoute(builder: (context) => const HomeScreen()),
+            (route) => false,
+          );
         }
       },
       builder: (context, state) {
@@ -121,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onTap: () => FocusScope.of(context).unfocus(),
             child: Stack(
               children: [
-                // Фоновые пятна
+                // 🎯 Фоновые пятна (чуть приглушены для светлой темы)
                 Positioned(
                   top: MediaQuery.of(context).size.height * 0.1,
                   left: -100,
@@ -130,10 +122,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 300,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.blurple.withOpacity(0.45),
+                      color: AppColors.blurple.withOpacity(
+                        isDark ? 0.45 : 0.25,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.blurple.withOpacity(0.45),
+                          color: AppColors.blurple.withOpacity(
+                            isDark ? 0.45 : 0.25,
+                          ),
                           blurRadius: 100,
                           spreadRadius: 50,
                         ),
@@ -142,17 +138,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 Positioned(
-                  bottom: MediaQuery.of(context).size.height * 0.1,
+                  bottom: MediaQuery.of(context).size.height * 0.15,
                   right: -100,
                   child: Container(
                     width: 250,
                     height: 250,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.linkBlue.withOpacity(0.35),
+                      color: AppColors.linkBlue.withOpacity(
+                        isDark ? 0.35 : 0.2,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.linkBlue.withOpacity(0.35),
+                          color: AppColors.linkBlue.withOpacity(
+                            isDark ? 0.35 : 0.2,
+                          ),
                           blurRadius: 100,
                           spreadRadius: 50,
                         ),
@@ -161,11 +161,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                // Полноэкранная стеклянная панель с небольшими отступами
+                // 🎯 Стеклянная панель с адаптивными цветами
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
-                    // Отступ для видимости рамки
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: BackdropFilter(
@@ -173,14 +172,31 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Container(
                           width: double.infinity,
                           height: double.infinity,
-                          // Заполняет весь доступный экран
                           decoration: BoxDecoration(
-                            color: CupertinoColors.black.withOpacity(0.2),
+                            // 🎯 Адаптивный фон стекла: чёрный полупрозрачный или белый полупрозрачный
+                            color: isDark
+                                ? CupertinoColors.black.withOpacity(0.25)
+                                : CupertinoColors.white.withOpacity(0.75),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: CupertinoColors.white.withOpacity(0.15),
+                              // 🎯 Адаптивная рамка стекла
+                              color: isDark
+                                  ? CupertinoColors.white.withOpacity(0.15)
+                                  : CupertinoColors.black.withOpacity(0.1),
                               width: 1.5,
                             ),
+                            // 🎯 Тень только для светлой темы, чтобы панель "парила"
+                            boxShadow: isDark
+                                ? null
+                                : [
+                                    BoxShadow(
+                                      color: CupertinoColors.black.withOpacity(
+                                        0.05,
+                                      ),
+                                      blurRadius: 20,
+                                      spreadRadius: 5,
+                                    ),
+                                  ],
                           ),
                           child: Center(
                             child: SingleChildScrollView(
@@ -191,13 +207,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.center,
-                                // Применено по центру
                                 children: [
                                   Text(
                                     'С возвращением!',
-                                    style: TextStyle(
+                                    style: AppText.highTextStyle.copyWith(
+                                      // 🎯 AppColors.white динамический (белый в тёмной, почти чёрный в светлой)
                                       color: AppColors.white,
-                                      fontSize: 26,
+                                      fontSize: 28,
                                       fontWeight: FontWeight.w800,
                                     ),
                                     textAlign: TextAlign.center,
@@ -205,17 +221,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 8),
                                   Text(
                                     'Мы так рады видеть вас снова!',
-                                    style: TextStyle(
-                                      color: CupertinoColors.white.withOpacity(
-                                        0.7,
-                                      ),
+                                    style: AppText.mediumTextStyle.copyWith(
+                                      color: AppColors.greyple,
                                       fontSize: 15,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 40),
 
-                                  // Блок полей ввода с растягиванием по ширине
                                   SizedBox(
                                     width: double.infinity,
                                     child: Column(
@@ -227,11 +240,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                           keyboardType:
                                               TextInputType.emailAddress,
                                           autocorrect: false,
-                                          style: TextStyle(
-                                            color: AppColors.white,
-                                            fontSize: 16,
-                                          ),
-                                          cursorColor: AppColors.white,
+                                          style: AppText.mediumTextStyle
+                                              .copyWith(
+                                                color: AppColors
+                                                    .white, // 🎯 Динамический
+                                              ),
+                                          cursorColor: AppColors.blurple,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 16,
@@ -247,11 +261,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                           controller: _passwordController,
                                           focusNode: _passwordFocus,
                                           obscureText: _obscurePassword,
-                                          style: TextStyle(
-                                            color: AppColors.white,
-                                            fontSize: 16,
-                                          ),
-                                          cursorColor: AppColors.white,
+                                          style: AppText.mediumTextStyle
+                                              .copyWith(
+                                                color: AppColors
+                                                    .white, // 🎯 Динамический
+                                              ),
+                                          cursorColor: AppColors.blurple,
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 16,
                                             vertical: 16,
@@ -276,8 +291,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                                   : CupertinoIcons
                                                         .eye_slash_fill,
                                               size: 20,
-                                              color: CupertinoColors.white
-                                                  .withOpacity(0.7),
+                                              // 🎯 Динамическая иконка
+                                              color: AppColors.greyple,
                                             ),
                                           ),
                                         ),
@@ -291,12 +306,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: CupertinoButton(
                                       padding: EdgeInsets.zero,
                                       minSize: 0,
-                                      onPressed: () {},
-                                      child: const Text(
+                                      onPressed: () {
+                                        // TODO: Экран восстановления пароля
+                                      },
+                                      child: Text(
                                         'Забыли пароль?',
-                                        style: TextStyle(
+                                        style: AppText.mediumTextStyle.copyWith(
                                           color: AppColors.linkBlue,
-                                          fontSize: 14,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -306,7 +322,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                   SizedBox(
                                     width: double.infinity,
-                                    child: CupertinoButton(
+                                    child: CupertinoButton.filled(
                                       onPressed: state is AuthLoading
                                           ? null
                                           : _handleLogin,
@@ -317,44 +333,46 @@ class _LoginScreenState extends State<LoginScreen> {
                                           AppWidgetStyles.primaryButtonPadding,
                                       borderRadius: BorderRadius.circular(12),
                                       child: state is AuthLoading
-                                          ? const CupertinoActivityIndicator()
-                                          : const Text(
+                                          ? const CupertinoActivityIndicator(
+                                              color: CupertinoColors.white,
+                                            )
+                                          : Text(
                                               'Войти',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: CupertinoColors.white,
-                                              ),
+                                              style: AppText.highTextStyle
+                                                  .copyWith(
+                                                    color:
+                                                        CupertinoColors.white,
+                                                    fontSize: 16,
+                                                  ),
                                             ),
                                     ),
                                   ),
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 24),
 
-                                  // Нижний блок также отцентрирован
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment
-                                        .center, // Применено по центру
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
                                     children: [
                                       Text(
                                         'Нужна учетная запись?',
-                                        style: TextStyle(
-                                          color: CupertinoColors.white
-                                              .withOpacity(0.7),
-                                          fontSize: 14,
+                                        style: AppText.mediumTextStyle.copyWith(
+                                          color: AppColors.greyple,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
                                       CupertinoButton(
                                         padding: EdgeInsets.zero,
                                         minSize: 0,
-                                        onPressed: () {},
-                                        child: const Text(
+                                        onPressed: () {
+                                          // TODO: Экран регистрации
+                                        },
+                                        child: Text(
                                           'Зарегистрироваться',
-                                          style: TextStyle(
-                                            color: AppColors.linkBlue,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                          style: AppText.mediumTextStyle
+                                              .copyWith(
+                                                color: AppColors.linkBlue,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                         ),
                                       ),
                                     ],

@@ -6,6 +6,7 @@ import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
+import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         BlocProvider<MessageBloc>(create: (_) => sl<MessageBloc>()),
         BlocProvider<MembersBloc>(create: (_) => sl<MembersBloc>()),
+        BlocProvider<SessionBloc>(create: (_) => sl<SessionBloc>()),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -94,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<ChatBloc>().setupListeners();
                 context.read<MessageBloc>().setupListeners();
                 context.read<MembersBloc>().setupListeners();
+                context.read<SessionBloc>().setupListeners();
               }
             },
           ),
@@ -109,9 +112,14 @@ class _HomeScreenState extends State<HomeScreen> {
           BlocListener<ProfileBloc, ProfileState>(
             listener: (context, state) {
               if (state is AuthLogout) {
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil(MyRouter.login, (route) => false);
+                routeToLogin();
+              }
+            },
+          ),
+          BlocListener<SessionBloc, SessionState>(
+            listener: (context, state) {
+              if (state is SessionLoggedOut) {
+                routeToLogin();
               }
             },
           ),
@@ -227,11 +235,17 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Center(
             child: Text(
               'Профиль: ${user.displayName}',
-              style: const TextStyle(color: CupertinoColors.white),
+              style: TextStyle(color: AppColors.white),
             ),
           ),
         ),
       ],
     );
+  }
+
+  void routeToLogin() {
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(MyRouter.login, (route) => false);
   }
 }

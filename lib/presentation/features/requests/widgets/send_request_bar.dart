@@ -1,12 +1,9 @@
 // lib/presentation/features/requests/widgets/send_request_bar.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
-import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
-import 'package:disalive/presentation/widgets/custom_divider.dart';
 import 'package:flutter/cupertino.dart';
 
-/// Панель отправки заявки по username — обычная строка над списком (не
-/// floating), поэтому без блюра и без измерения высоты.
+/// Панель отправки заявки по username.
 class SendRequestBar extends StatelessWidget {
   const SendRequestBar({
     super.key,
@@ -23,56 +20,59 @@ class SendRequestBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.glassPanelBottom.withValues(alpha: 0.55),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.white.withValues(alpha: 0.1),
-              width: 1,
+      // 🎯 Убрали лишний ClipRRect, так как Container сам отлично обрабатывает borderRadius
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          // 🎯 Динамический фон: тёмно-серый в Dark, светло-серый в Light
+          color: AppColors.actionGrey,
+          borderRadius: BorderRadius.circular(20),
+          // 🎯 Динамическая обводка: видна и контрастна в любой теме
+          border: Border.all(
+            color: AppColors.divider,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: CupertinoTextField(
+                controller: controller,
+                placeholder: 'Имя пользователя',
+                placeholderStyle: AppText.mediumTextStyle.copyWith(
+                  color: AppColors.greyple,
+                ),
+                style: AppText.mediumTextStyle.copyWith(
+                  // 🎯 AppColors.white уже динамический (белый в Dark, почти чёрный в Light)
+                  color: AppColors.white,
+                ),
+                cursorColor: AppColors.blurple,
+                // Убираем стандартную декорацию Cupertino, чтобы не было двойных рамок
+                decoration: const BoxDecoration(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: CupertinoTextField(
-                  controller: controller,
-                  placeholder: 'Имя пользователя',
-                  placeholderStyle: AppText.mediumTextStyle.copyWith(
-                    color: AppColors.greyple,
-                  ),
-                  style: AppText.mediumTextStyle.copyWith(
-                    color: AppColors.white,
-                  ),
-                  decoration: const BoxDecoration(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSend(),
+            const SizedBox(width: 6),
+            ValueListenableBuilder<bool>(
+              valueListenable: hasText,
+              builder: (context, enabled, _) => GlassButton(
+                borderRadius: 32,
+                padding: const EdgeInsets.all(8),
+                accent: enabled,
+                onTap: enabled ? onSend : () {},
+                child: Icon(
+                  CupertinoIcons.paperplane_fill,
+                  size: 14, // Чуть увеличил для лучшей читаемости
+                  color: enabled ? AppColors.onBlurple : AppColors.greyple,
                 ),
               ),
-              const SizedBox(width: 6),
-              ValueListenableBuilder<bool>(
-                valueListenable: hasText,
-                builder: (context, enabled, _) => GlassButton(
-                  borderRadius: 32,
-                  padding: const EdgeInsets.all(8),
-                  accent: enabled,
-                  onTap: enabled ? onSend : () {},
-                  child: Icon(
-                    CupertinoIcons.paperplane_fill,
-                    size: 14,
-                    color: enabled ? AppColors.onBlurple : AppColors.greyple,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

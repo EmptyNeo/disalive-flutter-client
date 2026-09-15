@@ -102,8 +102,9 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
         chatId: chat.id,
         userId: _currentUserId,
         time: DateTime.now().toUtc().toString(),
-        forwardMessage: widget.message,
-        forwardMessageId: widget.message.id,
+        forwardMessage: widget.message.forwardMessage ?? widget.message,
+        forwardMessageId:
+            widget.message.forwardMessage?.id ?? widget.message.id,
       );
 
       _messageBloc.add(
