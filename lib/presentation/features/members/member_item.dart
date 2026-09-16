@@ -1,6 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -48,6 +49,12 @@ class _MemberItemState extends State<MemberItem> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Реагируем на начало касания (и обычного тапа, и долгого зажатия)
+      onTap: () {
+        UserProfileScreen.open(
+          context,
+          username: widget.member.user?.username ?? '',
+        );
+      },
       onTapDown: (_) => _handlePressStart(),
       onLongPressDown: (_) => _handlePressStart(),
 

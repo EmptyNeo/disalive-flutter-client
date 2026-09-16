@@ -6,6 +6,7 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -23,6 +24,7 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
   StreamSubscription<WsEvent>? _createSubscription;
   StreamSubscription<WsEvent>? _deleteSubscription;
   StreamSubscription<WsEvent>? _updateSubscription;
+  StreamSubscription<WsEvent>? _userUpdateSubscription;
 
   MembersBloc(this._membersRepository, this._eventBus)
     : super(MembersInitial()) {
@@ -30,6 +32,7 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     on<MemberAddedEvent>(_onMemberAdded);
     on<MemberRemovedEvent>(_onMemberRemoved);
     on<MemberUpdatedEvent>(_onMemberUpdated);
+    on<UpdateUserInMembers>(_onUpdateUserInMembers);
   }
 
   void setupListeners() {
@@ -105,6 +108,18 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
               updatedMembers: updatedMembers,
             ),
           );
+        }
+      },
+    );
+
+    _userUpdateSubscription = _eventBus.subscribe(
+      table: 'User',
+      action: ActionType.update,
+      onData: (event) {
+        final map = event.data['user'];
+        if (map is Map<String, dynamic>) {
+          final user = UserModel.fromMap(map);
+          add(UpdateUserInMembers(user));
         }
       },
     );
@@ -236,6 +251,47 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     );
   }
 
+  void _onUpdateUserInMembers(
+    UpdateUserInMembers event,
+    Emitter<MembersState> emit,
+  ) {
+    if (state is! MembersLoaded) return;
+    final currentState = state as MembersLoaded;
+
+    // Проходим по всем участникам и обновляем данные того, чей ID совпадает
+    final updatedMembers = currentState.members.map((member) {
+      if (member.fkUser == event.user.id) {
+        return member.copyWith(user: event.user);
+      }
+      return member;
+    }).toList();
+
+    bool hasChanges = false;
+    for (int i = 0; i < updatedMembers.length; i++) {
+      if (updatedMembers[i] != currentState.members[i]) {
+        hasChanges = true;
+        break;
+      }
+    }
+
+    if (hasChanges) {
+      _updateRepositoryCache(
+        currentState.entityId,
+        currentState.entityType,
+        updatedMembers,
+      );
+
+      emit(
+        MembersLoaded(
+          entityId: currentState.entityId,
+          entityType: currentState.entityType,
+          members: updatedMembers,
+          memberCount: currentState.memberCount,
+        ),
+      );
+    }
+  }
+
   // Вспомогательный метод для синхронизации кэша репозитория
   void _updateRepositoryCache(
     int entityId,
@@ -256,5 +312,6 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     _createSubscription?.cancel();
     _deleteSubscription?.cancel();
     _updateSubscription?.cancel();
+    _userUpdateSubscription?.cancel();
   }
 }

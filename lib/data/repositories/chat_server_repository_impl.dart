@@ -8,6 +8,7 @@ import 'package:disalive/domain/enums/ui/ws_connection_status.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/ws_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -15,8 +16,8 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   final WsEventBus _eventBus;
+  final WsRepository _wsRepository;
 
-  // Поля для авто-переподключения
   String? _currentToken;
   Timer? _reconnectTimer;
   int _retryAttempts = 0;
@@ -24,7 +25,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   final _statusController = StreamController<WsConnectionStatus>.broadcast();
 
-  ChatServerRepositoryImpl(this._eventBus);
+  ChatServerRepositoryImpl(this._eventBus, this._wsRepository);
 
   @override
   bool get isConnected => _channel != null;
@@ -34,13 +35,12 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       _statusController.stream;
 
   @override
-  Future<Either<Failure, void>> connect(String token) async {
+  Future<Either<Failure, void>> connect() async {
     if (_channel != null) {
       return const Right(null);
     }
 
     _isManualDisconnect = false;
-    _currentToken = token;
     _retryAttempts = 0;
 
     return _attemptConnection();
@@ -53,6 +53,23 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _reconnectTimer = null;
 
     try {
+      final tokenResult = await _wsRepository.getToken();
+
+      if (tokenResult.isLeft()) {
+        final failure = tokenResult.fold((l) => l, (r) => null);
+        print(
+          '❌ Не удалось получить wsToken для подключения: ${failure?.message}',
+        );
+        _statusController.add(WsConnectionStatus.disconnected);
+        _channel = null;
+        _scheduleReconnect();
+        return Left(failure!);
+      }
+
+      final freshToken = tokenResult.fold((l) => '', (r) => r);
+
+      _currentToken = freshToken;
+
       const wsUrl = 'wss://disalive.ru:8081';
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
@@ -61,7 +78,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       _channel!.sink.add(
         jsonEncode({
           'nameAction': 'Connect',
-          'wsToken': _currentToken,
+          'wsToken': freshToken,
           'status': 'online',
         }),
       );

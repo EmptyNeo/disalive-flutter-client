@@ -81,6 +81,8 @@ class Message extends Equatable {
       forwardMessage: map['forwardMessage'] != null
           ? Message.fromMap(map['forwardMessage'] as Map<String, dynamic>)
           : null,
+      forwardMessageId: map['forwardMessageId'],
+      answerMessageId: map['answerMessageId'],
       amountFiles: map['amountFiles'],
     );
   }
@@ -153,7 +155,7 @@ class Message extends Equatable {
 
   bool get isAnswer => answerMessage != null;
 
-  bool get isForward => forwardMessage != null;
+  bool get isForward => forwardMessageId != null;
 
   bool get hasLinkPreview => linkPreview != null;
 

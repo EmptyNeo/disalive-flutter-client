@@ -68,3 +68,12 @@ class MemberUpdatedEvent extends MembersEvent {
   @override
   List<Object?> get props => [entityId, entityType, updatedMembers];
 }
+
+class UpdateUserInMembers extends MembersEvent {
+  final UserModel user;
+
+  const UpdateUserInMembers(this.user);
+
+  @override
+  List<Object?> get props => [user];
+}

@@ -7,6 +7,7 @@ import 'package:disalive/presentation/features/message/widgets/answer_preview.da
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
+import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -89,15 +90,23 @@ class MessageItem extends StatelessWidget {
       backgroundColor = backgroundMessage as Color;
     }
 
-    final paddingMessage = isMediasOnly
-        ? const EdgeInsets.symmetric(horizontal: 0, vertical: 2)
-        : const EdgeInsets.symmetric(horizontal: 10, vertical: 2);
+    final paddingLeftBubble = isMine ? 12.0 : 0.0;
+    final paddingRightBubble = isMine ? 0.0 : 12.0;
+
+    final paddingBubble = isMediasOnly
+        ? EdgeInsets.only(
+            left: paddingLeftBubble,
+            right: paddingRightBubble,
+            top: 0,
+            bottom: 0,
+          )
+        : const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
 
     return GestureDetector(
       onLongPress: onLongPress,
       onTap: onTap,
       child: Padding(
-        padding: paddingMessage,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         child: Row(
           mainAxisAlignment: isMine
               ? MainAxisAlignment.end
@@ -107,7 +116,19 @@ class MessageItem extends StatelessWidget {
               : CrossAxisAlignment.start,
           children: [
             if (showSenderInfo) ...[
-              BuildAvatar(url: message.user?.pathImage, wh: 26, size: 16),
+              GestureDetector(
+                onTap: () {
+                  UserProfileScreen.open(
+                    context,
+                    username: message.user?.username ?? '',
+                  );
+                },
+                child: BuildAvatar(
+                  url: message.user?.pathImage,
+                  wh: 26,
+                  size: 16,
+                ),
+              ),
               const SizedBox(width: 6),
             ],
             if (!isMine && showSender && !showAvatar) ...[
@@ -119,7 +140,7 @@ class MessageItem extends StatelessWidget {
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                   minWidth: 50,
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: paddingBubble,
                 decoration: BoxDecoration(
                   color: backgroundColor,
                   borderRadius: _buildBorderRadius(),

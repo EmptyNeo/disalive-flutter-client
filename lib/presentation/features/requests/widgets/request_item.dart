@@ -30,7 +30,7 @@ class RequestItem extends StatelessWidget {
       decoration: BoxDecoration(
         // 🎯 Динамический фон: тёмно-серый в Dark, светло-серый в Light
         color: AppColors.actionGrey,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(32),
         // 🎯 Динамическая обводка
         border: Border.all(color: AppColors.divider, width: 1),
       ),

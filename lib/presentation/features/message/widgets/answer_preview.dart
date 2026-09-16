@@ -6,9 +6,9 @@ import 'package:flutter/cupertino.dart';
 
 /// Превью сообщения, на которое отвечают ("Ответ на сообщение") — цветная
 /// полоска слева + имя автора оригинала + текст (или "Фото"/"Вложение",
-/// если текста нет), и маленький тамбнейл, если в ответе есть картинка.
+/// если текста нет, или "Пересланное сообщение", если это реплай на форвард).
 ///
-/// [message] — это уже сам `answerMessage`,url_launcher а не сообщение-обёртка.
+/// [message] — это уже сам `answerMessage`, а не сообщение-обёртка.
 /// [isMine] — от чьего лица бабл, в котором лежит превью (влияет на
 /// цвета, чтобы всё осталось читаемым и на синем, и на сером фоне).
 class AnswerPreview extends StatelessWidget {
@@ -27,15 +27,25 @@ class AnswerPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amountFiles = message?.amountFiles ?? 0;
+    // 🎯 1. Проверяем, является ли сообщение, на которое отвечают, пересланным
+    final isForwarded = message?.isForward ?? false;
 
-    final text = message?.text ?? '';
-    final parts = <String>[
-      if (text.isNotEmpty) text,
-      if (amountFiles > 0) '[${Pluralize.attachments(amountFiles)}]',
-    ];
+    final String previewText;
+    print(message?.toMap().toString());
+    if (isForwarded) {
+      previewText = 'Пересланное сообщение';
+    } else {
+      // 🎯 3. Стандартная логика для обычных сообщений
+      final amountFiles = message?.amountFiles ?? 0;
+      final text = message?.text ?? '';
 
-    final previewText = parts.isNotEmpty ? parts.join(' ') : 'Вложение';
+      final parts = <String>[
+        if (text.isNotEmpty) text,
+        if (amountFiles > 0) '[${Pluralize.attachments(amountFiles)}]',
+      ];
+
+      previewText = parts.isNotEmpty ? parts.join(' ') : 'Вложение';
+    }
 
     final accentColor = isMine ? AppColors.onBlurple : AppColors.blurple;
     final nameColor = accentColor;
@@ -54,7 +64,7 @@ class AnswerPreview extends StatelessWidget {
         ),
         child: IntrinsicHeight(
           child: Row(
-            mainAxisSize: MainAxisSize.min, // ключевое исправление
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
@@ -66,7 +76,6 @@ class AnswerPreview extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Flexible(
-                // было Expanded
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,

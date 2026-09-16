@@ -107,6 +107,7 @@ class _ThemeTile extends StatelessWidget {
   final VoidCallback onTap;
 
   const _ThemeTile({
+    super.key,
     required this.mode,
     required this.isSelected,
     required this.onTap,
@@ -114,22 +115,27 @@ class _ThemeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Определяем цвета для превью в зависимости от темы
-    final isDark = mode == AppThemeMode.dark || mode == AppThemeMode.amoled;
+    // 🎯 1. Определяем, какую тему мы ПРЕДВАРИТЕЛЬНО просматриваем
     final isAmoled = mode == AppThemeMode.amoled;
+    final isDarkPreview = mode == AppThemeMode.dark || isAmoled;
 
-    final backgroundColor = isAmoled
-        ? CupertinoColors.black
-        : (isDark ? AppColors.mainBackground : CupertinoColors.white);
+    // 🎯 2. ЖЕСТКО задаем цвета превью, чтобы они не зависели от текущей темы приложения
+    final previewBackgroundColor = isAmoled
+        ? const Color(0xFF000000) // Чистый черный для AMOLED
+        : (isDarkPreview
+              ? const Color(0xFF1C1D22)
+              : const Color(0xFFFFFFFF)); // Темный или Белый
 
-    final bubbleColor = isDark ? AppColors.blurple : AppColors.blurple;
+    final previewBubbleColor = AppColors.blurple; // Одинаковый для обеих тем
 
-    final secondaryBubbleColor = isDark
-        ? AppColors.white.withValues(alpha: 0.1)
-        : AppColors.greyple.withValues(alpha: 0.2);
+    final previewSecondaryBubbleColor = isDarkPreview
+        ? const Color(0xFF2C2F33) // Темно-серый (как glassPanelBottom)
+        : const Color(0xFFEBEDEF); // Светло-серый (как actionGrey)
 
-    final textColor = isDark ? CupertinoColors.white : CupertinoColors.black;
-    final secondaryTextColor = isDark ? AppColors.greyple : AppColors.greyple;
+    final previewTextColor = isDarkPreview
+        ? CupertinoColors.white
+        : const Color(0xFF060607); // Почти черный для светлой темы
+
 
     return GestureDetector(
       onTap: onTap,
@@ -143,10 +149,8 @@ class _ThemeTile extends StatelessWidget {
               : CupertinoColors.transparent,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected
-                ? AppColors.blurple.withValues(alpha: 0.6)
-                : AppColors.white.withValues(alpha: 0.08),
-            width: isSelected ? 2 : 1,
+            color: AppColors.divider,
+            width: isSelected ? 1 : 0.5,
           ),
         ),
         child: Column(
@@ -156,11 +160,11 @@ class _ThemeTile extends StatelessWidget {
             Container(
               height: 80,
               decoration: BoxDecoration(
-                color: backgroundColor,
+                color: previewBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.1),
-                  width: 1,
+                  color: AppColors.divider, // 🎯 Адаптивная рамка превью
+                  width: 0.5,
                 ),
               ),
               child: ClipRRect(
@@ -192,7 +196,7 @@ class _ThemeTile extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: bubbleColor,
+                          color: previewBubbleColor,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             bottomLeft: Radius.circular(12),
@@ -240,7 +244,7 @@ class _ThemeTile extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: secondaryBubbleColor,
+                          color: previewSecondaryBubbleColor,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             bottomRight: Radius.circular(12),
@@ -256,7 +260,7 @@ class _ThemeTile extends StatelessWidget {
                               width: 50,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: textColor.withValues(alpha: 0.6),
+                                color: previewTextColor.withValues(alpha: 0.6),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -265,7 +269,7 @@ class _ThemeTile extends StatelessWidget {
                               width: 35,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: textColor.withValues(alpha: 0.4),
+                                color: previewTextColor.withValues(alpha: 0.4),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -287,6 +291,7 @@ class _ThemeTile extends StatelessWidget {
                   child: Text(
                     mode.displayName,
                     style: AppText.mediumTextStyle.copyWith(
+                      // Здесь используем динамический AppColors.white, так как это текст САМОГО меню настроек
                       color: AppColors.white,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,

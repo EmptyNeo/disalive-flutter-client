@@ -15,13 +15,20 @@ class CustomToast {
       GlobalKey<_ToastWidgetState>();
 
   /// Показывает toast-уведомление поверх текущего интерфейса.
-  static void show(BuildContext context, String message) {
+  static void show({
+    required BuildContext context,
+    Color? color,
+    IconData? icon,
+    required String message,
+  }) {
     // Если уже есть активный toast, скрываем его мгновенно перед показом нового
     _hide(immediate: true);
 
     _currentOverlayEntry = OverlayEntry(
       builder: (context) => _ToastWidget(
         key: _toastKey,
+        icon: icon,
+        color: color,
         message: message,
         onDismissed: _removeOverlay,
       ),
@@ -59,11 +66,15 @@ class CustomToast {
 }
 
 class _ToastWidget extends StatefulWidget {
+  final IconData? icon;
+  final Color? color;
   final String message;
   final VoidCallback onDismissed;
 
   const _ToastWidget({
     super.key,
+    this.icon = CupertinoIcons.exclamationmark_circle_fill,
+    this.color = AppColors.errorRed,
     required this.message,
     required this.onDismissed,
   });
@@ -154,11 +165,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                     color: AppColors.lightGrey,
                     child: Row(
                       children: [
-                        const Icon(
-                          CupertinoIcons.exclamationmark_circle_fill,
-                          color: AppColors.errorRed,
-                          size: 24,
-                        ),
+                        Icon(widget.icon, color: widget.color, size: 24),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(

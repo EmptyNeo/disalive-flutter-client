@@ -53,7 +53,7 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
     if (_selected.length < 2) return;
     final result = await sl<ChatRepository>().create(_selected.values.toList());
     result.fold((failure) {
-      CustomToast.show(context, failure.message);
+      CustomToast.show(context: context, message: failure.message);
     }, (response) {});
     if (mounted) Navigator.of(context).maybePop();
   }

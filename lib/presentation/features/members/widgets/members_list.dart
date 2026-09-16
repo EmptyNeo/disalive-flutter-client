@@ -1,12 +1,19 @@
 // presentation/features/members/widgets/members_list.dart
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/members/member_item.dart';
+import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -103,6 +110,24 @@ class MembersList extends StatelessWidget {
     );
   }
 
+  void removeMember(BuildContext context, Member member) async {
+    final entityKey = DeterminingContextService.getEntityKey();
+    if (entityKey == null) {
+      return;
+    }
+    final result =
+        await showConfirmationDialog(
+          context,
+          title: "Исключить участника",
+          description:
+              "Вы уверены, что хотите исключить ${member.user?.getDisplayName}",
+        ) ??
+        false;
+    if (result) {
+      sl<MembersRepository>().remove(entityKey, member.user?.getId ?? 0);
+    }
+  }
+
   void _showMemberActions(BuildContext context, Member member) {
     final isSelf = member.isSelf ?? false;
 
@@ -134,7 +159,9 @@ class MembersList extends StatelessWidget {
           icon: CupertinoIcons.person_crop_circle_badge_minus,
           label: 'Выгнать из группы',
           isDestructive: true,
-          onTap: () {},
+          onTap: () {
+            removeMember(context, member);
+          },
         ),
     ];
 

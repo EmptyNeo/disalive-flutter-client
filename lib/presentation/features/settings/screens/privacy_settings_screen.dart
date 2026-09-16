@@ -263,8 +263,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 child: CupertinoSwitch(
                   value: value,
                   onChanged: isEnabled ? onChanged : null,
-                  activeColor: AppColors.blurple,
-                  trackColor: AppColors.greyple.withValues(alpha: 0.3),
+                  activeTrackColor: AppColors.blurple,
+                  inactiveTrackColor: AppColors.greyple.withValues(alpha: 0.3),
                 ),
               ),
             ],

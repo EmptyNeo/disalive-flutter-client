@@ -8,10 +8,20 @@ class ProfileInitial extends ProfileState {}
 
 class ProfileLoading extends ProfileState {}
 
+class ProfileUpdating extends ProfileState {}
+
 class ProfileLoaded extends ProfileState {
   final UserModel user;
+  final Set<String> loadingFields;
 
-  ProfileLoaded(this.user);
+  ProfileLoaded(this.user, {this.loadingFields = const {}});
+
+  ProfileLoaded copyWith({UserModel? user, Set<String>? loadingFields}) {
+    return ProfileLoaded(
+      user ?? this.user,
+      loadingFields: loadingFields ?? this.loadingFields,
+    );
+  }
 }
 
 class ProfileFailure extends ProfileState {

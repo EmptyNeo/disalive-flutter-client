@@ -56,7 +56,7 @@ class DmNormalHeader extends StatelessWidget {
                 child: BlocBuilder<RequestsBloc, RequestsState>(
                   builder: (context, state) {
                     final requestsCount = state is RequestsLoaded
-                        ? state.requests.length
+                        ? state.requests.where((r) => r.isIncoming).length
                         : 0;
 
                     return GlassButton(

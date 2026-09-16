@@ -20,6 +20,8 @@ abstract class MembersRepository {
 
   Future<Either<Failure, bool>> leave(int entityId, EntityType entityType);
 
+  Future<Either<Failure, bool>> remove(EntityKey entityKey, int userId);
+
   Future<List<Member>> getCached(EntityKey entityKey);
 
   void updateCache(EntityKey entityKey, List<Member> members);

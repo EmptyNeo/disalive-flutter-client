@@ -105,7 +105,7 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
     setState(() => _isSaving = false);
 
     result.fold(
-      (failure) => CustomToast.show(context, failure.message),
+      (failure) => CustomToast.show(context: context, message: failure.message),
       (_) => Navigator.of(context).maybePop(),
     );
   }

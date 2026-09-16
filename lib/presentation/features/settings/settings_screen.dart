@@ -47,7 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     horizontal: BorderSide(
                       // 🎯 2. ЗАМЕНЕНО: Динамическая рамка вместо белой с альфа-каналом
                       color: AppColors.divider,
-                      width: 1,
+                      width: 0.5,
                     ),
                   ),
                 ),

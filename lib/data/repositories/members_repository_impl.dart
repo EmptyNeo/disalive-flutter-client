@@ -88,6 +88,25 @@ class MembersRepositoryImpl extends MembersRepository {
   }
 
   @override
+  Future<Either<Failure, bool>> remove(EntityKey entityKey, int userId) async {
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'members/remove.php',
+      data: {
+        "entityId": entityKey.entityId,
+        "entityType": entityKey.entityType.value,
+        "userId": userId,
+      },
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        return json is Map<String, dynamic>;
+      },
+    );
+
+    return result;
+  }
+
+  @override
   Future<List<Member>> getCached(EntityKey entityKey) async {
     List<Member>? members = _members[entityKey];
     if (members == null) {

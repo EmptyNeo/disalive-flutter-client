@@ -1,6 +1,7 @@
 // lib/presentation/screens/login_screen.dart
 import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -12,6 +13,12 @@ class LoginScreen extends StatefulWidget {
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
+
+  static void routeToMe(BuildContext context) {
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(MyRouter.login, (route) => false);
+  }
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -46,12 +53,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty) {
-      CustomToast.show(context, 'Введите email');
+      CustomToast.show(context: context, message: 'Введите email');
       return;
     }
 
     if (password.isEmpty) {
-      CustomToast.show(context, 'Введите пароль');
+      CustomToast.show(context: context, message: 'Введите пароль');
       return;
     }
 
@@ -98,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthFailure) {
-          CustomToast.show(context, state.error);
+          CustomToast.show(context: context, message: state.error);
         } else if (state is AuthAuthenticated) {
           Navigator.of(context).pushAndRemoveUntil(
             CupertinoPageRoute(builder: (context) => const HomeScreen()),

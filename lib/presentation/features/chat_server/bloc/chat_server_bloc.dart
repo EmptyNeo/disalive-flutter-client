@@ -84,15 +84,7 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
 
     print("--------- START CONNECT TO CHAT SERVER ------------------");
 
-    final tokenResult = await _wsRepository.getToken();
-    if (tokenResult.isLeft()) {
-      final failure = tokenResult.fold((l) => l, (r) => null);
-      print('Failed to get WS token: ${failure?.message}');
-      return;
-    }
-
-    final token = tokenResult.fold((l) => '', (r) => r);
-    final connectResult = await _chatServerRepository.connect(token);
+    final connectResult = await _chatServerRepository.connect();
 
     if (connectResult.isLeft()) {
       final failure = connectResult.fold((l) => l, (r) => null);

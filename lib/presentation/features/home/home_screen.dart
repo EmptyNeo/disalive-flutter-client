@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
-import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/my_router.dart';
@@ -12,8 +11,10 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
+import 'package:disalive/presentation/features/login.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
+import 'package:disalive/presentation/features/profile/personal_profile_screen.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/settings/settings_screen.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
@@ -23,6 +24,10 @@ import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+// 🎯 1. ДОБАВЛЯЕМ ИМПОРТЫ ТЕМЫ
+import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
+import 'package:disalive/presentation/bloc/theme/theme_state.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -97,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 context.read<MessageBloc>().setupListeners();
                 context.read<MembersBloc>().setupListeners();
                 context.read<SessionBloc>().setupListeners();
+                context.read<ProfileBloc>().setupListeners();
               }
             },
           ),
@@ -112,14 +118,14 @@ class _HomeScreenState extends State<HomeScreen> {
           BlocListener<ProfileBloc, ProfileState>(
             listener: (context, state) {
               if (state is AuthLogout) {
-                routeToLogin();
+                LoginScreen.routeToMe(context);
               }
             },
           ),
           BlocListener<SessionBloc, SessionState>(
             listener: (context, state) {
               if (state is SessionLoggedOut) {
-                routeToLogin();
+                LoginScreen.routeToMe(context);
               }
             },
           ),
@@ -136,61 +142,69 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             if (state is ProfileLoaded) {
-              final bottomSafeArea = MediaQuery.of(context).padding.bottom;
-              final menuBottomMargin = bottomSafeArea > 0
-                  ? bottomSafeArea
-                  : 16.0;
+              // 🎯 2. ОБЕРТЫВАЕМ UI В BlocBuilder<ThemeCubit>
+              // Это заставит весь этот блок перерисоваться мгновенно при смене темы
+              return BlocBuilder<ThemeCubit, ThemeState>(
+                builder: (context, themeState) {
+                  final bottomSafeArea = MediaQuery.of(context).padding.bottom;
+                  final menuBottomMargin = bottomSafeArea > 0
+                      ? bottomSafeArea
+                      : 16.0;
 
-              return CupertinoPageScaffold(
-                backgroundColor: AppColors.mainBackground,
-                child: Stack(
-                  children: [
-                    // Основной контент с поддержкой свайпов
-                    _buildBody(state.user),
-                    if (_currentIndex == 0) ...[
-                      // Кнопка создания чата (FAB)
-                      Positioned(
-                        bottom: menuBottomMargin + 80,
-                        right: 20,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.blurple,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.blurple.withValues(alpha: 0.4),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                  return CupertinoPageScaffold(
+                    backgroundColor: AppColors.mainBackground,
+                    child: Stack(
+                      children: [
+                        // Основной контент с поддержкой свайпов
+                        _buildBody(state.user),
+                        if (_currentIndex == 0) ...[
+                          // Кнопка создания чата (FAB)
+                          Positioned(
+                            bottom: menuBottomMargin + 80,
+                            right: 20,
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppColors.blurple,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.blurple.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
                               ),
-                            ],
+                              child: GlassIconButton(
+                                filled: true,
+                                icon: CupertinoIcons.add,
+                                onTap: () {
+                                  CreateChatScreen.open(context);
+                                },
+                              ),
+                            ),
                           ),
-                          child: GlassIconButton(
-                            filled: true,
-                            icon: CupertinoIcons.add,
-                            onTap: () {
-                              CreateChatScreen.open(context);
-                            },
+                        ],
+
+                        // Стеклянное плавающее нижнее меню
+                        Positioned(
+                          bottom: menuBottomMargin,
+                          left: 16,
+                          right: 16,
+                          child: BottomMenu(
+                            user: state.user,
+                            onTapTapped: _onTabTapped,
+                            currentIndex: _currentIndex,
+                            personalUnreadCount: personalUnredCount,
                           ),
                         ),
-                      ),
-                    ],
-
-                    // Стеклянное плавающее нижнее меню
-                    Positioned(
-                      bottom: menuBottomMargin,
-                      left: 16,
-                      right: 16,
-                      child: BottomMenu(
-                        user: state.user,
-                        onTapTapped: _onTabTapped,
-                        currentIndex: _currentIndex,
-                        personalUnreadCount: personalUnredCount,
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             }
 
@@ -229,23 +243,9 @@ class _HomeScreenState extends State<HomeScreen> {
             isReconnect: isReconnect,
           ),
         ),
-        // Здесь рендерятся чаты
         const KeepAlivePage(child: SettingsScreen()),
-        KeepAlivePage(
-          child: Center(
-            child: Text(
-              'Профиль: ${user.displayName}',
-              style: TextStyle(color: AppColors.white),
-            ),
-          ),
-        ),
+        KeepAlivePage(child: PersonalProfileScreen()),
       ],
     );
-  }
-
-  void routeToLogin() {
-    Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil(MyRouter.login, (route) => false);
   }
 }
