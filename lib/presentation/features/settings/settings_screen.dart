@@ -4,11 +4,13 @@ import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart'; // 🎯 Добавлено
 import 'package:disalive/presentation/bloc/theme/theme_state.dart'; // 🎯 Добавлено
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/profile/edit_profile_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/privacy_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/sessions_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/theme_settings_screen.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -139,9 +141,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               _buildNavigationTile(
                                 icon: CupertinoIcons.globe,
                                 title: 'Язык',
-                                subtitle: 'Русский',
+                                subtitle: 'В разработке',
                                 onTap: () {
-                                  // TODO: Открыть экран выбора языка
+                                  CustomToast.show(
+                                    context: context,
+                                    icon: CupertinoIcons.clock,
+                                    color: AppColors.blurple,
+                                    message: "В разработке",
+                                  );
                                 },
                               ),
 
@@ -212,7 +219,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 16),
           GestureDetector(
             onTap: () {
-              // TODO: Открыть экран редактирования профиля
+              EditProfileScreen.open(context, user);
             },
             behavior: HitTestBehavior.opaque,
             child: Row(

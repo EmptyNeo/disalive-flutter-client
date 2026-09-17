@@ -4,15 +4,18 @@ import 'package:flutter/cupertino.dart';
 class ActionButton extends StatelessWidget {
   final VoidCallback _onTap;
   final bool _canPress;
+  final bool _isLoading;
   final String _title;
 
   const ActionButton({
     super.key,
     required VoidCallback onTap,
     required bool canPress,
+    required bool isLoading,
     required String title,
   }) : _onTap = onTap,
        _canPress = canPress,
+       _isLoading = isLoading,
        _title = title;
 
   @override
@@ -31,14 +34,23 @@ class ActionButton extends StatelessWidget {
                 : AppColors.blurple.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Text(
-            _title,
-            style: TextStyle(
-              color: AppColors.onBlurple,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CupertinoActivityIndicator(
+                    color: CupertinoColors.white,
+                    radius: 11,
+                  ),
+                )
+              : Text(
+                  _title,
+                  style: TextStyle(
+                    color: AppColors.onBlurple,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
         ),
       ),
     );

@@ -1,11 +1,9 @@
 // presentation/features/profile/direct_profile_screen.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/direct_profile_content.dart';
-import 'package:disalive/presentation/features/profile/widgets/profile_back_button.dart';
-import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -76,7 +74,7 @@ class DirectProfileScreenState extends State<DirectProfileScreen> {
                             user: _chat.user!,
                             isSoloChat: widget.chat.isSoloChat ?? false,
                           ),
-                          const ProfileBackButton(),
+                          const CustomBackButton(),
                         ],
                       ),
               ),

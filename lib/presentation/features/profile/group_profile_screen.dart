@@ -1,10 +1,14 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/permissions.dart';
+import 'package:disalive/presentation/features/chat/screens/add_members_screen.dart';
+import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/members/widgets/members_list.dart';
-import 'package:disalive/presentation/features/profile/widgets/profile_back_button.dart';
+import 'package:disalive/presentation/features/profile/widgets/profile_vertical_action_tile.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
+import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -12,12 +16,6 @@ class GroupProfileScreen extends StatefulWidget {
   final Chat chat;
 
   const GroupProfileScreen({super.key, required this.chat});
-
-  static Future<void> open(BuildContext context, Chat chat) {
-    return Navigator.of(context).push(
-      CupertinoPageRoute(builder: (context) => GroupProfileScreen(chat: chat)),
-    );
-  }
 
   @override
   State<GroupProfileScreen> createState() => _GroupProfileScreenState();
@@ -55,7 +53,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
-                children: [_buildUnifiedList(), const ProfileBackButton()],
+                children: [_buildUnifiedList(), const CustomBackButton()],
               ),
             ),
           ),
@@ -65,6 +63,10 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
   }
 
   Widget _buildUnifiedList() {
+    bool manageMembers =
+        widget.chat.role?.hasPermission(ChatPermissions.manageMembers) ?? false;
+    bool manageChat =
+        widget.chat.role?.hasPermission(ChatPermissions.manageChat) ?? false;
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -92,11 +94,45 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (manageChat || manageMembers) ...[
+                  Padding(
+                    padding: EdgeInsets.only(
+                      right: 12,
+                      left: 12,
+                      top: 12,
+                      bottom: 0,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (manageMembers) ...[
+                          ProfileVerticalActionTile(
+                            icon: CupertinoIcons.person_2_fill,
+                            title: 'Добавить',
+                            onTap: () {
+                              AddMembersScreen.open(context, widget.chat);
+                            },
+                          ),
+                        ],
+                        SizedBox(width: 8),
+                        if (manageChat) ...[
+                          ProfileVerticalActionTile(
+                            icon: CupertinoIcons.pencil,
+                            title: 'Редактировать',
+                            onTap: () {
+                              EditGroupScreen.open(context, widget.chat);
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
-
         MembersList(chat: widget.chat),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),

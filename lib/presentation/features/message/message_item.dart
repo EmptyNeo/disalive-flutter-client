@@ -82,7 +82,7 @@ class MessageItem extends StatelessWidget {
 
     var backgroundColor = isMine
         ? AppColors.blurple
-        : AppColors.glassPanelBottom;
+        : AppColors.actionGrey;
 
     if (isMediasOnly) {
       backgroundColor = CupertinoColors.transparent;

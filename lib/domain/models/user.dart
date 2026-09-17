@@ -1,6 +1,9 @@
 // lib/domain/models/user.dart
+import 'dart:io';
+
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/badge.dart';
+import 'package:disalive/domain/models/badge_user.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/user_status.dart';
@@ -38,9 +41,13 @@ class UserModel extends Equatable {
   final bool? isAnyBlocked;
   final String? totpSecret;
   final int? totpEnabled;
-  final List<BadgeModel>? badges;
+  final List<BadgeUserModel>? badges;
   final int? fkMainBadge;
   final BadgeModel? mainBadge;
+  final File? fileAvatar;
+  final File? fileBanner;
+  final bool? deleteAvatar;
+  final bool? deleteBanner;
 
   const UserModel({
     this.id,
@@ -78,6 +85,10 @@ class UserModel extends Equatable {
     this.badges,
     this.fkMainBadge,
     this.mainBadge,
+    this.fileAvatar,
+    this.fileBanner,
+    this.deleteAvatar,
+    this.deleteBanner,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -122,7 +133,7 @@ class UserModel extends Equatable {
       totpEnabled: DataParser.parseInt(map['totpEnabled']),
       badges: map['badges'] != null
           ? (map['badges'] as List)
-                .map((e) => BadgeModel.fromMap(e as Map<String, dynamic>))
+                .map((e) => BadgeUserModel.fromMap(e as Map<String, dynamic>))
                 .toList()
           : null,
       fkMainBadge: DataParser.parseInt(map['fkMainBadge']),
@@ -150,7 +161,8 @@ class UserModel extends Equatable {
         'bageAdditionalColor': bageAdditionalColor,
       if (aboutMe != null) 'aboutMe': aboutMe,
       if (myThink != null) 'myThink': myThink,
-      if (canSendMeRequest != null) 'canSendMeRequest': canSendMeRequest,
+      if (canSendMeRequest != null)
+        'canSendMeRequest': canSendMeRequest ?? false ? 1 : 0,
       if (isBanned != null) 'isBanned': isBanned,
       if (banExpiresAt != null) 'banExpiresAt': banExpiresAt,
       if (complaintsBlockedUntil != null)
@@ -159,10 +171,12 @@ class UserModel extends Equatable {
       if (personalChatId != null) 'personalChatId': personalChatId,
       if (friendRequest != null) 'friendRequest': friendRequest,
       if (lastVisit != null) 'lastVisit': lastVisit,
-      if (followLastVisit != null) 'followLastVisit': followLastVisit,
-      if (allowComments != null) 'allowComments': allowComments,
+      if (followLastVisit != null)
+        'followLastVisit': followLastVisit ?? false ? 1 : 0,
+      if (allowComments != null)
+        'allowComments': allowComments ?? false ? 1 : 0,
       if (allowOnlyFriendsComments != null)
-        'allowOnlyFriendsComments': allowOnlyFriendsComments,
+        'allowOnlyFriendsComments': allowOnlyFriendsComments ?? false ? 1 : 0,
       if (onlyIBlocked != null) 'onlyIBlocked': onlyIBlocked,
       if (onlyTheyBlocked != null) 'onlyTheyBlocked': onlyTheyBlocked,
       if (totpSecret != null) 'totpSecret': totpSecret,
@@ -170,6 +184,15 @@ class UserModel extends Equatable {
       if (badges != null) 'badges': badges?.map((e) => e.toMap()).toList(),
       if (fkMainBadge != null) 'fkMainBadge': fkMainBadge,
       if (mainBadge != null) 'mainBadge': mainBadge?.toMap(),
+      if (deleteAvatar != null) 'deleteAvatar': deleteAvatar ?? false ? 1 : 0,
+      if (deleteBanner != null) 'deleteBanner': deleteBanner ?? false ? 1 : 0,
+    };
+  }
+
+  Map<String, File?> toMapFiles() {
+    return {
+      if (fileAvatar != null) "avatar": fileAvatar,
+      if (fileBanner != null) "banner": fileBanner,
     };
   }
 
@@ -206,9 +229,13 @@ class UserModel extends Equatable {
     bool? isAnyBlocked,
     String? totpSecret,
     int? totpEnabled,
-    List<BadgeModel>? badges,
+    List<BadgeUserModel>? badges,
     int? fkMainBadge,
     BadgeModel? mainBadge,
+    File? fileAvatar,
+    File? fileBanner,
+    bool? deleteAvatar,
+    bool? deleteBanner,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -248,6 +275,10 @@ class UserModel extends Equatable {
       badges: badges ?? this.badges,
       fkMainBadge: fkMainBadge ?? this.fkMainBadge,
       mainBadge: mainBadge ?? this.mainBadge,
+      fileAvatar: fileAvatar ?? this.fileAvatar,
+      fileBanner: fileBanner ?? this.fileBanner,
+      deleteAvatar: deleteAvatar ?? this.deleteAvatar,
+      deleteBanner: deleteBanner ?? this.deleteBanner,
     );
   }
 
@@ -285,5 +316,9 @@ class UserModel extends Equatable {
     personalChatId,
     mainBadge,
     badges,
+    canSendMeRequest,
+    allowComments,
+    allowOnlyFriendsComments,
+    followLastVisit,
   ];
 }

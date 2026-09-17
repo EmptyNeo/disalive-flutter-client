@@ -5,8 +5,8 @@ import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/login.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/direct_profile_content.dart';
-import 'package:disalive/presentation/features/profile/widgets/profile_back_button.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -95,7 +95,7 @@ class _UserProfileView extends StatelessWidget {
                           isSoloChat: false,
                         ),
 
-                      const ProfileBackButton(),
+                      const CustomBackButton(),
                     ],
                   ),
                 ),

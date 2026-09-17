@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
@@ -96,6 +98,23 @@ class MembersRepositoryImpl extends MembersRepository {
         "entityType": entityKey.entityType.value,
         "userId": userId,
       },
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        return json is Map<String, dynamic>;
+      },
+    );
+
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, bool>> add(int chatId, List<int> userIds) async {
+    final userIdsJson = jsonEncode(userIds);
+
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'members/add.php',
+      data: {"chatId": chatId, "userIds": userIdsJson},
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {

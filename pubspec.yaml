@@ -77,6 +77,7 @@ dependencies:
   web_socket_channel: ^3.0.0
   photo_view: ^0.15.0
   lottie: ^3.1.0
+  flutter_image_compress: ^2.5.1
 
 dev_dependencies:
   flutter_test:

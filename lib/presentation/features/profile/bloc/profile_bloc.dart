@@ -22,6 +22,9 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   final WsEventBus _eventBus;
 
   StreamSubscription<WsEvent>? _userUpdateSubscription;
+  final _errorStreamController = StreamController<Failure>.broadcast();
+
+  Stream<Failure> get errorStream => _errorStreamController.stream;
 
   ProfileBloc(this._userRepository, this._authBloc, this._eventBus)
     : super(ProfileInitial()) {
@@ -127,32 +130,39 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     Emitter<ProfileState> emit,
   ) async {
     if (state is! ProfileLoaded) return;
-    final currentState = state as ProfileLoaded;
 
-    final newLoadingFields = Set<String>.from(currentState.loadingFields);
+    final startState = state as ProfileLoaded;
+    final newLoadingFields = Set<String>.from(startState.loadingFields);
+
     if (event.loadingField != null) {
       newLoadingFields.add(event.loadingField!);
     }
-    emit(currentState.copyWith(loadingFields: newLoadingFields));
+    emit(startState.copyWith(loadingFields: newLoadingFields));
 
     final result = await _userRepository.update(event.updateUser);
 
+    final liveState = state;
+    if (liveState is! ProfileLoaded) return;
+
     result.fold(
       (failure) {
-        final revertedLoading = Set<String>.from(currentState.loadingFields);
+        // 🎯 1. ОТПРАВЛЯЕМ ОШИБКУ В СТРИМ
+        _errorStreamController.add(failure);
+
+        // 🎯 2. ОСТАВЛЯЕМ СОСТОЯНИЕ LOADED, но убираем флаг загрузки
+        final revertedLoading = Set<String>.from(liveState.loadingFields);
         if (event.loadingField != null) {
           revertedLoading.remove(event.loadingField!);
         }
-
-        emit(currentState.copyWith(loadingFields: revertedLoading));
+        emit(liveState.copyWith(loadingFields: revertedLoading));
       },
       (updatedUser) {
-        final successLoading = Set<String>.from(currentState.loadingFields);
+        _userRepository.setCurrentUser(updatedUser);
+
+        final successLoading = Set<String>.from(liveState.loadingFields);
         if (event.loadingField != null) {
           successLoading.remove(event.loadingField!);
         }
-
-        _userRepository.setCurrentUser(updatedUser);
         emit(ProfileLoaded(updatedUser, loadingFields: successLoading));
       },
     );
@@ -190,6 +200,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   @override
   Future<void> close() {
     closeSubs();
+    _errorStreamController.close();
     return super.close();
   }
 }

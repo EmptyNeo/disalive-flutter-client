@@ -96,13 +96,16 @@ class AppColors {
   static const Color grey800 = Color(0xFF424242);
   static const Color transparent = CupertinoColors.transparent;
 
-  static const Color glassPanelTop = Color(
-    0xFF2F3135,
-  ); // Верхняя часть градиента
-  static const Color glassPanelBottom = Color(
-    0xFF2C2F33,
-  ); // Нижняя часть градиента
-  static const Color glassPanelPressed = Color(0xFF404348); // При нажатии
+  // 🎯 Адаптивные цвета для стеклянных панелей (Glassmorphism)
+  // В светлой теме используем чистый белый и очень светлый серый для имитации нативного iOS-блюра
+  static Color get glassPanelTop =>
+      _isDarkMode ? const Color(0xFF2F3135) : const Color(0xFFFFFFFF);
+
+  static Color get glassPanelBottom =>
+      _isDarkMode ? const Color(0xFF2C2F33) : const Color(0xFFF2F3F5);
+
+  static Color get glassPanelPressed =>
+      _isDarkMode ? const Color(0xFF404348) : const Color(0xFFE3E5E8);
 }
 
 class AppText {

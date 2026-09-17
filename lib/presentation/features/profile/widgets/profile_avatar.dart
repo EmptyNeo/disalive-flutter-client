@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 
 class ProfileAvatar extends StatelessWidget {
   final String? url;
+  final File? file;
   final UserStatus? status;
   final bool isBookmark;
   final double wh;
@@ -14,6 +17,7 @@ class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
     this.url,
+    this.file,
     this.status,
     this.isBookmark = false,
     this.wh = 80,
@@ -33,6 +37,7 @@ class ProfileAvatar extends StatelessWidget {
         wh: wh,
         size: size,
         url: url,
+        file: file,
         isBookmark: isBookmark,
         status: status,
         statusSize: size * 0.4,

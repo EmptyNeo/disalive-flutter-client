@@ -4,6 +4,7 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:disalive/app/theme/app_theme.dart';
@@ -167,9 +168,45 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
         }
       });
     } else {
-      final file = await asset.file;
-      if (file != null && mounted) {
-        Navigator.of(context).pop([file]);
+      final originalFile = await asset.file;
+      if (originalFile == null) return;
+
+      final isJpg =
+          originalFile.path.toLowerCase().endsWith('.jpg') ||
+          originalFile.path.toLowerCase().endsWith('.jpeg');
+
+      File finalFile;
+      if (!isJpg) {
+        try {
+          // 🎯 Заменяем ЛЮБОЕ расширение в конце пути на .jpg
+          final targetPath = originalFile.path.replaceAll(
+            RegExp(r'\.[^.]+$'),
+            '.jpg',
+          );
+
+          final compressed = await FlutterImageCompress.compressAndGetFile(
+            originalFile.path,
+            targetPath,
+            quality: 85,
+            minWidth: 2048,
+            minHeight: 2048,
+          );
+
+          if (compressed != null && mounted) {
+            finalFile = File(compressed.path);
+          } else {
+            finalFile = originalFile; // Fallback, если сжатие не удалось
+          }
+        } catch (e) {
+          debugPrint("Ошибка конвертации изображения: $e");
+          finalFile = originalFile; // Fallback
+        }
+      } else {
+        finalFile = originalFile;
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop([finalFile]);
       }
     }
   }
@@ -179,9 +216,40 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
 
     final files = <File>[];
     for (final asset in _selectedAssets) {
-      final file = await asset.file;
-      if (file != null) {
-        files.add(file);
+      final originalFile = await asset.file;
+      if (originalFile == null) continue;
+
+      final isJpg =
+          originalFile.path.toLowerCase().endsWith('.jpg') ||
+          originalFile.path.toLowerCase().endsWith('.jpeg');
+
+      if (!isJpg) {
+        try {
+          // 🎯 Заменяем ЛЮБОЕ расширение в конце пути на .jpg
+          final targetPath = originalFile.path.replaceAll(
+            RegExp(r'\.[^.]+$'),
+            '.jpg',
+          );
+
+          final compressed = await FlutterImageCompress.compressAndGetFile(
+            originalFile.path,
+            targetPath,
+            quality: 85,
+            minWidth: 2048,
+            minHeight: 2048,
+          );
+
+          if (compressed != null) {
+            files.add(File(compressed.path));
+          } else {
+            files.add(originalFile);
+          }
+        } catch (e) {
+          debugPrint("Ошибка конвертации изображения: $e");
+          files.add(originalFile); // Fallback
+        }
+      } else {
+        files.add(originalFile);
       }
     }
 

@@ -50,7 +50,7 @@ class UtilDate {
       if (dayLabel) {
         return 'Сегодня';
       }
-      return '${_two(local.hour)}:${_two(local.minute)}';
+      return '${two(local.hour)}:${two(local.minute)}';
     }
 
     final yesterday = now.subtract(const Duration(days: 1));
@@ -61,10 +61,11 @@ class UtilDate {
     if (isYesterday) return 'Вчера';
 
     if (local.year == now.year) {
-      return '${_two(local.day)}.${_two(local.month)}';
+      return '${two(local.day)}.${two(local.month)}';
     }
-    return '${_two(local.day)}.${_two(local.month)}.${local.year % 100}';
+    return '${two(local.day)}.${two(local.month)}.${local.year % 100}';
   }
 
-  static String _two(int value) => value.toString().padLeft(2, '0');
+  static String two(int value) => value.toString().padLeft(2, '0');
+
 }

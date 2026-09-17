@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
@@ -10,6 +12,7 @@ import 'package:shimmer/shimmer.dart';
 
 class BuildAvatar extends StatefulWidget {
   final String? url;
+  final File? file;
   final double wh;
   final double size;
   final UserStatus? status;
@@ -23,6 +26,7 @@ class BuildAvatar extends StatefulWidget {
   const BuildAvatar({
     super.key,
     this.url,
+    this.file,
     this.isBookmark = false,
     this.isGroup = false,
     required this.wh,
@@ -97,11 +101,23 @@ class _BuildAvatarState extends State<BuildAvatar> {
   }
 
   Widget _buildShimmer() {
+    final isDark = AppColors.isDarkMode();
+
+    // Подбираем цвета так, чтобы highlight был всегда светлее baseColor
+    final baseColor = isDark ? AppColors.actionGrey : AppColors.lightGrey;
+    final highlightColor = isDark
+        ? AppColors.mainGrey
+        : CupertinoColors.white.withValues(alpha: 0.7);
+
     return Shimmer.fromColors(
-      baseColor: AppColors.lightGrey,
-      highlightColor: AppColors.mainGrey,
+      baseColor: baseColor,
+      highlightColor: highlightColor,
       period: const Duration(milliseconds: 1200),
-      child: Container(color: CupertinoColors.white),
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: baseColor,
+      ),
     );
   }
 
@@ -119,6 +135,20 @@ class _BuildAvatarState extends State<BuildAvatar> {
               color: AppColors.onBlurple,
               size: widget.size,
             ),
+          );
+        },
+      );
+    }
+
+    if (widget.file != null) {
+      return Image.file(
+        widget.file!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return defaultAvatar(
+            !widget.isGroup
+                ? CupertinoIcons.person_solid
+                : CupertinoIcons.person_3_fill,
           );
         },
       );

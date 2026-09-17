@@ -4,8 +4,8 @@ import 'package:flutter/cupertino.dart';
 class PrivacySwitch extends StatelessWidget {
   final bool value;
   final bool isLoading;
+  final bool isEnabled; // 🎯 ДОБАВЛЕНО
   final ValueChanged<bool> onChanged;
-
   final Color? activeColor;
   final Color? trackColor;
 
@@ -14,6 +14,7 @@ class PrivacySwitch extends StatelessWidget {
     required this.value,
     required this.isLoading,
     required this.onChanged,
+    this.isEnabled = true, // 🎯 ДОБАВЛЕНО
     this.activeColor,
     this.trackColor,
   });
@@ -22,11 +23,11 @@ class PrivacySwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedActiveColor = activeColor ?? AppColors.blurple;
     final resolvedTrackColor = trackColor ?? AppColors.divider;
-
-    const pureWhite = CupertinoColors.white;
+    const pureWhite = Color(0xFFFFFFFF);
 
     return GestureDetector(
-      onTap: isLoading ? null : () => onChanged(!value),
+      // 🎯 ИСПРАВЛЕНО: Блокируем нажатие, если isLoading ИЛИ !isEnabled
+      onTap: (!isEnabled || isLoading) ? null : () => onChanged(!value),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),

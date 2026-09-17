@@ -1,18 +1,9 @@
-// presentation/widgets/action_bottom_sheet.dart
 import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:flutter/cupertino.dart';
 
-/// Всплывающее меню действий в Glassmorphism-стиле — блюр + полупрозрачный
-/// градиент из [AppColors.glassPanelTop]/[AppColors.glassPanelBottom],
-/// плавающая карточка с отступами от краёв экрана (не прилипает к низу).
-///
-/// Закрывается тапом по грабберу и его протягиванием вниз: не дотянул до
-/// порога — карточка плавно возвращается на место, дотянул (или дёрнул
-/// достаточно резко) — доезжает вниз и закрывается. Отдельной кнопки
-/// отмены больше нет — грабер её полностью заменяет.
 class ActionBottomSheet extends StatefulWidget {
   const ActionBottomSheet({super.key, this.title, required this.actions});
 
@@ -37,7 +28,6 @@ class ActionBottomSheet extends StatefulWidget {
 class _ActionBottomSheetState extends State<ActionBottomSheet>
     with SingleTickerProviderStateMixin {
   late final AnimationController _slideController;
-
   double _dragExtent = 0;
 
   static const double _dismissDistance = 120;
@@ -59,8 +49,6 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
   }
 
   void _handleGrabberDragUpdate(DragUpdateDetails details) {
-    // Тянуть вверх выше исходной позиции нельзя — карточка не "прыгает"
-    // выше своего места в разложенном виде.
     if (_dragExtent <= 0 && details.delta.dy < 0) return;
     setState(() {
       _dragExtent = (_dragExtent + details.delta.dy).clamp(0, 600);
@@ -87,10 +75,6 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
         .whenComplete(() => animation.removeListener(listener));
   }
 
-  // Довозим карточку своим Transform полностью за экран и только потом
-  // вызываем pop — иначе встроенная exit-анимация showCupertinoModalPopup
-  // стартует с нулевого смещения поверх уже сдвинутой карточки, и получается
-  // рывок. Так к моменту pop() карточки уже не видно, и он проходит незаметно.
   void _dismiss() {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final animation = Tween<double>(
@@ -134,7 +118,7 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
                   ),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: CupertinoColors.white.withValues(alpha: 0.08),
+                    color: AppColors.divider.withValues(alpha: 0.6),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -146,19 +130,32 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  // Позволяет шторке сжиматься, если элементов мало
                   children: [
                     _buildGrabber(),
                     if (widget.title != null) _buildHeader(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (final action in widget.actions)
-                            _buildActionTile(context, action),
-                        ],
+
+                    // 🎯 ИСПРАВЛЕНИЕ: Ограничиваем высоту и добавляем прокрутку
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        // Максимальная высота шторки — 60% от высоты экрана
+                        maxHeight: MediaQuery.of(context).size.height * 0.6,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (final action in widget.actions)
+                                _buildActionTile(context, action),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
+
                     const SizedBox(height: 4),
                   ],
                 ),
@@ -170,8 +167,6 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
     );
   }
 
-  // Чисто визуальная подсказка — сам жест теперь ловится на всей карточке
-  // в build(), не только тут, чтобы можно было свайпнуть вниз откуда угодно.
   Widget _buildGrabber() {
     return const Padding(
       padding: EdgeInsets.only(top: 10, bottom: 8),
@@ -184,11 +179,9 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
-        // Было: CrossAxisAlignment.start
         children: [
           Container(
             width: 3,
-            // Убираем margin, теперь line само центрируется
             decoration: BoxDecoration(
               color: AppColors.blurple,
               borderRadius: BorderRadius.circular(2),
@@ -207,7 +200,7 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.lowTextStyle.copyWith(
-                      color: AppColors.greyple,
+                      color: AppColors.greyple, // 🎯 Уже динамический
                       height: 1.3,
                     ),
                   ),
@@ -222,7 +215,7 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
   Widget _buildActionTile(BuildContext context, ActionItem action) {
     final color =
         action.color ??
-        (action.isDestructive ? CupertinoColors.systemRed : AppColors.white);
+        (action.isDestructive ? AppColors.errorRed : AppColors.white);
 
     return _PressableRow(
       onTap: () {
@@ -254,8 +247,6 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
   }
 }
 
-/// Полоска-граббер вынесена отдельным виджетом — используется только как
-/// визуальная подсказка, сам жест теперь общий на всю карточку.
 class _GrabberHandle extends StatelessWidget {
   const _GrabberHandle();
 
@@ -265,16 +256,13 @@ class _GrabberHandle extends StatelessWidget {
       width: 40,
       height: 5,
       decoration: BoxDecoration(
-        color: CupertinoColors.white.withValues(alpha: 0.35),
+        color: AppColors.greyple.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(3),
       ),
     );
   }
 }
 
-/// Строка действия с собственной подсветкой при нажатии
-/// ([AppColors.glassPanelPressed]) — CupertinoButton такого без принудительно
-/// всегда залитого фона не умеет.
 class _PressableRow extends StatefulWidget {
   const _PressableRow({required this.child, required this.onTap});
 

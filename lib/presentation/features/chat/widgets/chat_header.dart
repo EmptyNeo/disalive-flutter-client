@@ -1,7 +1,10 @@
 import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/user_status.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/presentation/utils/ui/util_date.dart';
+import 'package:disalive/presentation/utils/ui/util_text.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -23,6 +26,16 @@ class ChatHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     String title = isReconnect ? "Соединение..." : chat.name;
+    final isOffline = chat.user?.status == UserStatus.offline;
+    final bool shouldShowLastVisit = chat.isPersonalChat && isOffline;
+
+    final String lastVisitText = shouldShowLastVisit
+        ? UtilText.formatLastVisit(
+            chat.user?.lastVisit,
+            chat.user?.followLastVisit ?? false,
+          )
+        : '';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         _kFloatingPanelMargin,
@@ -69,14 +82,30 @@ class ChatHeader extends StatelessWidget {
                           isBookmark: chat.isSoloChat ?? false,
                         ),
                         const SizedBox(width: 12),
+
                         Expanded(
-                          child: Text(
-                            title,
-                            style: AppText.mediumTextStyle.copyWith(
-                              color: AppColors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: AppText.mediumTextStyle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (shouldShowLastVisit &&
+                                  lastVisitText.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  lastVisitText,
+                                  style: AppText.lowTextStyle.copyWith(
+                                    color: AppColors.grey,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ],

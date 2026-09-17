@@ -1,5 +1,6 @@
 // lib/domain/models/badge.dart
 
+import 'package:disalive/data/network/domain.dart';
 import 'package:equatable/equatable.dart';
 
 class BadgeModel extends Equatable {
@@ -59,6 +60,8 @@ class BadgeModel extends Equatable {
   bool get isEmpty => id == null;
 
   bool get isNotEmpty => id != null;
+
+  String get urlPath => Domain.imageDomain + (iconPath ?? '');
 
   @override
   List<Object?> get props => [id, name, description, iconPath, color];

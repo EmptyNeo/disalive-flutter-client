@@ -22,7 +22,6 @@ class HttpClientService {
   Future<Either<Failure, T>> postFormData<T>({
     required String endpoint,
     Map<String, dynamic>? data,
-    Map<String, File?>? files,
     required T Function(dynamic json) fromJson,
     ApiType apiType = ApiType.v1,
     bool requireAuth = true,

@@ -1,5 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/settings/widgets/privacy_switch.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -24,6 +26,12 @@ class PrivacySettingsScreen extends StatefulWidget {
 }
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
+  static const String _fieldCanSendMeRequest = 'canSendMeRequest';
+  static const String _fieldAllowComments = 'allowComments';
+  static const String _fieldAllowOnlyFriendsComments =
+      'allowOnlyFriendsComments';
+  static const String _fieldFollowLastVisit = 'followLastVisit';
+
   late bool _canSendMeRequest;
   late bool _allowComments;
   late bool _allowOnlyFriendsComments;
@@ -54,119 +62,175 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   }
 
   void _toggleSetting(String field, bool value) {
-    setState(() {
-      switch (field) {
-        case 'canSendMeRequest':
-          _canSendMeRequest = value;
-          break;
-        case 'allowComments':
-          _allowComments = value;
-          if (!value) _allowOnlyFriendsComments = false;
-          break;
-        case 'allowOnlyFriendsComments':
-          _allowOnlyFriendsComments = value;
-          break;
-        case 'followLastVisit':
-          _followLastVisit = value;
-          break;
-      }
-    });
-    // TODO: Отправить событие в ProfileBloc для сохранения в БД
+    final currentState = context.read<ProfileBloc>().state;
+    if (currentState is! ProfileLoaded) return;
+
+    final userId = currentState.user.id;
+
+    bool? newCanSendMeRequest;
+    bool? newAllowComments;
+    bool? newAllowOnlyFriendsComments;
+    bool? newFollowLastVisit;
+
+    switch (field) {
+      case _fieldCanSendMeRequest:
+        newCanSendMeRequest = value;
+        break;
+      case _fieldAllowComments:
+        newAllowComments = value;
+        if (!value) {
+          newAllowOnlyFriendsComments = false;
+        }
+        break;
+      case _fieldAllowOnlyFriendsComments:
+        newAllowOnlyFriendsComments = value;
+        break;
+      case _fieldFollowLastVisit:
+        newFollowLastVisit = value;
+        break;
+    }
+
+    final partialUser = UserModel(
+      id: userId,
+      canSendMeRequest: newCanSendMeRequest,
+      allowComments: newAllowComments,
+      allowOnlyFriendsComments: newAllowOnlyFriendsComments,
+      followLastVisit: newFollowLastVisit,
+    );
+
+    context.read<ProfileBloc>().add(
+      UpdateProfile(partialUser, loadingField: field),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.transparent,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: AppColors.mainBackground,
-              border: Border.all(
-                color: AppColors.white.withValues(alpha: 0.12),
-                width: 1,
+    return BlocBuilder<ProfileBloc, ProfileState>(
+      builder: (context, state) {
+        bool canSend = _canSendMeRequest;
+        bool allowComments = _allowComments;
+        bool allowFriends = _allowOnlyFriendsComments;
+        bool followLast = _followLastVisit;
+        Set<String> loadingFields = {};
+
+        if (state is ProfileLoaded) {
+          canSend = state.user.canSendMeRequest ?? false;
+          allowComments = state.user.allowComments ?? false;
+          allowFriends = state.user.allowOnlyFriendsComments ?? false;
+          followLast = state.user.followLastVisit ?? false;
+          loadingFields = state.loadingFields;
+        }
+
+        return CupertinoPageScaffold(
+          backgroundColor: CupertinoColors.transparent,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8.0,
+                vertical: 6.0,
               ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          GlassIconButton(
-                            icon: CupertinoIcons.back,
-                            onTap: () => Navigator.of(context).pop(),
-                            size: 36,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  color: AppColors.mainBackground,
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              GlassIconButton(
+                                icon: CupertinoIcons.back,
+                                onTap: () => Navigator.of(context).pop(),
+                                size: 36,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Конфиденциальность',
+                                style: AppText.highTextStyle,
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Конфиденциальность',
-                            style: AppText.highTextStyle,
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+                      // --- ДРУЗЬЯ ---
+                      _buildSectionTitle('ДРУЗЬЯ'),
+                      _buildSwitchTile(
+                        icon: CupertinoIcons.person_badge_plus,
+                        title: 'Запросы в друзья',
+                        subtitle:
+                            'Разрешить пользователям отправлять вам заявки',
+                        value: canSend,
+                        isLoading: loadingFields.contains(
+                          _fieldCanSendMeRequest,
+                        ),
+                        onChanged: (v) =>
+                            _toggleSetting(_fieldCanSendMeRequest, v),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                      // --- КОММЕНТАРИИ ---
+                      _buildSectionTitle('КОММЕНТАРИИ'),
+                      _buildSwitchTile(
+                        icon: CupertinoIcons.text_bubble,
+                        title: 'Комментарии в профиле',
+                        subtitle:
+                            'Разрешить оставлять комментарии на вашей странице',
+                        value: allowComments,
+                        isLoading: loadingFields.contains(_fieldAllowComments),
+                        onChanged: (v) =>
+                            _toggleSetting(_fieldAllowComments, v),
+                      ),
+                      _buildSwitchTile(
+                        icon: CupertinoIcons.lock_shield,
+                        title: 'Только друзья',
+                        subtitle:
+                            'Комментировать могут только добавленные в друзья',
+                        value: allowFriends,
+                        isEnabled: allowComments,
+                        isLoading: loadingFields.contains(
+                          _fieldAllowOnlyFriendsComments,
+                        ),
+                        onChanged: (v) =>
+                            _toggleSetting(_fieldAllowOnlyFriendsComments, v),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                      // --- СТАТУС ---
+                      _buildSectionTitle('СТАТУС'),
+                      _buildSwitchTile(
+                        icon: CupertinoIcons.clock,
+                        title: 'Время последнего посещения',
+                        subtitle: 'Показывать, когда вы были в сети',
+                        value: followLast,
+                        isLoading: loadingFields.contains(
+                          _fieldFollowLastVisit,
+                        ),
+                        onChanged: (v) =>
+                            _toggleSetting(_fieldFollowLastVisit, v),
+                      ),
+                    ],
                   ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-                  // --- ДРУЗЬЯ ---
-                  _buildSectionTitle('ДРУЗЬЯ'),
-                  _buildSwitchTile(
-                    icon: CupertinoIcons.person_badge_plus,
-                    title: 'Запросы в друзья',
-                    subtitle: 'Разрешить пользователям отправлять вам заявки',
-                    value: _canSendMeRequest,
-                    onChanged: (v) => _toggleSetting('canSendMeRequest', v),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                  // --- КОММЕНТАРИИ ---
-                  _buildSectionTitle('КОММЕНТАРИИ'),
-                  _buildSwitchTile(
-                    icon: CupertinoIcons.text_bubble,
-                    title: 'Комментарии в профиле',
-                    subtitle:
-                        'Разрешить оставлять комментарии на вашей странице',
-                    value: _allowComments,
-                    onChanged: (v) => _toggleSetting('allowComments', v),
-                  ),
-                  _buildSwitchTile(
-                    icon: CupertinoIcons.lock_shield,
-                    title: 'Только друзья',
-                    subtitle:
-                        'Комментировать могут только добавленные в друзья',
-                    value: _allowOnlyFriendsComments,
-                    isEnabled: _allowComments,
-                    onChanged: (v) =>
-                        _toggleSetting('allowOnlyFriendsComments', v),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                  // --- СТАТУС ---
-                  _buildSectionTitle('СТАТУС'),
-                  _buildSwitchTile(
-                    icon: CupertinoIcons.clock,
-                    title: 'Время последнего посещения',
-                    subtitle: 'Показывать, когда вы были в сети',
-                    value: _followLastVisit,
-                    onChanged: (v) => _toggleSetting('followLastVisit', v),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -192,6 +256,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
     required String title,
     required String subtitle,
     required bool value,
+    required bool isLoading,
     required ValueChanged<bool> onChanged,
     bool isEnabled = true,
   }) {
@@ -200,7 +265,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
     return SliverToBoxAdapter(
       child: GestureDetector(
-        onTap: isEnabled ? () => onChanged(!value) : null,
+        // Родительский детектор тоже должен быть защищен
+        onTap: (isEnabled && !isLoading) ? () => onChanged(!value) : null,
         behavior: HitTestBehavior.opaque,
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -260,11 +326,13 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               ),
               Transform.scale(
                 scale: 0.85,
-                child: CupertinoSwitch(
+                child: PrivacySwitch(
                   value: value,
-                  onChanged: isEnabled ? onChanged : null,
-                  activeTrackColor: AppColors.blurple,
-                  inactiveTrackColor: AppColors.greyple.withValues(alpha: 0.3),
+                  isLoading: isLoading,
+                  isEnabled: isEnabled,
+                  onChanged: onChanged,
+                  activeColor: AppColors.blurple,
+                  trackColor: AppColors.divider,
                 ),
               ),
             ],

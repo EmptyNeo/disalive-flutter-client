@@ -31,6 +31,7 @@ class CreateChatScreen extends StatefulWidget {
 class _CreateChatScreenState extends State<CreateChatScreen> {
   late final ChatBloc _chatBloc;
   final Map<int, Chat> _selected = {};
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -51,11 +52,21 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
 
   Future<void> _onCreatePressed() async {
     if (_selected.length < 2) return;
+
+    setState(() => _isLoading = true);
+
     final result = await sl<ChatRepository>().create(_selected.values.toList());
-    result.fold((failure) {
-      CustomToast.show(context: context, message: failure.message);
-    }, (response) {});
-    if (mounted) Navigator.of(context).maybePop();
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    result.fold(
+      (failure) {
+        CustomToast.show(context: context, message: failure.message);
+      },
+      (response) {
+        Navigator.of(context).maybePop();
+      },
+    );
   }
 
   List<Chat> _chatsFrom(ChatState state) {
@@ -65,7 +76,7 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canCreate = _selected.length >= 2;
+    final canCreate = _selected.length >= 2 && !_isLoading;
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.transparent,
@@ -107,6 +118,7 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
                     child: ActionButton(
                       onTap: _onCreatePressed,
                       canPress: canCreate,
+                      isLoading: _isLoading,
                       title: 'Создать групповой чат',
                     ),
                   ),

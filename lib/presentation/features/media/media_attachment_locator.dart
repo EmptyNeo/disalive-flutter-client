@@ -1,64 +1,78 @@
-// presentation/features/media/media_attachment_locator.dart
 import 'package:disalive/domain/enums/ui/media_step_direction.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
 
-/// Находит соседнее вложение при свайпе, перетекая из одного сообщения в
-/// другое, когда вложения текущего сообщения заканчиваются.
-///
-/// Пагинацию НЕ трогает — если шаг в сторону старых сообщений упирается в
-/// конец уже загруженного списка, просто возвращает null; решение "нужно ли
-/// догрузить ещё" остаётся за вызывающей стороной (у неё есть
-/// hasMoreMessages из MessageBloc).
 class MediaAttachmentLocator {
   const MediaAttachmentLocator._();
 
   static List<FileMessage> _getAttachments(Message m) {
     final contentMessage = m.forwardMessage ?? m;
     return contentMessage.attachments
-            ?.where((a) => a.isImageFile || a.isVideoFile)
-            .toList() ??
+        ?.where((a) => a.isImageFile || a.isVideoFile)
+        .toList() ??
         const [];
   }
 
   static MediaPosition? step(
-    List<Message> messages,
-    MediaPosition from,
-    MediaStepDirection direction,
-  ) {
+      List<Message> messages,
+      MediaPosition from,
+      MediaStepDirection direction,
+      ) {
     if (messages.isEmpty) return null;
 
-    // Находим текущий индекс по ID
-    final currentIndex = messages.indexWhere((m) => m.id == from.messageId);
+    final currentIndex = messages.indexWhere(
+          (m) => (m.id ?? m.localGeneratedId) == from.messageId,
+    );
     if (currentIndex == -1) return null;
 
-    final delta = direction == MediaStepDirection.older ? 1 : -1;
+    final currentAttachments = _getAttachments(messages[currentIndex]);
 
-    final current = _getAttachments(messages[currentIndex]);
-
-    final withinMessage = from.attachmentIndex + delta;
-    if (withinMessage >= 0 && withinMessage < current.length) {
-      return MediaPosition(
-        messageId: from.messageId,
-        attachmentIndex: withinMessage,
-      );
-    }
-
-    var searchIndex = currentIndex + delta;
-    while (searchIndex >= 0 && searchIndex < messages.length) {
-      final attachments = _getAttachments(messages[searchIndex]);
-
-      if (attachments.isNotEmpty) {
-        final landingIndex = delta > 0 ? 0 : attachments.length - 1;
+    if (direction == MediaStepDirection.newer) {
+      // 🎯 Двигаемся "вперёд" по галерее (к более новым медиа).
+      // Сначала пытаемся взять следующее вложение в ЭТОМ ЖЕ сообщении.
+      if (from.attachmentIndex + 1 < currentAttachments.length) {
         return MediaPosition(
-          messageId: messages[searchIndex].id, // Возвращаем ID, а не индекс
-          attachmentIndex: landingIndex,
+          messageId: from.messageId,
+          attachmentIndex: from.attachmentIndex + 1,
         );
       }
-      searchIndex += delta;
-    }
 
-    return null;
+      // Вложения в этом сообщении закончились. Ищем следующее (более новое) сообщение.
+      // В списке чата новые сообщения имеют меньший индекс (ближе к 0).
+      for (int i = currentIndex - 1; i >= 0; i--) {
+        final nextAttachments = _getAttachments(messages[i]);
+        if (nextAttachments.isNotEmpty) {
+          return MediaPosition(
+            messageId: messages[i].id,
+            attachmentIndex: 0, // Начинаем с первого вложения нового сообщения
+          );
+        }
+      }
+      return null; // Новых сообщений с медиа нет
+    } else {
+      // 🎯 direction == MediaStepDirection.older
+      // Двигаемся "назад" по галерее (к более старым медиа).
+      // Сначала пытаемся взять предыдущее вложение в ЭТОМ ЖЕ сообщении.
+      if (from.attachmentIndex - 1 >= 0) {
+        return MediaPosition(
+          messageId: from.messageId,
+          attachmentIndex: from.attachmentIndex - 1,
+        );
+      }
+
+      // Это было первое вложение. Ищем предыдущее (более старое) сообщение.
+      // В списке чата старые сообщения имеют больший индекс.
+      for (int i = currentIndex + 1; i < messages.length; i++) {
+        final prevAttachments = _getAttachments(messages[i]);
+        if (prevAttachments.isNotEmpty) {
+          return MediaPosition(
+            messageId: messages[i].id,
+            attachmentIndex: prevAttachments.length - 1, // Начинаем с последнего вложения старого сообщения
+          );
+        }
+      }
+      return null; // Старых сообщений с медиа нет
+    }
   }
 }

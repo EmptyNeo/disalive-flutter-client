@@ -116,8 +116,8 @@ class DmListArea extends StatelessWidget {
       if (!chat.isSolo) ...[
         ActionItem(
           icon: member.isMuted
-              ? CupertinoIcons.speaker_1_fill
-              : CupertinoIcons.speaker_slash_fill,
+              ? CupertinoIcons.bell_fill
+              : CupertinoIcons.bell_slash_fill,
           label: member.isMuted
               ? "Включить уведомления"
               : "Выключить уведомления",

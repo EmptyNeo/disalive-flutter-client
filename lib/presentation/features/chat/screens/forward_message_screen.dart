@@ -47,6 +47,7 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
   late final MessageBloc _messageBloc;
   final TextEditingController _searchController = TextEditingController();
   final Map<int, Chat> _selected = {};
+  bool _isLoading = false;
 
   int? get _currentUserId => sl<UserRepository>().getCurrentUser()?.id;
 
@@ -87,6 +88,8 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
   Future<void> _onForwardPressed() async {
     if (_selected.isEmpty) return;
 
+    setState(() => _isLoading = true);
+
     for (Chat chat in _selected.values.toList()) {
       var localGeneratedId = '';
 
@@ -117,7 +120,7 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
         ),
       );
     }
-
+    setState(() => _isLoading = false);
     if (mounted) Navigator.of(context).maybePop();
   }
 
@@ -128,7 +131,7 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool canPress = _selected.isNotEmpty;
+    bool canPress = _selected.isNotEmpty && !_isLoading;
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.transparent,
       child: SafeArea(
@@ -202,6 +205,7 @@ class _ForwardMessageScreenState extends State<ForwardMessageScreen> {
                     child: ActionButton(
                       onTap: _onForwardPressed,
                       canPress: canPress,
+                      isLoading: _isLoading,
                       title: "Отправить сообщение",
                     ),
                   ),

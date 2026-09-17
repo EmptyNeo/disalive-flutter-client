@@ -41,12 +41,13 @@ class UserRepositoryImpl implements UserRepository {
 
   @override
   Future<Either<Failure, UserModel>> update(UserModel user) async {
-    final result = await _httpClient.postFormData<UserModel>(
+    final result = await _httpClient.postMultipart<UserModel>(
       endpoint: 'users/update.php',
       data: user.toMap(),
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) => UserModel.fromMap(json),
+      files: user.toMapFiles(),
     );
 
     return result;

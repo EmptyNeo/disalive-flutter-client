@@ -8,6 +8,7 @@ import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/screens/avatar_crop_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -81,9 +82,12 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
       onlyInitialType: true,
     );
     if (files == null || files.isEmpty) return;
+    if (!mounted) return;
+
+    final croppedFile = await AvatarCropScreen.open(context, file: files.first);
 
     setState(() {
-      _selectedAvatarFile = files.first;
+      _selectedAvatarFile = croppedFile;
       _isAvatarDeleted = false;
     });
     _onFieldsChanged();
