@@ -1,6 +1,7 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
+import 'package:disalive/data/repositories/email_repository_impl.dart';
 import 'package:disalive/data/repositories/friends_repository_impl.dart';
 import 'package:disalive/data/repositories/members_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
@@ -13,6 +14,7 @@ import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/email_repository.dart';
 import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
@@ -33,6 +35,7 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -72,6 +75,7 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<RequestsRepository>(() => RequestsRepositoryImpl());
   sl.registerLazySingleton<MembersRepository>(() => MembersRepositoryImpl());
   sl.registerLazySingleton<FriendsRepository>(() => FriendsRepositoryImpl());
+  sl.registerLazySingleton<EmailRepository>(() => EmailRepositoryImpl());
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
@@ -82,4 +86,5 @@ Future<void> setupDependencies() async {
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
   sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl(), sl()));
+  sl.registerFactory<RegisterBloc>(() => RegisterBloc(sl(), sl()));
 }

@@ -7,6 +7,7 @@ import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/bloc/theme/theme_state.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
 import 'package:disalive/presentation/features/login.dart';
+import 'package:disalive/presentation/features/register/register_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
@@ -55,6 +56,7 @@ class DisaliveApp extends StatelessWidget {
                 routes: {
                   MyRouter.home: (context) => HomeScreen(),
                   MyRouter.login: (context) => LoginScreen(),
+                  MyRouter.register: (context) => RegisterScreen(),
                 },
               );
             },

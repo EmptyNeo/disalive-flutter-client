@@ -1,7 +1,6 @@
 // lib/presentation/features/requests/requests_screen.dart
 import 'dart:async';
 
-import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/friend_request.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';

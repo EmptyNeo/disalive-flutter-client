@@ -129,6 +129,49 @@ class HttpClientService {
     }
   }
 
+  Future<Either<Failure, T>> get<T>({
+    required String endpoint,
+    Map<String, dynamic>? queryParams,
+    required T Function(dynamic json) fromJson,
+    ApiType apiType = ApiType.v1,
+    bool requireAuth = true,
+    String? errorMessage,
+    VoidCallback? onUnauthorized,
+  }) async {
+    try {
+      final Map<String, dynamic> params = queryParams ?? {};
+
+      if (requireAuth) {
+        final keySession = await _secureStorage.getKeySession();
+        if (keySession == null) {
+          return const Left(UnauthorizedFailure());
+        }
+        params['keySession'] = keySession;
+      }
+
+      final Map<String, String> stringQueryParams = params.map(
+        (key, value) => MapEntry(key, value.toString()),
+      );
+
+      final baseUrl = _getBaseUrl(apiType);
+      final uri = Uri.parse(
+        '$baseUrl$endpoint',
+      ).replace(queryParameters: stringQueryParams);
+
+      final response = await _client.get(uri);
+
+      return _handleResponse<T>(
+        response: response,
+        fromJson: fromJson,
+        endpoint: endpoint,
+        onUnauthorized: onUnauthorized,
+        errorMessage: errorMessage,
+      );
+    } catch (e) {
+      return const Left(NetworkFailure());
+    }
+  }
+
   Either<Failure, T> _handleResponse<T>({
     required http.Response response,
     required T Function(dynamic json) fromJson,

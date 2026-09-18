@@ -4,6 +4,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
+import 'package:disalive/presentation/features/register/register_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -369,10 +370,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       const SizedBox(height: 4),
                                       CupertinoButton(
                                         padding: EdgeInsets.zero,
-                                        minSize: 0,
                                         onPressed: () {
-                                          // TODO: Экран регистрации
+                                          RegisterScreen.open(context);
                                         },
+                                        minimumSize: Size(0, 0),
                                         child: Text(
                                           'Зарегистрироваться',
                                           style: AppText.mediumTextStyle

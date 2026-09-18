@@ -11,6 +11,19 @@ abstract class UserRepository {
     VoidCallback? onUnauthorized,
   });
 
+  Future<Either<Failure, bool>> hasExistingData(
+    String? username,
+    String? email,
+  );
+
+  Future<Either<Failure, bool>> create(
+    String email,
+    String displayName,
+    String username,
+    String password,
+    String inputCode,
+  );
+
   Future<Either<Failure, UserModel>> update(UserModel user);
 
   UserModel? getCurrentUser();

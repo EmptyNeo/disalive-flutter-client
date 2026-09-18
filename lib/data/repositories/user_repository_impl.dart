@@ -40,6 +40,50 @@ class UserRepositoryImpl implements UserRepository {
   }
 
   @override
+  Future<Either<Failure, bool>> hasExistingData(
+    String? username,
+    String? email,
+  ) async {
+    Map<String, dynamic> map = {};
+    if (username != null) map['username'] = username;
+    if (email != null) map['email'] = email;
+    final result = await _httpClient.get<bool>(
+      endpoint: 'users/check/',
+      queryParams: map,
+      apiType: ApiType.v1,
+      requireAuth: false,
+      fromJson: (json) => json["has"] == true,
+    );
+
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, bool>> create(
+    String email,
+    String displayName,
+    String username,
+    String password,
+    String inputCode,
+  ) async {
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'users/create.php',
+      data: {
+        'email': email,
+        'displayName': displayName,
+        'username': username,
+        'password': password,
+        'inputCode': inputCode,
+      },
+      apiType: ApiType.v1,
+      requireAuth: false,
+      fromJson: (json) => json['success'] == true,
+    );
+
+    return result;
+  }
+
+  @override
   Future<Either<Failure, UserModel>> update(UserModel user) async {
     final result = await _httpClient.postMultipart<UserModel>(
       endpoint: 'users/update.php',
