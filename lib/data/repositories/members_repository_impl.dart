@@ -139,4 +139,9 @@ class MembersRepositoryImpl extends MembersRepository {
   void updateCache(EntityKey entityKey, List<Member> members) {
     _members[entityKey] = members;
   }
+
+  @override
+  void clear() {
+    _members.clear();
+  }
 }

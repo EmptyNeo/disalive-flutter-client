@@ -18,6 +18,8 @@ abstract class ChatRepository {
 
   List<Chat> getCached();
 
+  void clear();
+
   Chat? getCurrentChat();
 
   void setCurrentChat(Chat chat);

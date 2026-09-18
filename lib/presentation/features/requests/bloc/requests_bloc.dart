@@ -160,6 +160,7 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
     _createSubscription?.cancel();
     _deleteSubscription?.cancel();
     _errorStreamController.close();
+    _friendsRepository.clear();
     return super.close();
   }
 }

@@ -12,4 +12,6 @@ abstract class RequestsRepository {
   Future<Either<Failure, bool>> accept(String username);
 
   List<FriendRequest> getCached();
+
+  void clear();
 }

@@ -305,6 +305,7 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
   @override
   Future<void> close() {
     closeSubs();
+    _membersRepository.clear();
     return super.close();
   }
 

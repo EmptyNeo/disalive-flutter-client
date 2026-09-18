@@ -529,6 +529,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   @override
   Future<void> close() {
     closeSubs();
+    _messageRepository.clearAllCache();
     return super.close();
   }
 

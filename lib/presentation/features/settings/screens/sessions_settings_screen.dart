@@ -197,103 +197,107 @@ class _SessionsSettingsScreenState extends State<SessionsSettingsScreen> {
           width: 1,
         ),
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 3,
-              margin: const EdgeInsets.symmetric(vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.blurple,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(2),
-                  bottomLeft: Radius.circular(2),
+      // 🎯 ClipRRect гарантирует, что ни один дочерний элемент не вылезет за скругление
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 🎯 ИСПРАВЛЕННАЯ СИНЯЯ ПОЛОСКА
+              Container(
+                width: 3,
+                decoration: const BoxDecoration(
+                  color: AppColors.blurple,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    bottomLeft: Radius.circular(16),
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.blurple.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.blurple.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              _deviceIcon(session),
+                              color: AppColors.blurple,
+                              size: 20,
+                            ),
                           ),
-                          child: Icon(
-                            _deviceIcon(session),
-                            color: AppColors.blurple,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _title(session),
-                                style: AppText.mediumTextStyle.copyWith(
-                                  color: AppColors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _title(session),
+                                  style: AppText.mediumTextStyle.copyWith(
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _subtitle(session),
-                                style: AppText.lowTextStyle.copyWith(
-                                  color: AppColors.greyple,
-                                  fontSize: 12,
+                                const SizedBox(height: 3),
+                                Text(
+                                  _subtitle(session),
+                                  style: AppText.lowTextStyle.copyWith(
+                                    color: AppColors.greyple,
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Текущий сеанс · Вошли: ${_formatDateTime(session.createdAt)}',
-                      style: AppText.lowTextStyle.copyWith(
-                        color: AppColors.greyple,
-                        fontSize: 12,
+                        ],
                       ),
-                    ),
-                    if (othersCount > 0) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: CupertinoButton(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          color: AppColors.errorRed,
-                          borderRadius: BorderRadius.circular(12),
-                          onPressed: () =>
-                              _confirmDeleteAllOthers(context, session.id),
-                          child: Text(
-                            'Завершить все остальные сеансы',
-                            style: AppText.mediumTextStyle.copyWith(
-                              color: AppColors.onBlurple,
+                      const SizedBox(height: 10),
+                      Text(
+                        'Текущий сеанс · Вошли: ${_formatDateTime(session.createdAt)}',
+                        style: AppText.lowTextStyle.copyWith(
+                          color: AppColors.greyple,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (othersCount > 0) ...[
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: CupertinoButton(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            color: AppColors.errorRed,
+                            borderRadius: BorderRadius.circular(12),
+                            onPressed: () =>
+                                _confirmDeleteAllOthers(context, session.id),
+                            child: Text(
+                              'Завершить все остальные сеансы',
+                              style: AppText.mediumTextStyle.copyWith(
+                                color: AppColors.onBlurple,
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

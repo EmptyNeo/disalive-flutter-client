@@ -4,6 +4,15 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/my_router.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/requests_repository.dart';
+import 'package:disalive/domain/repositories/session_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
@@ -70,20 +79,44 @@ class _HomeScreenState extends State<HomeScreen> {
       providers: [
         BlocProvider<ChatServerBloc>(
           lazy: false,
-          create: (_) => sl<ChatServerBloc>()..add(ConnectToChatServer()),
+          create: (_) =>
+              ChatServerBloc(sl<ChatServerRepository>())
+                ..add(ConnectToChatServer()),
         ),
         BlocProvider<ProfileBloc>(
+          create: (_) => ProfileBloc(
+            sl<UserRepository>(),
+            sl<AuthBloc>(),
+            sl<WsEventBus>(),
+          )..add(GetProfile(userResponseType: UserResponseType.user)),
+        ),
+        BlocProvider<ChatBloc>(
           create: (_) =>
-              sl<ProfileBloc>()
-                ..add(GetProfile(userResponseType: UserResponseType.user)),
+              ChatBloc(sl<ChatRepository>(), sl<WsEventBus>())..add(GetChats()),
         ),
-        BlocProvider<ChatBloc>(create: (_) => sl<ChatBloc>()..add(GetChats())),
         BlocProvider<RequestsBloc>(
-          create: (_) => sl<RequestsBloc>()..add(GetRequests(true)),
+          create: (_) =>
+              RequestsBloc(sl<RequestsRepository>(), sl<WsEventBus>())
+                ..add(GetRequests(true)),
         ),
-        BlocProvider<MessageBloc>(create: (_) => sl<MessageBloc>()),
-        BlocProvider<MembersBloc>(create: (_) => sl<MembersBloc>()),
-        BlocProvider<SessionBloc>(create: (_) => sl<SessionBloc>()),
+        BlocProvider<MessageBloc>(
+          create: (_) => MessageBloc(
+            sl<MessageRepository>(),
+            sl<ChatRepository>(),
+            sl<WsEventBus>(),
+          ),
+        ),
+        BlocProvider<MembersBloc>(
+          create: (_) => MembersBloc(sl<MembersRepository>(), sl<WsEventBus>()),
+        ),
+        BlocProvider<SessionBloc>(
+          create: (_) => SessionBloc(
+            sl<UserRepository>(),
+            sl<SessionRepository>(),
+            sl<SecureStorageService>(),
+            sl<WsEventBus>(),
+          ),
+        ),
       ],
       child: MultiBlocListener(
         listeners: [
@@ -229,6 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody(UserModel user) {
     return PageView(
+      key: ValueKey('home_pageview_${user.id}'),
       controller: _pageController,
       physics: const BouncingScrollPhysics(),
       onPageChanged: (index) {
@@ -238,13 +272,20 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       children: [
         KeepAlivePage(
+          key: ValueKey('chats_view_${user.id}'),
           child: ChatsView(
             personalUnreadCount: personalUnredCount,
             isReconnect: isReconnect,
           ),
         ),
-        const KeepAlivePage(child: SettingsScreen()),
-        KeepAlivePage(child: PersonalProfileScreen()),
+        const KeepAlivePage(
+          key: ValueKey('settings_view'),
+          child: SettingsScreen(),
+        ),
+        KeepAlivePage(
+          key: ValueKey('profile_view_${user.id}'),
+          child: PersonalProfileScreen(),
+        ),
       ],
     );
   }

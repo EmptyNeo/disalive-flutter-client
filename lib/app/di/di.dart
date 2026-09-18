@@ -78,8 +78,8 @@ Future<void> setupDependencies() async {
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl(), sl()));
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl()));
-  sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl(), sl()));
+  sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl()));
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
-  sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl()));
+  sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl(), sl()));
 }

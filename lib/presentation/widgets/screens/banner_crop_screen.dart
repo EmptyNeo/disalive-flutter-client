@@ -17,9 +17,11 @@ class BannerCropModal extends StatefulWidget {
   const BannerCropModal({super.key, required this.file});
 
   static Future<File?> open(BuildContext context, {required File file}) {
+    final sliderKey = GlobalKey();
+    final cropAreaKey = GlobalKey();
     return SwipeToDismissRoute.push<File>(
       context,
-          (context) => BannerCropModal(file: file),
+      (context) => BannerCropModal(file: file),
     );
   }
 
@@ -75,10 +77,13 @@ class _BannerCropModalState extends State<BannerCropModal> {
 
     double cropW = containerWidth;
     double cropH = cropW / BannerCropModal.aspectRatio;
+
+    // Если высота кропа больше доступной, подгоняем по высоте
     if (cropH > containerHeight) {
       cropH = containerHeight;
       cropW = cropH * BannerCropModal.aspectRatio;
     }
+
     _cropWidth = cropW;
     _cropHeight = cropH;
 
@@ -98,10 +103,12 @@ class _BannerCropModalState extends State<BannerCropModal> {
     final dispH = _naturalHeight * _scale;
     final cropX = (_containerWidth - _cropWidth) / 2;
     final cropY = (_containerHeight - _cropHeight) / 2;
+
     final minTx = cropX - (dispW - _cropWidth);
     final maxTx = cropX;
     final minTy = cropY - (dispH - _cropHeight);
     final maxTy = cropY;
+
     _tx = _tx.clamp(minTx, maxTx);
     _ty = _ty.clamp(minTy, maxTy);
   }
@@ -112,6 +119,7 @@ class _BannerCropModalState extends State<BannerCropModal> {
     final cropCenterY = _containerHeight / 2;
     final srcCenterX = (cropCenterX - _tx) / _scale;
     final srcCenterY = (cropCenterY - _ty) / _scale;
+
     _scale = newScale;
     _tx = cropCenterX - srcCenterX * _scale;
     _ty = cropCenterY - srcCenterY * _scale;
@@ -131,13 +139,18 @@ class _BannerCropModalState extends State<BannerCropModal> {
 
   Future<void> _applyCrop() async {
     try {
-      final RenderRepaintBoundary boundary = _cropKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final RenderRepaintBoundary boundary =
+          _cropKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final ui.Image croppedImage = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
+      final byteData = await croppedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
       final pngBytes = byteData!.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/cropped_banner_${DateTime.now().millisecondsSinceEpoch}.png');
+      final tempFile = File(
+        '${tempDir.path}/cropped_banner_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
       await tempFile.writeAsBytes(pngBytes);
 
       if (mounted) Navigator.of(context).pop(tempFile);
@@ -165,20 +178,20 @@ class _BannerCropModalState extends State<BannerCropModal> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               color: AppColors.mainBackground,
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.12), width: 1),
+              border: Border.all(
+                color: AppColors.white.withValues(alpha: 0.12),
+                width: 1,
+              ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
                 children: [
-                  // 🎯 Кнопка назад вынесена в отдельный переиспользуемый виджет
                   const CustomBackButton(),
-
                   Column(
                     children: [
-                      // 🎯 1. Хедер: Stack убран, так как кнопка уже позиционирована абсолютно
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.all(16),
                         child: Center(
                           child: Text(
                             'Редактировать баннер',
@@ -187,26 +200,44 @@ class _BannerCropModalState extends State<BannerCropModal> {
                         ),
                       ),
 
-                      // 🎯 2. Область обрезки
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) {
                             final containerWidth = constraints.maxWidth;
-                            final containerHeight = constraints.maxHeight - 120;
+
+                            // 🎯 1. ЖЕСТКОЕ ОГРАНИЧЕНИЕ ВЫСОТЫ
+                            // Высота кропа + 80px (по 40px сверху и снизу для комфортного затемнения)
+                            final targetCropHeight =
+                                containerWidth / BannerCropModal.aspectRatio;
+                            final boundedContainerHeight = math.min(
+                              constraints.maxHeight,
+                              targetCropHeight + 80.0,
+                            );
 
                             if (_containerWidth == 0 && containerWidth > 0) {
                               WidgetsBinding.instance.addPostFrameCallback((_) {
-                                setState(() => _initTransform(containerWidth, containerHeight));
+                                setState(
+                                  () => _initTransform(
+                                    containerWidth,
+                                    boundedContainerHeight,
+                                  ),
+                                );
                               });
                             }
 
                             if (_containerWidth == 0) {
-                              return const Center(child: CupertinoActivityIndicator(color: AppColors.blurple));
+                              return const Center(
+                                child: CupertinoActivityIndicator(
+                                  color: AppColors.blurple,
+                                ),
+                              );
                             }
 
                             final cropX = (_containerWidth - _cropWidth) / 2;
                             final cropY = (_containerHeight - _cropHeight) / 2;
 
+                            // 🎯 2. Center гарантирует, что ограниченный блок будет по центру,
+                            // оставляя безопасные отступы сверху и снизу
                             return Center(
                               child: GestureDetector(
                                 onPanUpdate: (details) => setState(() {
@@ -218,8 +249,23 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                 child: SizedBox(
                                   width: _containerWidth,
                                   height: _containerHeight,
+                                  // Используем ограниченную высоту
                                   child: Stack(
+                                    // 🎯 3. ОБРЕЗКА: Запрещаем изображению вылезать за границы контейнера
+                                    clipBehavior: Clip.hardEdge,
                                     children: [
+                                      // 1. Изображение, которое можно двигать
+                                      Positioned(
+                                        left: _tx,
+                                        top: _ty,
+                                        child: RawImage(
+                                          image: _image,
+                                          width: _naturalWidth * _scale,
+                                          height: _naturalHeight * _scale,
+                                        ),
+                                      ),
+
+                                      // 2. RepaintBoundary для захвата только нужной области
                                       Positioned(
                                         left: cropX,
                                         top: cropY,
@@ -229,7 +275,6 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                             child: Container(
                                               width: _cropWidth,
                                               height: _cropHeight,
-                                              color: CupertinoColors.black,
                                               child: Stack(
                                                 children: [
                                                   Positioned(
@@ -237,8 +282,12 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                                     top: _ty - cropY,
                                                     child: RawImage(
                                                       image: _image,
-                                                      width: _naturalWidth * _scale,
-                                                      height: _naturalHeight * _scale,
+                                                      width:
+                                                          _naturalWidth *
+                                                          _scale,
+                                                      height:
+                                                          _naturalHeight *
+                                                          _scale,
                                                     ),
                                                   ),
                                                 ],
@@ -247,11 +296,21 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                           ),
                                         ),
                                       ),
+
+                                      // 3. Затемнение снаружи рамки (теперь оно строго ограничено высотой boundedContainerHeight)
                                       IgnorePointer(
                                         child: CustomPaint(
-                                          size: Size(_containerWidth, _containerHeight),
+                                          size: Size(
+                                            _containerWidth,
+                                            _containerHeight,
+                                          ),
                                           painter: BannerHolePainter(
-                                            cropRect: Rect.fromLTWH(cropX, cropY, _cropWidth, _cropHeight),
+                                            cropRect: Rect.fromLTWH(
+                                              cropX,
+                                              cropY,
+                                              _cropWidth,
+                                              _cropHeight,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -264,7 +323,6 @@ class _BannerCropModalState extends State<BannerCropModal> {
                         ),
                       ),
 
-                      // 🎯 3. Контролы
                       if (_containerWidth > 0)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 90.0),
@@ -272,14 +330,18 @@ class _BannerCropModalState extends State<BannerCropModal> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32.0,
+                                ),
                                 child: CupertinoSlider(
                                   value: _scale,
                                   min: _coverScale,
                                   max: _coverScale * 3.0,
                                   activeColor: AppColors.blurple,
                                   thumbColor: CupertinoColors.white,
-                                  onChanged: (val) => setState(() => _setScaleKeepingCenter(val)),
+                                  onChanged: (val) => setState(
+                                    () => _setScaleKeepingCenter(val),
+                                  ),
                                 ),
                               ),
                               CupertinoButton(
@@ -298,7 +360,6 @@ class _BannerCropModalState extends State<BannerCropModal> {
                     ],
                   ),
 
-                  // 🎯 4. Плавающая кнопка "Применить"
                   Positioned(
                     left: 24,
                     right: 24,
@@ -309,7 +370,10 @@ class _BannerCropModalState extends State<BannerCropModal> {
                       onPressed: _applyCrop,
                       child: const Text(
                         'Применить',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -323,6 +387,7 @@ class _BannerCropModalState extends State<BannerCropModal> {
   }
 }
 
+// 🎯 ВОЗВРАЩАЕМ Painter, так как визуальное разделение зон обрезки критически важно для UX
 class BannerHolePainter extends CustomPainter {
   final Rect cropRect;
 
@@ -350,5 +415,6 @@ class BannerHolePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(BannerHolePainter oldDelegate) => oldDelegate.cropRect != cropRect;
+  bool shouldRepaint(BannerHolePainter oldDelegate) =>
+      oldDelegate.cropRect != cropRect;
 }

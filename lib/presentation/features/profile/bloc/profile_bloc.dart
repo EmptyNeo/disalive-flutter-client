@@ -200,6 +200,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   @override
   Future<void> close() {
     closeSubs();
+    _userRepository.clearCurrentUser();
     _errorStreamController.close();
     return super.close();
   }

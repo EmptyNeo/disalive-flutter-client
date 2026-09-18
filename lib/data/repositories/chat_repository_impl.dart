@@ -84,6 +84,11 @@ class ChatRepositoryImpl implements ChatRepository {
   }
 
   @override
+  void clear() {
+    _chats = [];
+  }
+
+  @override
   Chat? getCurrentChat() {
     return _currentChat;
   }

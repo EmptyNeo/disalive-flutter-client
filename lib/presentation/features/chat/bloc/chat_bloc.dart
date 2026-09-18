@@ -450,6 +450,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   @override
   Future<void> close() {
     closeSubs();
+    _chatRepository.clear();
     return super.close();
   }
 

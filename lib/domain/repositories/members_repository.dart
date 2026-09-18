@@ -27,4 +27,6 @@ abstract class MembersRepository {
   Future<List<Member>> getCached(EntityKey entityKey);
 
   void updateCache(EntityKey entityKey, List<Member> members);
+
+  void clear();
 }

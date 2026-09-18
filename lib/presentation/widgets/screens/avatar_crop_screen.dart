@@ -155,13 +155,13 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
               child: Stack(
                 children: [
                   // 🎯 Кнопка назад вынесена в отдельный переиспользуемый виджет
-                  const CustomBackButton(),
+                  const CustomBackButton(positioned: 10,),
 
                   Column(
                     children: [
                       // 🎯 1. Хедер: Stack убран, так как кнопка уже позиционирована абсолютно
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        padding: const EdgeInsets.all(16),
                         child: Center(
                           child: Text(
                             'Редактировать аватар',

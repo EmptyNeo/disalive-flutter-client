@@ -4,7 +4,9 @@ import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_session_type.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/session.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
@@ -15,6 +17,7 @@ part 'session_event.dart';
 part 'session_state.dart';
 
 class SessionBloc extends Bloc<SessionEvent, SessionState> {
+  final UserRepository _userRepository;
   final SessionRepository _sessionRepository;
   final SecureStorageService _secureStorage;
   final WsEventBus _eventBus;
@@ -23,8 +26,12 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
 
   final String tableName = 'SessionUser';
 
-  SessionBloc(this._sessionRepository, this._secureStorage, this._eventBus)
-    : super(SessionInitial()) {
+  SessionBloc(
+    this._userRepository,
+    this._sessionRepository,
+    this._secureStorage,
+    this._eventBus,
+  ) : super(SessionInitial()) {
     on<LoadSessions>(_onLoadSessions);
     on<DeleteSession>(_onDeleteSession);
     on<Logout>(_onLogout);
@@ -37,8 +44,16 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     _deleteSubscription = _eventBus.subscribe(
       table: tableName,
       action: ActionType.delete,
-      onData: (data) {
-        add(SessionClosedExternally());
+      onData: (event) async {
+        final deletedId = event.data["id"];
+        if (deletedId == null) return;
+
+        final currentSessionId = await _sessionRepository.getCurrentSessionId();
+
+        if (deletedId.toString() == currentSessionId?.toString()) {
+          add(SessionClosedExternally());
+          return;
+        }
       },
     );
   }
@@ -68,8 +83,24 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
         emit(SessionFailure(failure));
       },
       (success) {
-        final sessions = _sessionRepository.getSessions();
-        emit(SessionLoaded(sessions));
+        if (state is SessionLoaded) {
+          final currentSessions = (state as SessionLoaded).sessions;
+
+          List<SessionModel> updatedSessions;
+          if (event.type == ActionSessionType.others) {
+            updatedSessions = currentSessions
+                .where((s) => s.isCurrentSession)
+                .toList();
+          } else {
+            updatedSessions = currentSessions
+                .where((s) => s.id != event.id)
+                .toList();
+          }
+
+          emit(SessionLoaded(updatedSessions));
+        } else {
+          add(LoadSessions());
+        }
       },
     );
   }
@@ -115,6 +146,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   @override
   Future<void> close() {
     closeSubs();
+    _userRepository.clearCurrentUser();
     return super.close();
   }
 

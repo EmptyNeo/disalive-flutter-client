@@ -11,7 +11,6 @@ part 'chat_server_state.dart';
 
 class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
     with WidgetsBindingObserver {
-  final WsRepository _wsRepository;
   final ChatServerRepository _chatServerRepository;
 
   bool _wasConnectedBeforeBackground = false;
@@ -19,8 +18,7 @@ class ChatServerBloc extends Bloc<ChatServerEvent, ChatServerState>
 
   bool get isConnected => _chatServerRepository.isConnected;
 
-  ChatServerBloc(this._wsRepository, this._chatServerRepository)
-    : super(ChatServerInitial()) {
+  ChatServerBloc(this._chatServerRepository) : super(ChatServerInitial()) {
     on<ConnectToChatServer>(_onConnect);
     on<DisconnectFromChatServer>(_onDisconnect);
     on<SendChatServerMessage>(_onSend);

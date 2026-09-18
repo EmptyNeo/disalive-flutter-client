@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -58,10 +59,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
-  Future<void> _onLogout(
-    AuthLogout event,
-    Emitter<AuthState> emit,
-  ) async {
+  Future<void> _onLogout(AuthLogout event, Emitter<AuthState> emit) async {
     _userRepository.clearCurrentUser();
     emit(AuthUnauthenticated());
   }

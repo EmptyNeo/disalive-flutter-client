@@ -96,4 +96,9 @@ class RequestsRepositoryImpl extends RequestsRepository {
   List<FriendRequest> getCached() {
     return _requests;
   }
+
+  @override
+  void clear() {
+    _requests.clear();
+  }
 }
