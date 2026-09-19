@@ -61,9 +61,9 @@ class UserRepositoryImpl implements UserRepository {
   @override
   Future<Either<Failure, bool>> create(
     String email,
-    String displayName,
-    String username,
-    String password,
+    String? displayName,
+    String? username,
+    String? password,
     String inputCode,
   ) async {
     final result = await _httpClient.postFormData<bool>(
@@ -92,6 +92,29 @@ class UserRepositoryImpl implements UserRepository {
       requireAuth: true,
       fromJson: (json) => UserModel.fromMap(json),
       files: user.toMapFiles(),
+    );
+
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, bool>> resetPassword(
+    String email,
+    String inputCode,
+    String newPassword,
+    String verifyPassword,
+  ) async {
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'users/password/',
+      data: {
+        "email": email,
+        "inputCode": inputCode,
+        "newPassword": newPassword,
+        "verifyPassword": verifyPassword,
+      },
+      apiType: ApiType.v1,
+      requireAuth: false,
+      fromJson: (json) => json["success"] == true,
     );
 
     return result;

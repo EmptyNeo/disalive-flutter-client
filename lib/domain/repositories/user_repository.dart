@@ -18,13 +18,20 @@ abstract class UserRepository {
 
   Future<Either<Failure, bool>> create(
     String email,
-    String displayName,
-    String username,
-    String password,
+    String? displayName,
+    String? username,
+    String? password,
     String inputCode,
   );
 
   Future<Either<Failure, UserModel>> update(UserModel user);
+
+  Future<Either<Failure, bool>> resetPassword(
+    String email,
+    String inputCode,
+    String newPassword,
+    String verifyPassword,
+  );
 
   UserModel? getCurrentUser();
 

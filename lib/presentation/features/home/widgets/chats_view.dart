@@ -1,6 +1,7 @@
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/dm_sidebar/dm_sidebar.dart';
 import 'package:disalive/presentation/features/server/servers_sidebar.dart';
+import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:disalive/app/theme/app_theme.dart';
@@ -48,11 +49,9 @@ class ChatsView extends StatelessWidget {
                 }
 
                 if (state is ChatFailure) {
-                  return Center(
-                    child: Text(
-                      'Ошибка загрузки: ${state.error}',
-                      style: const TextStyle(color: CupertinoColors.white),
-                    ),
+                  return ErrorStateView(
+                    failure: state.error,
+                    onRetry: () => {context.read<ChatBloc>().add(GetChats())},
                   );
                 }
 

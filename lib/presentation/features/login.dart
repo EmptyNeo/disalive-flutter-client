@@ -5,6 +5,7 @@ import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
 import 'package:disalive/presentation/features/register/register_screen.dart';
+import 'package:disalive/presentation/features/reset/reset_password_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -315,7 +316,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       padding: EdgeInsets.zero,
                                       minSize: 0,
                                       onPressed: () {
-                                        // TODO: Экран восстановления пароля
+                                        ResetPasswordScreen.open(context);
                                       },
                                       child: Text(
                                         'Забыли пароль?',

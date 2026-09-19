@@ -1,9 +1,16 @@
+// lib/presentation/features/chat/chat_screen.dart
+import 'dart:io';
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/file_content_type.dart';
+import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/ui/chat_attachment.dart';
+import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
@@ -16,8 +23,12 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
+import 'package:disalive/presentation/utils/ui/util_file.dart';
+import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p show basename, extension;
 
 /// Отступ для плавающих хэдера/поля ввода от краёв карточки чата.
 const double _kFloatingPanelMargin = 8;
@@ -58,8 +69,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<MessagesListState> _messagesListKey =
       GlobalKey<MessagesListState>();
   late final TextEditingController _textController;
-  final ValueNotifier<bool> _hasText = ValueNotifier(false);
+  final ValueNotifier<bool> _hasNeedSend = ValueNotifier(false);
   final FocusNode _inputFocusNode = FocusNode();
+  List<ChatAttachment> _attachments = [];
+  List<ChatAttachment> _deletedAttachments = [];
   int? _editingMessageId;
   Message? _answerMessage;
   bool isReconnect = false;
@@ -90,11 +103,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onTextChanged() {
-    final hasText = _textController.text.trim().isNotEmpty;
-    if (_hasText.value != hasText) {
-      _hasText.value = hasText;
-    }
+    _onChangedNeedSend();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+  }
+
+  void _onChangedNeedSend() {
+    final hasText = _textController.text.trim().isNotEmpty;
+    final hasAttachments = _attachments.isNotEmpty;
+    _hasNeedSend.value = hasAttachments || hasText;
   }
 
   void _measureInput() {
@@ -122,7 +138,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
-    _hasText.dispose();
+    _hasNeedSend.dispose();
     _inputFocusNode.dispose();
     super.dispose();
   }
@@ -220,12 +236,50 @@ class _ChatScreenState extends State<ChatScreen> {
                         textController: _textController,
                         hasEdit: _hasEdit,
                         answerMessage: _answerMessage,
-                        hasText: _hasText,
+                        hasNeedSend: _hasNeedSend,
                         cancelBanner: _cancelBanner,
                         onSendMessage: _onSendMessage,
                         onApplyEdit: _onApplyEdit,
                         inputFocusNode: _inputFocusNode,
                         isReconnect: isReconnect,
+                        attachments: _attachments,
+                        onPickAttachment: _pickAttachments,
+                        onRemoveAttachment: (attachment) {
+                          setState(() {
+                            if (!attachment.isNew && attachment.id != null) {
+                              attachment.isDeleted = true;
+                              _deletedAttachments.add(attachment);
+                            }
+                            _attachments.remove(attachment);
+                            WidgetsBinding.instance.addPostFrameCallback(
+                              (_) => _measureInput(),
+                            );
+                          });
+                        },
+                        onUpdateAttachment: (updatedAttachment) {
+                          setState(() {
+                            final index = _attachments.indexWhere((a) {
+                              if (a.id != null &&
+                                  updatedAttachment.id != null) {
+                                return a.id == updatedAttachment.id;
+                              }
+                              if (a.file != null &&
+                                  updatedAttachment.file != null) {
+                                return a.file!.path ==
+                                    updatedAttachment.file!.path;
+                              }
+                              return false;
+                            });
+
+                            if (index != -1) {
+                              _attachments[index] = updatedAttachment;
+                            }
+                          });
+
+                          WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _measureInput(),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -246,16 +300,81 @@ class _ChatScreenState extends State<ChatScreen> {
     _inputFocusNode.unfocus();
   }
 
-  void _onSendMessage(Message message) {
-    var localGeneratedId = '';
+  Future<void> _pickAttachments() async {
+    final files = await MediaPickerBottomSheet.open(
+      context: context,
+      allowMultiple: true,
+    );
 
-    if (message.localGeneratedId != null) {
-      localGeneratedId = message.localGeneratedId ?? '';
-    } else {
-      localGeneratedId = IdGenerator.generateId();
+    if (files != null && files.isNotEmpty) {
+      setState(() {
+        for (final file in files) {
+          final name = p.basename(file.path);
+
+          final mimeType = lookupMimeType(file.path);
+          final fileType = FileType.fromMimeType(mimeType);
+
+          final sizeBytes = file.lengthSync();
+          (double, String) unit = UtilFile.getFileSizeAndUnit(sizeBytes);
+
+          _attachments.add(
+            ChatAttachment(
+              file: file,
+              name: name,
+              size: unit.$1,
+              unit: unit.$2,
+              fileType: fileType,
+              contentType: FileContentType.defaultFile,
+            ),
+          );
+        }
+      });
+      final hasAttachments = _attachments.isNotEmpty;
+      if (hasAttachments) {
+        _hasNeedSend.value = hasAttachments;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+    }
+  }
+
+  List<FileMessage> convertFilesToAttachments(
+    List<ChatAttachment> attachments,
+  ) {
+    final localAttachments = <FileMessage>[];
+    for (int i = 0; i < attachments.length; i++) {
+      final att = attachments[i];
+      if (!att.isDeleted) {
+        localAttachments.add(att.toFileMessage(i));
+      }
+    }
+    return localAttachments;
+  }
+
+  void _onSendMessage(Message message) {
+    var localGeneratedId = message.localGeneratedId ?? IdGenerator.generateId();
+
+    final metaNewFiles = <MetaFileMessage>[];
+    final newFilesList = <File>[];
+
+    int fileIndex = 0;
+    for (final att in _attachments) {
+      if (att.isNew && !att.isDeleted) {
+        newFilesList.add(att.file!);
+        metaNewFiles.add(
+          MetaFileMessage(
+            index: fileIndex,
+            duration: att.duration,
+            isSpoiler: att.isSpoiler,
+            deleted: false,
+            changed: false,
+          ),
+        );
+        fileIndex++;
+      }
     }
 
-    // Создаем локальное сообщение
+    final localAttachments = convertFilesToAttachments(_attachments);
+
     final localMessage = Message(
       localGeneratedId: localGeneratedId,
       chatId: widget.chat.id,
@@ -264,6 +383,9 @@ class _ChatScreenState extends State<ChatScreen> {
       time: DateTime.now().toUtc().toString(),
       answerMessageId: _answerMessage?.getId,
       answerMessage: _answerMessage,
+      attachments: localAttachments.isEmpty ? null : localAttachments,
+      newFiles: newFilesList.isEmpty ? null : newFilesList,
+      metaNewFilesMessage: metaNewFiles.isEmpty ? null : metaNewFiles,
     );
 
     _messageBloc.add(
@@ -276,9 +398,11 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    if (_answerMessage != null) {
+    if (_answerMessage != null || _attachments.isNotEmpty) {
       _cancelBanner();
     }
+
+    _clearAllAttachments();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _messagesListKey.currentState?.scrollToBottom(animated: true);
@@ -294,13 +418,41 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _answerMessage = null;
       _editingMessageId = message.id;
+
+      _attachments = (message.attachments ?? []).map((fileMsg) {
+        return ChatAttachment(
+          id: fileMsg.id,
+          file: null,
+          url: fileMsg.urlPath,
+          name: fileMsg.originalName ?? 'Файл',
+          size: fileMsg.size ?? 0,
+          unit: fileMsg.unit ?? 'Б',
+          fileType: fileMsg.fileType,
+          contentType: fileMsg.contentType,
+          duration: fileMsg.duration,
+          isSpoiler: fileMsg.isSpoiler == 1,
+          isDeleted: false,
+        );
+      }).toList();
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
 
+  void _clearAllAttachments() {
+    setState(() {
+      _attachments.clear();
+      _deletedAttachments.clear();
+    });
+  }
+
   void _cancelBanner() {
     setState(() {
+      if (_editingMessageId != null && _attachments.any((a) => a.id != null)) {
+        _attachments.removeWhere((att) => att.id != null);
+
+        _deletedAttachments.clear();
+      }
       _editingMessageId = null;
       _answerMessage = null;
     });
@@ -313,10 +465,51 @@ class _ChatScreenState extends State<ChatScreen> {
   void _onApplyEdit(Message message) {
     if (_editingMessageId == null) return;
 
+    final metaCurrentFiles = <MetaFileMessage>[];
+    final metaNewFiles = <MetaFileMessage>[];
+    final newFilesList = <File>[];
+
+    final allAttachments = [..._attachments, ..._deletedAttachments];
+
+    int fileIndex = 0;
+    for (final att in allAttachments) {
+      if (att.isNew && !att.isDeleted) {
+        newFilesList.add(att.file!);
+        metaNewFiles.add(
+          MetaFileMessage(
+            index: fileIndex,
+            duration: att.duration,
+            isSpoiler: att.isSpoiler,
+            deleted: false,
+            changed: false,
+          ),
+        );
+        fileIndex++;
+      } else if (!att.isNew) {
+        metaCurrentFiles.add(
+          MetaFileMessage(
+            id: att.id,
+            duration: att.duration,
+            isSpoiler: att.isSpoiler,
+            deleted: att.isDeleted,
+            changed: att.isChanged && !att.isDeleted,
+          ),
+        );
+      }
+    }
+
+    final localAttachments = convertFilesToAttachments(_attachments);
+
     final updatedMessage = Message(
       id: _editingMessageId,
       chatId: widget.chat.id,
       text: message.text,
+      attachments: localAttachments,
+      metaCurrentFilesMessage: metaCurrentFiles.isEmpty
+          ? null
+          : metaCurrentFiles,
+      metaNewFilesMessage: metaNewFiles.isEmpty ? null : metaNewFiles,
+      newFiles: newFilesList.isEmpty ? null : newFilesList,
     );
 
     _messageBloc.add(
@@ -328,10 +521,10 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
+    _clearAllAttachments();
+
     _cancelBanner();
   }
-
-  // lib/presentation/features/chat/screens/chat_screen.dart
 
   void _onDeleteMessage(Message message) {
     _messageBloc.add(
@@ -351,7 +544,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _answerMessage = message;
     });
 
-    // Измеряем высоту уже после того, как баннер отрисовался
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusInput();
       _measureInput();

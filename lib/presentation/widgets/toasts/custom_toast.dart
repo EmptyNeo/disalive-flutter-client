@@ -17,8 +17,8 @@ class CustomToast {
   /// Показывает toast-уведомление поверх текущего интерфейса.
   static void show({
     required BuildContext context,
-    Color? color,
-    IconData? icon,
+    Color? color = AppColors.errorRed,
+    IconData? icon = CupertinoIcons.exclamationmark_circle_fill,
     required String message,
   }) {
     // Если уже есть активный toast, скрываем его мгновенно перед показом нового

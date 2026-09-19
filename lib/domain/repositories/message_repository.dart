@@ -22,9 +22,7 @@ abstract class MessageRepository {
     int entityId,
     EntityType entityType,
     String localGeneratedId,
-    String text,
-    int? answerMessageId,
-    int? forwardMessageId,
+    Message message,
   );
 
   Future<Either<Failure, bool>> update(
@@ -32,7 +30,7 @@ abstract class MessageRepository {
     int entityId,
     EntityType entityType,
     int messageId,
-    String text,
+    Message message,
   );
 
   Future<Either<Failure, bool>> delete(

@@ -3,8 +3,11 @@ import 'dart:ui';
 
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/email_type.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
+import 'package:disalive/presentation/features/verify/verify_code_screen.dart';
+import 'package:disalive/presentation/widgets/step_progress_indicator.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -31,15 +34,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordFocus = FocusNode();
 
   bool _obscurePassword = true;
-  bool _wasSubmitting = false; // Для отслеживания успешной отправки кода
 
   @override
   void initState() {
     super.initState();
-    _emailFocus.addListener(() => setState(() {}));
-    _displayNameFocus.addListener(() => setState(() {}));
-    _usernameFocus.addListener(() => setState(() {}));
-    _passwordFocus.addListener(() => setState(() {}));
   }
 
   @override
@@ -104,15 +102,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
             );
           }
 
-          // 2. Отслеживание успешной отправки кода для навигации
-          if (_wasSubmitting &&
-              !state.isSubmitLoading &&
-              state.generalError == null) {
-            // 🎯 TODO: Здесь будет навигация на экран ввода кода
-            // Navigator.of(context).pushNamed(MyRouter.registerVerify, arguments: state.email);
-            print('✅ Код успешно отправлен на ${state.email}');
+          // 🎯 2. НАВИГАЦИЯ: Реагируем ТОЛЬКО на явный флаг успеха
+          if (state.isCodeSent) {
+            VerifyCodeScreen.open(
+              context: context,
+              email: state.email,
+              emailType: EmailType.confirmRegister,
+              username: state.username,
+              displayName: state.displayName,
+              password: state.password,
+            );
           }
-          _wasSubmitting = state.isSubmitLoading;
         },
         builder: (context, state) {
           return CupertinoPageScaffold(
@@ -212,6 +212,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   mainAxisAlignment: MainAxisAlignment.start,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
+                                    StepProgressIndicator(
+                                      totalSteps: 3,
+                                      currentStep: state.currentStep,
+                                    ),
+                                    const SizedBox(height: 24),
+                                    // Отступ до заголовка
                                     // Заголовок меняется в зависимости от шага
                                     Text(
                                       state.currentStep == 1
@@ -245,7 +251,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       duration: const Duration(
                                         milliseconds: 300,
                                       ),
-                                      child: _buildCurrentStep(state, context),
+                                      child: KeyedSubtree(
+                                        key: ValueKey(state.currentStep),
+                                        child: _buildCurrentStep(
+                                          state,
+                                          context,
+                                        ),
+                                      ),
                                     ),
 
                                     const SizedBox(height: 24),

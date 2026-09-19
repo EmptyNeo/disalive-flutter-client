@@ -16,7 +16,7 @@ class ChatLoaded extends ChatState {
 }
 
 class ChatFailure extends ChatState {
-  final String error;
+  final Failure error;
 
   ChatFailure(this.error);
 }

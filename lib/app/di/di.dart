@@ -37,6 +37,8 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
+import 'package:disalive/presentation/features/reset/bloc/reset_password_bloc.dart';
+import 'package:disalive/presentation/features/verify/bloc/verify_code_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,4 +89,6 @@ Future<void> setupDependencies() async {
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
   sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl(), sl()));
   sl.registerFactory<RegisterBloc>(() => RegisterBloc(sl(), sl()));
+  sl.registerFactory<VerifyCodeBloc>(() => VerifyCodeBloc(sl(), sl()));
+  sl.registerFactory<ResetPasswordBloc>(() => ResetPasswordBloc(sl(), sl()));
 }

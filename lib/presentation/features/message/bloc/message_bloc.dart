@@ -281,9 +281,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       event.entityId,
       event.entityType,
       event.localGeneratedId,
-      event.message.text ?? '',
-      event.message.answerMessageId,
-      event.message.forwardMessageId,
+      event.message,
     );
 
     result.fold((failure) {
@@ -339,7 +337,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       event.entityId,
       event.entityType,
       event.message.id ?? 0,
-      event.message.text ?? '',
+      event.message,
     );
 
     result.fold((failure) {

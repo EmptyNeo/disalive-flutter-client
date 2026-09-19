@@ -172,9 +172,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
   }
 
   void _onGoBack(RegisterGoBack event, Emitter<RegisterState> emit) {
-    if (state.currentStep == 1) {
-      return;
-    }
+    if (state.currentStep == 1) return;
 
     emit(
       state.copyWith(
@@ -182,6 +180,7 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
         emailError: null,
         usernameError: null,
         generalError: null,
+        isCodeSent: false,
       ),
     );
   }
@@ -190,7 +189,6 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     RegisterSubmitPressed event,
     Emitter<RegisterState> emit,
   ) async {
-    // 1. Валидация пароля
     if (state.password.length < 6) {
       emit(
         state.copyWith(generalError: 'Пароль должен быть не менее 6 символов'),
@@ -198,17 +196,13 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
       return;
     }
 
-    // 2. Если имя пользователя ещё не проверено или занято, проверяем его прямо сейчас
     if (state.usernameError != null || state.isUsernameLoading) {
       add(RegisterUsernameCheck());
-      // Примечание: в реальном UI лучше не давать нажать кнопку, пока isUsernameLoading == true
-      // или usernameError != null, но эта страховка не помешает.
       return;
     }
 
     emit(state.copyWith(isSubmitLoading: true, generalError: null));
 
-    // 3. Отправка кода на email
     final result = await _emailRepository.sendVerificationEmail(
       email: state.email,
       type: EmailType.confirmRegister,
@@ -226,8 +220,8 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
         );
       },
       (success) {
-        emit(state.copyWith(isSubmitLoading: false));
-        // 🎯 Здесь UI через BlocListener должен увидеть успех и сделать навигацию на экран ввода кода
+        // 🎯 ЧИСТО И ЯСНО: Говорим UI, что код успешно отправлен
+        emit(state.copyWith(isSubmitLoading: false, isCodeSent: true));
       },
     );
   }

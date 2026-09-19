@@ -189,10 +189,10 @@ class UserModel extends Equatable {
     };
   }
 
-  Map<String, File?> toMapFiles() {
+  Map<String, List<File?>> toMapFiles() {
     return {
-      if (fileAvatar != null) "avatar": fileAvatar,
-      if (fileBanner != null) "banner": fileBanner,
+      if (fileAvatar != null) "avatar": [fileAvatar],
+      if (fileBanner != null) "banner": [fileBanner],
     };
   }
 

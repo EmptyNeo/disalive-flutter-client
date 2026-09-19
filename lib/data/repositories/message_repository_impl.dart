@@ -1,4 +1,6 @@
 // lib/data/repositories/message_repository_impl.dart
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
@@ -64,37 +66,30 @@ class MessageRepositoryImpl implements MessageRepository {
     int entityId,
     EntityType entityType,
     String localGeneratedId,
-    String text,
-    int? answerMessageId,
-    int? forwardMessageId,
+    Message message,
   ) async {
-    final result = await _httpClient.postFormData<bool>(
+    String? jsonMetaFiles = message.metaNewFilesMessage != null
+        ? jsonEncode(
+            message.metaNewFilesMessage!.map((e) => e.toMap()).toList(),
+          )
+        : null;
+    final result = await _httpClient.postMultipart<bool>(
       endpoint: 'messages/create.php',
       data: {
         'chatId': chatId,
         'entityId': entityId,
         'entityType': entityType.value,
         'localGeneratedId': localGeneratedId,
-        'text': text,
-        'answerMessageId': answerMessageId,
-        'forwardMessageId': forwardMessageId,
+        'text': message.text,
+        'answerMessageId': message.answerMessageId,
+        'forwardMessageId': message.forwardMessageId,
+        'metaFiles': jsonMetaFiles,
       },
+      files: message.toMapFiles(),
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        bool success = json['success'] == true;
-        if (success) {
-          final newMessage = Message.fromMap(json['message']);
-          final messages = _messages[chatId]?.messages;
-
-          if (messages != null) {
-            final exists = messages.any((m) => m.id == newMessage.id);
-            if (!exists) {
-              messages.add(newMessage);
-            }
-          }
-        }
-        return success;
+        return json is Map<String, dynamic>;
       },
     );
 
@@ -107,32 +102,36 @@ class MessageRepositoryImpl implements MessageRepository {
     int entityId,
     EntityType entityType,
     int messageId,
-    String text,
+    Message message,
   ) async {
-    final result = await _httpClient.postFormData<bool>(
+    String? jsonCurrentMetaFiles = message.metaCurrentFilesMessage != null
+        ? jsonEncode(
+            message.metaCurrentFilesMessage!.map((e) => e.toMap()).toList(),
+          )
+        : null;
+
+    String? jsonNewMetaFiles = message.metaNewFilesMessage != null
+        ? jsonEncode(
+            message.metaNewFilesMessage!.map((e) => e.toMap()).toList(),
+          )
+        : null;
+
+    final result = await _httpClient.postMultipart<bool>(
       endpoint: 'messages/update.php',
       data: {
         'id': messageId,
         'chatId': chatId,
         'entityId': entityId,
         'entityType': entityType.value,
-        'text': text,
+        'text': message.text,
+        'metaFiles': jsonCurrentMetaFiles,
+        'newFilesMeta': jsonNewMetaFiles,
       },
+      files: message.toMapFiles(),
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        bool success = json['success'] == true;
-        if (success && json['message'] != null) {
-          final updatedMessage = Message.fromMap(json['message']);
-          final messages = _messages[chatId]?.messages;
-          if (messages != null) {
-            final index = messages.indexWhere((m) => m.id == messageId);
-            if (index != -1) {
-              messages[index] = updatedMessage;
-            }
-          }
-        }
-        return success;
+        return json is Map<String, dynamic>;
       },
     );
 

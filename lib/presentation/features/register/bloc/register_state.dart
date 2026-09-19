@@ -3,18 +3,19 @@
 part of 'register_bloc.dart';
 
 class RegisterState extends Equatable {
-  final int currentStep; // 1: Email, 2: DisplayName, 3: Username & Password
+  final int currentStep;
   final String email;
   final String displayName;
   final String username;
   final String password;
 
-  // Индикаторы загрузки
   final bool isEmailLoading;
   final bool isUsernameLoading;
   final bool isSubmitLoading;
 
-  // Ошибки валидации
+  // 🎯 НОВОЕ: Флаг успешной отправки кода
+  final bool isCodeSent;
+
   final String? emailError;
   final String? usernameError;
   final String? generalError;
@@ -28,6 +29,7 @@ class RegisterState extends Equatable {
     this.isEmailLoading = false,
     this.isUsernameLoading = false,
     this.isSubmitLoading = false,
+    this.isCodeSent = false, // 🎯 По умолчанию false
     this.emailError,
     this.usernameError,
     this.generalError,
@@ -42,6 +44,7 @@ class RegisterState extends Equatable {
     bool? isEmailLoading,
     bool? isUsernameLoading,
     bool? isSubmitLoading,
+    bool? isCodeSent, // 🎯 Добавляем в copyWith
     String? emailError,
     String? usernameError,
     String? generalError,
@@ -55,6 +58,7 @@ class RegisterState extends Equatable {
       isEmailLoading: isEmailLoading ?? this.isEmailLoading,
       isUsernameLoading: isUsernameLoading ?? this.isUsernameLoading,
       isSubmitLoading: isSubmitLoading ?? this.isSubmitLoading,
+      isCodeSent: isCodeSent ?? this.isCodeSent,
       emailError: emailError,
       usernameError: usernameError,
       generalError: generalError,
@@ -65,6 +69,7 @@ class RegisterState extends Equatable {
   List<Object?> get props => [
     currentStep, email, displayName, username, password,
     isEmailLoading, isUsernameLoading, isSubmitLoading,
+    isCodeSent, // 🎯 Добавляем в props
     emailError, usernameError, generalError,
   ];
 }

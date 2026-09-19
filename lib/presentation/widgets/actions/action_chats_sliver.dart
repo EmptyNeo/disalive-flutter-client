@@ -1,6 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:disalive/presentation/widgets/select_chat_item.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -34,11 +35,11 @@ class ActionChatsSliver extends StatelessWidget {
         if (state is ChatFailure) {
           return SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(
-              child: Text(
-                state.error,
-                style: TextStyle(color: AppColors.greyple, fontSize: 14),
-              ),
+            child: ErrorStateView(
+              failure: state.error,
+              onRetry: () {
+                context.read<ChatBloc>().add(GetChats());
+              },
             ),
           );
         }

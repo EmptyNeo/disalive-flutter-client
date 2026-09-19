@@ -64,14 +64,20 @@ class ChatRepositoryImpl implements ChatRepository {
     String name,
     bool deleted,
   ) async {
+    final filesMap = image != null
+        ? {
+            'image': [image],
+          }
+        : <String, List<File?>>{};
+
     final result = await _httpClient.postMultipart<bool>(
       endpoint: 'chats/update.php',
       data: {'chatId': chatId, 'name': name, 'deleted': deleted},
-      files: {'image': image},
+      files: filesMap,
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        return json is Map<String, dynamic>;
+        return json is Map<String, dynamic> && json['success'] == true;
       },
     );
 

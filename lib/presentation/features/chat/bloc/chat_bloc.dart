@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
@@ -211,7 +212,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     result.fold(
       (failure) {
-        emit(ChatFailure(failure.message));
+        emit(ChatFailure(failure));
       },
       (chats) {
         int unreadCount = _chatRepository.getAllUnredCount();

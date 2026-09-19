@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/ui/chat_attachment.dart';
+import 'package:disalive/presentation/features/chat/widgets/attachments/attachment_container.dart';
 import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -17,11 +19,15 @@ class ChatInputArea extends StatelessWidget {
   final GlobalKey _inputKey;
   final bool _hasEdit;
   final Message? _answerMessage;
-  final ValueNotifier<bool> _hasText;
+  final ValueNotifier<bool> _hasNeedSend;
   final TextEditingController _textController;
   final VoidCallback _cancelBanner;
   final Function(Message message) _onSendMessage;
   final Function(Message message) _onApplyEdit;
+  final List<ChatAttachment> attachments;
+  final VoidCallback onPickAttachment;
+  final Function(ChatAttachment) onRemoveAttachment;
+  final Function(ChatAttachment) onUpdateAttachment;
 
   const ChatInputArea({
     super.key,
@@ -31,18 +37,22 @@ class ChatInputArea extends StatelessWidget {
     required TextEditingController textController,
     required bool hasEdit,
     required Message? answerMessage,
-    required ValueNotifier<bool> hasText,
+    required ValueNotifier<bool> hasNeedSend,
     required VoidCallback cancelBanner,
     required Function(Message message) onSendMessage,
     required Function(Message message) onApplyEdit,
     required FocusNode inputFocusNode,
+    required this.attachments,
+    required this.onPickAttachment,
+    required this.onRemoveAttachment,
+    required this.onUpdateAttachment,
   }) : _chat = chat,
        _isReconnect = isReconnect,
        _inputKey = inputKey,
        _textController = textController,
        _hasEdit = hasEdit,
        _answerMessage = answerMessage,
-       _hasText = hasText,
+       _hasNeedSend = hasNeedSend,
        _cancelBanner = cancelBanner,
        _onSendMessage = onSendMessage,
        _onApplyEdit = onApplyEdit,
@@ -68,15 +78,20 @@ class ChatInputArea extends StatelessWidget {
           if (_hasEdit) _buildEditBanner(),
           if (hasAnswer) _buildAnswerBanner(_answerMessage),
           if (_hasEdit || hasAnswer) const SizedBox(height: 6),
+          if (attachments.isNotEmpty)
+            AttachmentContainer(
+              attachments: attachments,
+              hasBanner: _hasEdit || hasAnswer,
+              onRemove: onRemoveAttachment,
+              onUpdate: onUpdateAttachment,
+            ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (isInputAllowed) ...[
                 GlassIconButton(
                   icon: CupertinoIcons.add,
-                  onTap: () {
-                    // TODO: Логика прикрепления медиа
-                  },
+                  onTap: onPickAttachment,
                   size: 36,
                 ),
                 const SizedBox(width: 10),
@@ -131,7 +146,7 @@ class ChatInputArea extends StatelessWidget {
               if (isInputAllowed) ...[
                 const SizedBox(width: 10),
                 ValueListenableBuilder<bool>(
-                  valueListenable: _hasText,
+                  valueListenable: _hasNeedSend,
                   builder: (context, hasText, _) {
                     return GlassIconButton(
                       icon: _hasEdit

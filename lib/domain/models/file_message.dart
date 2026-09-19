@@ -1,5 +1,7 @@
 // lib/domain/models/file_message.dart
 import 'package:disalive/data/network/domain.dart';
+import 'package:disalive/domain/models/ui/chat_attachment.dart'
+    show ChatAttachment;
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';

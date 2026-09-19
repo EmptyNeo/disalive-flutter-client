@@ -70,7 +70,7 @@ class HttpClientService {
   Future<Either<Failure, T>> postMultipart<T>({
     required String endpoint,
     Map<String, dynamic>? data,
-    required Map<String, File?> files,
+    required Map<String, List<File?>> files,
     required T Function(dynamic json) fromJson,
     ApiType apiType = ApiType.v1,
     bool requireAuth = true,
@@ -101,20 +101,22 @@ class HttpClientService {
       }
 
       for (final entry in files.entries) {
-        final file = entry.value;
-        if (file == null) continue;
-        request.files.add(
-          await http.MultipartFile.fromPath(
-            entry.key,
-            file.path,
-            filename: file.uri.pathSegments.last,
-          ),
-        );
+        final fieldName = entry.key;
+        final fileList = entry.value;
+
+        for (final file in fileList) {
+          if (file == null) continue;
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              fieldName,
+              file.path,
+              filename: file.uri.pathSegments.last,
+            ),
+          );
+        }
       }
 
-      final streamedResponse = await _client.send(
-        request,
-      ); // Используем _client.send
+      final streamedResponse = await _client.send(request);
       final response = await http.Response.fromStream(streamedResponse);
 
       return _handleResponse<T>(
@@ -125,7 +127,7 @@ class HttpClientService {
         errorMessage: errorMessage,
       );
     } catch (e) {
-      return Left(NetworkFailure());
+      return const Left(NetworkFailure());
     }
   }
 

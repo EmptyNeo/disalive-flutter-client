@@ -1,7 +1,10 @@
 // lib/domain/models/message.dart
+import 'dart:io';
+
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/link_data.dart';
+import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/file_message.dart';
@@ -28,6 +31,10 @@ class Message extends Equatable {
   final ActionType? hasError;
   final ActionType? hasLoading;
 
+  final List<File>? newFiles;
+  final List<MetaFileMessage>? metaCurrentFilesMessage;
+  final List<MetaFileMessage>? metaNewFilesMessage;
+
   const Message({
     this.id,
     this.localGeneratedId,
@@ -47,6 +54,9 @@ class Message extends Equatable {
     this.amountFiles,
     this.hasError,
     this.hasLoading,
+    this.newFiles,
+    this.metaCurrentFilesMessage,
+    this.metaNewFilesMessage,
   });
 
   factory Message.fromMap(Map<String, dynamic> map) {
@@ -108,6 +118,10 @@ class Message extends Equatable {
     };
   }
 
+  Map<String, List<File?>> toMapFiles() {
+    return {'files[]': newFiles ?? []};
+  }
+
   Message copyWith({
     int? id,
     String? localGeneratedId,
@@ -126,6 +140,10 @@ class Message extends Equatable {
     int? forwardMessageId,
     ActionType? hasError,
     ActionType? hasLoading,
+    List<File>? currentFiles,
+    List<File>? newFiles,
+    List<MetaFileMessage>? metaCurrentFilesMessage,
+    List<MetaFileMessage>? metaNewFilesMessage,
   }) {
     return Message(
       id: id ?? this.id,
@@ -145,6 +163,10 @@ class Message extends Equatable {
       forwardMessageId: forwardMessageId ?? this.forwardMessageId,
       hasError: hasError ?? this.hasError,
       hasLoading: hasLoading ?? this.hasLoading,
+      newFiles: newFiles ?? this.newFiles,
+      metaCurrentFilesMessage:
+          metaCurrentFilesMessage ?? this.metaCurrentFilesMessage,
+      metaNewFilesMessage: metaNewFilesMessage ?? this.metaNewFilesMessage,
     );
   }
 

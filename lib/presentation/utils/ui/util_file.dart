@@ -13,6 +13,17 @@ class UtilFile {
     return '$bytes Б';
   }
 
+  static (double, String) getFileSizeAndUnit(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return ((bytes / (1024 * 1024 * 1024)), 'ГБ');
+    } else if (bytes >= 1024 * 1024) {
+      return ((bytes / (1024 * 1024)), 'МБ');
+    } else if (bytes >= 1024) {
+      return ((bytes / 1024), 'КБ');
+    }
+    return (bytes.toDouble(), 'Б');
+  }
+
   static Future<String> fileToBase64(File file) async {
     final bytes = await file.readAsBytes();
     final base64 = base64Encode(bytes);
