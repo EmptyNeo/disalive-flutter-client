@@ -23,7 +23,7 @@ class MessageRepositoryImpl implements MessageRepository {
     int limit,
     int lastIdMessage,
     int? aroundId,
-    int? neverThanId,
+    int? newerThanId,
     String? searchQuery,
   ) async {
     final result = await _httpClient.postFormData<MessagesResponse>(
@@ -35,7 +35,7 @@ class MessageRepositoryImpl implements MessageRepository {
         'limit': limit,
         'lastIdMessage': lastIdMessage,
         'aroundId': aroundId,
-        'neverThanId': neverThanId,
+        'newerThanId': newerThanId,
         'searchQuery': searchQuery,
       },
       apiType: ApiType.v1,
@@ -51,7 +51,7 @@ class MessageRepositoryImpl implements MessageRepository {
     result.fold((failure) => null, (response) {
       if (lastIdMessage == 0 &&
           aroundId == null &&
-          neverThanId == null &&
+          newerThanId == null &&
           searchQuery == null) {
         _messages[chatId] = response;
       }

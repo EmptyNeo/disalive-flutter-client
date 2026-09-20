@@ -11,7 +11,7 @@ class GetMessages extends MessageEvent {
   final int lastIdMessage;
   final int limit;
   final int? aroundId;
-  final int? neverThanId;
+  final int? newerThanId;
   final String? searchQuery;
   final bool showed;
 
@@ -21,7 +21,7 @@ class GetMessages extends MessageEvent {
     required this.entityType,
     required this.lastIdMessage,
     this.limit = 25,
-    this.neverThanId,
+    this.newerThanId,
     this.aroundId,
     this.searchQuery,
     this.showed = true,

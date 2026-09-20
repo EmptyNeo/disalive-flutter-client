@@ -3,6 +3,7 @@
 class MetaFileMessage {
   final int? id;
   final int? index;
+  final String? name;
   final double? duration;
   final bool? isSpoiler;
   final bool? deleted;
@@ -11,6 +12,7 @@ class MetaFileMessage {
   MetaFileMessage({
     this.id,
     this.index,
+    this.name,
     this.duration,
     this.isSpoiler,
     this.deleted,
@@ -21,6 +23,7 @@ class MetaFileMessage {
     return {
       if (id != null) 'id': id,
       if (index != null) 'index': index,
+      if (name != null) "name": name,
       if (duration != null) 'duration': duration,
       if (isSpoiler != null) 'isSpoiler': isSpoiler,
       if (deleted != null) 'deleted': deleted,

@@ -122,12 +122,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final bool isInitialLoad =
         event.lastIdMessage == 0 &&
         event.aroundId == null &&
-        event.neverThanId == null &&
+        event.newerThanId == null &&
         event.searchQuery == null;
+
+    final bool isNewerLoad = event.newerThanId != null;
+    final bool isOlderLoad = event.lastIdMessage > 0;
 
     if (isInitialLoad) {
       emit(MessageLoading());
-
       final cachedResponse = _messageRepository.getCached(event.chatId);
       if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
         emit(
@@ -135,7 +137,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             messages: cachedResponse.messages,
             actions: cachedResponse.actions,
             hasMoreMessages: cachedResponse.messages.isNotEmpty,
-            isLoadingMore: false, // Явно указываем
+            isLoadingMore: false,
+            isLoadingNewer: false,
           ),
         );
         return;
@@ -157,13 +160,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             final mergedMessages = [...currentState.messages, ...olderMessages];
             final uniqueMessages = _removeDuplicates(mergedMessages);
 
-            // Даже если showed == false, мы должны обновить состояние,
-            // чтобы слушатели (MediaViewer) знали, что данные есть.
             emit(
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: currentState.actions,
-                isLoadingMore: false, // Сбрасываем флаг загрузки!
+                isLoadingMore: false,
+                isLoadingNewer: false,
                 hasMoreMessages: true,
               ),
             );
@@ -171,19 +173,17 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           }
         }
 
-        // Если старых сообщений нет в кэше, мы все равно должны эмитить isLoadingMore: true,
-        // иначе UI не будет знать, что процесс пошел (опционально, но безопасно)
         emit(
           MessageLoaded(
             messages: currentState.messages,
             actions: currentState.actions,
-            isLoadingMore: true,
+            isLoadingMore: isOlderLoad,
+            isLoadingNewer: isNewerLoad,
           ),
         );
       }
     }
 
-    // Запрашиваем сервер
     final result = await _messageRepository.get(
       event.chatId,
       event.entityId,
@@ -191,14 +191,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       event.limit,
       event.lastIdMessage,
       event.aroundId,
-      event.neverThanId,
+      event.newerThanId,
       event.searchQuery,
     );
 
     result.fold(
       (failure) {
-        // ВАЖНО: Даже при ошибке и showed: false мы должны сбросить флаг загрузки,
-        // иначе интерфейс зависнет навсегда.
         if (state is! MessageLoaded) {
           emit(MessageFailure(failure));
         } else {
@@ -207,7 +205,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             MessageLoaded(
               messages: currentState.messages,
               actions: currentState.actions,
-              isLoadingMore: false, // Сбрасываем флаг
+              isLoadingMore: false,
+              isLoadingNewer: false,
             ),
           );
         }
@@ -222,6 +221,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               actions: response.actions,
               hasMoreMessages: response.messages.isNotEmpty,
               isLoadingMore: false,
+              isLoadingNewer: false,
             ),
           );
         } else {
@@ -233,7 +233,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                   messages: currentState.messages,
                   actions: currentState.actions,
                   isLoadingMore: false,
-                  hasMoreMessages: false, // Сообщения действительно закончились
+                  isLoadingNewer: false,
                 ),
               );
               return;
@@ -251,10 +251,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               MessageLoaded(
                 messages: uniqueMessages,
                 actions: currentState.actions,
-                isLoadingMore: false, // Критически важно сбросить этот флаг!
-                hasMoreMessages:
-                    response.messages.length >=
-                    event.limit, // Более точная проверка
+                isLoadingMore: false,
+                isLoadingNewer: false,
+                hasMoreMessages: isNewerLoad
+                    ? currentState.hasMoreMessages
+                    : (response.messages.length >= event.limit),
               ),
             );
           }

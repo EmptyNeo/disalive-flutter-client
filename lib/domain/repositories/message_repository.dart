@@ -13,7 +13,7 @@ abstract class MessageRepository {
     int limit,
     int lastIdMessage,
     int? aroundId,
-    int? neverThanId,
+    int? newerThanId,
     String? searchQuery,
   );
 

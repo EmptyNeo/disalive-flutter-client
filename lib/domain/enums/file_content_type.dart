@@ -2,9 +2,11 @@
 enum FileContentType {
   defaultFile('defaultFile'),
   sticker('sticker'),
-  gif('gif');
+  gif('gif'),
+  voice('voice');
 
   final String value;
+
   const FileContentType(this.value);
 
   static FileContentType fromString(String? value) {
@@ -18,6 +20,10 @@ enum FileContentType {
   }
 
   bool get isSticker => this == FileContentType.sticker;
+
   bool get isGif => this == FileContentType.gif;
+
   bool get isDefaultFile => this == FileContentType.defaultFile;
+
+  bool get isVoice => this == FileContentType.voice;
 }

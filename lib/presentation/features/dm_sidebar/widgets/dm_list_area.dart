@@ -63,11 +63,19 @@ class DmListArea extends StatelessWidget {
   }
 
   void _togglePinned(Chat chat) {
-    sl<MembersRepository>().update(chat.id, EntityType.chat, null, false, true);
+    sl<MembersRepository>().update(
+      entityId: chat.id,
+      entityType: EntityType.chat,
+      toggleFixed: true,
+    );
   }
 
   void _toggleMuted(Chat chat) {
-    sl<MembersRepository>().update(chat.id, EntityType.chat, null, true, false);
+    sl<MembersRepository>().update(
+      entityId: chat.id,
+      entityType: EntityType.chat,
+      toggleMuted: true,
+    );
   }
 
   void _toggleBlock(Chat chat) {

@@ -45,18 +45,20 @@ class MembersRepositoryImpl extends MembersRepository {
   }
 
   @override
-  Future<Either<Failure, bool>> update(
-    int entityId,
-    EntityType entityType,
+  Future<Either<Failure, bool>> update({
+    required int entityId,
+    required EntityType entityType,
+    int? chatId,
     int? lastIdReadMessage,
-    bool toggleMuted,
-    bool toggleFixed,
-  ) async {
+    bool toggleMuted = false,
+    bool toggleFixed = false,
+  }) async {
     final result = await _httpClient.postFormData<bool>(
       endpoint: 'members/update.php',
       data: {
         "entityId": entityId,
         "entityType": entityType.value,
+        "chatId": chatId,
         "lastIdReadMessage": lastIdReadMessage,
         "muted": toggleMuted ? "toggle" : null,
         "fixed": toggleFixed ? "toggle" : null,

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
@@ -6,65 +7,118 @@ import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/presentation/features/chat/widgets/attachments/attachment_container.dart';
 import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
+import 'package:disalive/presentation/features/chat/widgets/voice/voice_record_overlay.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 
 const double _kFloatingPanelMargin = 8;
 
-class ChatInputArea extends StatelessWidget {
-  final Chat _chat;
-  final bool _isReconnect;
-  final FocusNode _inputFocusNode;
-  final GlobalKey _inputKey;
-  final bool _hasEdit;
-  final Message? _answerMessage;
-  final ValueNotifier<bool> _hasNeedSend;
-  final TextEditingController _textController;
-  final VoidCallback _cancelBanner;
-  final Function(Message message) _onSendMessage;
-  final Function(Message message) _onApplyEdit;
+class ChatInputArea extends StatefulWidget {
+  final Chat chat;
+  final bool isReconnect;
+  final FocusNode inputFocusNode;
+  final GlobalKey inputKey;
+  final bool hasEdit;
+  final Message? answerMessage;
+  final ValueNotifier<bool> hasNeedSend;
+  final TextEditingController textController;
+  final VoidCallback cancelBanner;
+  final Function(Message message) onSendMessage;
+  final Function(Message message) onApplyEdit;
   final List<ChatAttachment> attachments;
   final VoidCallback onPickAttachment;
   final Function(ChatAttachment) onRemoveAttachment;
   final Function(ChatAttachment) onUpdateAttachment;
+  final Function(File file, double durationSeconds) onSendVoiceMessage;
 
   const ChatInputArea({
     super.key,
-    required Chat chat,
-    required bool isReconnect,
-    required GlobalKey inputKey,
-    required TextEditingController textController,
-    required bool hasEdit,
-    required Message? answerMessage,
-    required ValueNotifier<bool> hasNeedSend,
-    required VoidCallback cancelBanner,
-    required Function(Message message) onSendMessage,
-    required Function(Message message) onApplyEdit,
-    required FocusNode inputFocusNode,
+    required this.chat,
+    required this.isReconnect,
+    required this.inputKey,
+    required this.textController,
+    required this.hasEdit,
+    required this.answerMessage,
+    required this.hasNeedSend,
+    required this.cancelBanner,
+    required this.onSendMessage,
+    required this.onApplyEdit,
+    required this.inputFocusNode,
     required this.attachments,
     required this.onPickAttachment,
     required this.onRemoveAttachment,
     required this.onUpdateAttachment,
-  }) : _chat = chat,
-       _isReconnect = isReconnect,
-       _inputKey = inputKey,
-       _textController = textController,
-       _hasEdit = hasEdit,
-       _answerMessage = answerMessage,
-       _hasNeedSend = hasNeedSend,
-       _cancelBanner = cancelBanner,
-       _onSendMessage = onSendMessage,
-       _onApplyEdit = onApplyEdit,
-       _inputFocusNode = inputFocusNode;
+    required this.onSendVoiceMessage,
+  });
+
+  @override
+  State<ChatInputArea> createState() => _ChatInputAreaState();
+}
+
+class _ChatInputAreaState extends State<ChatInputArea> {
+  // 🎯 Ключ для прямого вызова методов внутри VoiceRecordOverlay
+  final GlobalKey<VoiceRecordOverlayState> _voiceRecorderKey = GlobalKey();
+  OverlayEntry? _voiceOverlayEntry;
+
+  bool get _isRecording => _voiceOverlayEntry != null;
+
+  @override
+  void dispose() {
+    _removeVoiceOverlay();
+    super.dispose();
+  }
+
+  void _showVoiceRecorder(Offset initialGlobalPosition) {
+    if (_voiceOverlayEntry != null) return;
+
+    _voiceOverlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Блокирует тапы по всему, что под оверлеем, пока идёт запись —
+          // раньше это пытался делать локальный Positioned.fill внутри
+          // Column инпут-бара, что не работало (Positioned требует Stack).
+          const Positioned.fill(child: AbsorbPointer(absorbing: true)),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: VoiceRecordOverlay(
+              key: _voiceRecorderKey,
+              onSend: (data) {
+                _removeVoiceOverlay();
+                widget.onSendVoiceMessage(data.file, data.durationSeconds);
+              },
+              onCancel: _removeVoiceOverlay,
+              onLock: (isLocked) {
+                // Тактильный отклик можно добавить здесь
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context, rootOverlay: true).insert(_voiceOverlayEntry!);
+    // Небольшая задержка, чтобы виджет успел отрисоваться перед первым вызовом
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _voiceRecorderKey.currentState?.startDrag(initialGlobalPosition);
+    });
+  }
+
+  void _removeVoiceOverlay() {
+    _voiceOverlayEntry?.remove();
+    _voiceOverlayEntry = null;
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
-    bool hasAnswer = _answerMessage != null;
-    final bool isInputAllowed = !_chat.isAnyBlocked && !_isReconnect;
+    bool hasAnswer = widget.answerMessage != null;
+    final bool isInputAllowed =
+        !widget.chat.isAnyBlocked && !widget.isReconnect;
 
     return Padding(
-      key: _inputKey,
+      key: widget.inputKey,
       padding: const EdgeInsets.fromLTRB(
         _kFloatingPanelMargin,
         0,
@@ -75,15 +129,15 @@ class ChatInputArea extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_hasEdit) _buildEditBanner(),
-          if (hasAnswer) _buildAnswerBanner(_answerMessage),
-          if (_hasEdit || hasAnswer) const SizedBox(height: 6),
-          if (attachments.isNotEmpty)
+          if (widget.hasEdit) _buildEditBanner(),
+          if (hasAnswer) _buildAnswerBanner(widget.answerMessage),
+          if (widget.hasEdit || hasAnswer) const SizedBox(height: 6),
+          if (widget.attachments.isNotEmpty)
             AttachmentContainer(
-              attachments: attachments,
-              hasBanner: _hasEdit || hasAnswer,
-              onRemove: onRemoveAttachment,
-              onUpdate: onUpdateAttachment,
+              attachments: widget.attachments,
+              hasBanner: widget.hasEdit || hasAnswer,
+              onRemove: widget.onRemoveAttachment,
+              onUpdate: widget.onUpdateAttachment,
             ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -91,7 +145,7 @@ class ChatInputArea extends StatelessWidget {
               if (isInputAllowed) ...[
                 GlassIconButton(
                   icon: CupertinoIcons.add,
-                  onTap: onPickAttachment,
+                  onTap: widget.onPickAttachment,
                   size: 36,
                 ),
                 const SizedBox(width: 10),
@@ -99,8 +153,8 @@ class ChatInputArea extends StatelessWidget {
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(_hasEdit ? 8 : 20),
-                    topRight: Radius.circular(_hasEdit ? 8 : 20),
+                    topLeft: Radius.circular(widget.hasEdit ? 8 : 20),
+                    topRight: Radius.circular(widget.hasEdit ? 8 : 20),
                     bottomLeft: const Radius.circular(20),
                     bottomRight: const Radius.circular(20),
                   ),
@@ -108,8 +162,8 @@ class ChatInputArea extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.lightGrey,
                       borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(_hasEdit ? 8 : 20),
-                        topRight: Radius.circular(_hasEdit ? 8 : 20),
+                        topLeft: Radius.circular(widget.hasEdit ? 8 : 20),
+                        topRight: Radius.circular(widget.hasEdit ? 8 : 20),
                         bottomLeft: const Radius.circular(20),
                         bottomRight: const Radius.circular(20),
                       ),
@@ -118,8 +172,8 @@ class ChatInputArea extends StatelessWidget {
                       ),
                     ),
                     child: CupertinoTextField(
-                      controller: _textController,
-                      focusNode: _inputFocusNode,
+                      controller: widget.textController,
+                      focusNode: widget.inputFocusNode,
                       readOnly: !isInputAllowed,
                       minLines: 1,
                       maxLines: 5,
@@ -134,7 +188,7 @@ class ChatInputArea extends StatelessWidget {
                         color: AppColors.greyple,
                       ),
                       style: AppText.mediumTextStyle.copyWith(
-                        color: _chat.isAnyBlocked
+                        color: widget.chat.isAnyBlocked
                             ? AppColors.white.withValues(alpha: 0.7)
                             : AppColors.white,
                       ),
@@ -145,32 +199,67 @@ class ChatInputArea extends StatelessWidget {
               ),
               if (isInputAllowed) ...[
                 const SizedBox(width: 10),
-                ValueListenableBuilder<bool>(
-                  valueListenable: _hasNeedSend,
-                  builder: (context, hasText, _) {
-                    return GlassIconButton(
-                      icon: _hasEdit
-                          ? CupertinoIcons.checkmark_alt
-                          : hasText
-                          ? CupertinoIcons.arrow_up
-                          : CupertinoIcons.mic_solid,
-                      filled: hasText || _hasEdit,
-                      onTap: () {
-                        final message = Message(
-                          text: _textController.value.text,
-                        );
-                        if (_hasEdit) {
-                          _onApplyEdit(message);
-                        } else if (hasText) {
-                          _onSendMessage(message);
-                        } else {
-                          // TODO: Логика записи голосового сообщения
-                        }
-                        _textController.clear();
-                      },
-                      size: 36,
+                // 🎯 GestureDetector теперь управляет всем циклом записи
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    final message = Message(
+                      text: widget.textController.value.text,
                     );
+                    if (widget.hasEdit) {
+                      widget.onApplyEdit(message);
+                    } else if (widget.hasNeedSend.value) {
+                      widget.onSendMessage(message);
+                    }
+                    widget.textController.clear();
                   },
+                  onLongPressStart: (details) {
+                    if (!widget.hasEdit && !widget.hasNeedSend.value) {
+                      _showVoiceRecorder(details.globalPosition);
+                    }
+                  },
+                  onLongPressMoveUpdate: (details) {
+                    if (_isRecording) {
+                      _voiceRecorderKey.currentState?.updateDrag(
+                        details.globalPosition,
+                      );
+                    }
+                  },
+                  onLongPressEnd: (details) {
+                    if (_isRecording) {
+                      _voiceRecorderKey.currentState?.endDrag();
+                    }
+                  },
+                  onLongPressCancel: () {
+                    if (_isRecording) {
+                      _voiceRecorderKey.currentState?.cancelDrag();
+                    }
+                  },
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: widget.hasNeedSend,
+                    builder: (context, hasText, _) {
+                      return GlassIconButton(
+                        icon: widget.hasEdit
+                            ? CupertinoIcons.checkmark_alt
+                            : hasText
+                            ? CupertinoIcons.arrow_up
+                            : CupertinoIcons.mic_solid,
+                        filled: hasText || widget.hasEdit,
+                        onTap: () {
+                          final message = Message(
+                            text: widget.textController.value.text,
+                          );
+                          if (widget.hasEdit) {
+                            widget.onApplyEdit(message);
+                          } else if (hasText) {
+                            widget.onSendMessage(message);
+                          }
+                          widget.textController.clear();
+                        },
+                        size: 36,
+                      );
+                    },
+                  ),
                 ),
               ],
             ],
@@ -184,39 +273,35 @@ class ChatInputArea extends StatelessWidget {
     return InputBannerTop(
       title: 'Редактирование сообщения',
       icon: CupertinoIcons.pencil,
-      onClose: _cancelBanner,
+      onClose: widget.cancelBanner,
     );
   }
 
-  Widget _buildAnswerBanner(Message message) {
-    final user = message.user;
-    if (user == null) {
-      return SizedBox.shrink();
+  Widget _buildAnswerBanner(Message? message) {
+    if (message?.user == null) {
+      return const SizedBox.shrink();
     }
 
     return InputBannerTop(
-      title: 'Ответ ${_answerMessage?.user?.displayName ?? ''}',
+      title: 'Ответ ${message!.user!.displayName ?? ''}',
       icon: CupertinoIcons.arrow_turn_up_left,
-      onClose: _cancelBanner,
+      onClose: widget.cancelBanner,
     );
   }
 
   String? getRestrictionMessage() {
-    String? displayName = _chat.user?.displayName;
+    String? displayName = widget.chat.user?.displayName;
 
-    if (_isReconnect) {
+    if (widget.isReconnect) {
       return "Соединение с сервером...";
     }
-
-    if (_chat.user?.onlyIBlocked == true) {
+    if (widget.chat.user?.onlyIBlocked == true) {
       return 'Вы заблокировали пользователя $displayName';
     }
-
-    if (_chat.user?.onlyTheyBlocked == true) {
+    if (widget.chat.user?.onlyTheyBlocked == true) {
       return 'Вас заблокировал пользователь $displayName';
     }
-
-    if (_chat.user?.bothBlocked == true) {
+    if (widget.chat.user?.bothBlocked == true) {
       return 'Вы и пользователь $displayName заблокировали друг друга';
     }
 

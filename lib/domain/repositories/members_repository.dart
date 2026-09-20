@@ -10,13 +10,14 @@ abstract class MembersRepository {
     EntityType entityType,
   );
 
-  Future<Either<Failure, bool>> update(
-    int entityId,
-    EntityType entityType,
+  Future<Either<Failure, bool>> update({
+    required int entityId,
+    required EntityType entityType,
+    int? chatId,
     int? lastIdReadMessage,
-    bool toggleMuted,
-    bool toggleFixed,
-  );
+    bool toggleMuted = false,
+    bool toggleFixed = false,
+  });
 
   Future<Either<Failure, bool>> leave(int entityId, EntityType entityType);
 

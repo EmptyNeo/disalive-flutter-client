@@ -1,6 +1,6 @@
 // lib/presentation/features/chat/bloc/chat_bloc.dart
 import 'dart:async';
-
+import 'dart:math' as math;
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
@@ -68,7 +68,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       action: ActionType.update,
       onData: (event) {
         final map = event.data['member'];
-        final entityId = event.data['entityId'];
+        final chatId = event.data['chatId'];
         final userId = event.data['userId'];
         final isSelf = event.data['isSelf'];
         final entityType = EntityType.fromString(event.data['entityType']);
@@ -77,7 +77,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           if (entityType == EntityType.chat) {
             add(
               UpdateMemberInChat(
-                chatId: entityId,
+                chatId: chatId,
                 userId: userId,
                 member: member,
                 isSelf: isSelf,
@@ -269,15 +269,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final message = event.message;
     final chatId = message.chatId ?? 0;
 
-    if (chatId == 0) return;
+    if (chatId == 0 && event.isSelf) return;
 
     final cachedChats = _chatRepository.getCached();
     final chatIndex = cachedChats.indexWhere((c) => c.id == chatId);
 
     if (chatIndex != -1) {
+      int newMessagesCount = cachedChats[chatIndex].newMessagesCount ?? 0;
       cachedChats[chatIndex] = cachedChats[chatIndex].copyWith(
         lastMessageTime: message.time,
         idLastMessage: message.id,
+        newMessagesCount: ++newMessagesCount,
       );
 
       // Сортируем чаты
@@ -300,13 +302,20 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     Chat updatedChat = chat;
 
     if (event.isSelf) {
+      final unreadCount = math.max(
+        0,
+        (chat.idLastMessage ?? 0) - (event.member.lastIdReadMessage ?? 0),
+      );
       final updatedCurrentMember = chat.member?.copyWith(
         muted: event.member.muted,
         fixed: event.member.fixed,
         orderFixed: event.member.orderFixed,
         lastIdReadMessage: event.member.lastIdReadMessage,
       );
-      updatedChat = chat.copyWith(member: updatedCurrentMember);
+      updatedChat = chat.copyWith(
+        member: updatedCurrentMember,
+        newMessagesCount: math.max(0, unreadCount),
+      );
     } else {
       if (chat.members != null && chat.members!.isNotEmpty) {
         final memberIndex = chat.members!.indexWhere(
