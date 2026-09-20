@@ -1,5 +1,6 @@
 // lib/presentation/features/chat/chat_screen.dart
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
@@ -72,7 +73,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ValueNotifier<bool> _hasNeedSend = ValueNotifier(false);
   final FocusNode _inputFocusNode = FocusNode();
   List<ChatAttachment> _attachments = [];
-  List<ChatAttachment> _deletedAttachments = [];
+  final List<ChatAttachment> _deletedAttachments = [];
   int? _editingMessageId;
   Message? _answerMessage;
   bool isReconnect = false;
@@ -124,12 +125,25 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _loadInitial() {
+    final originalLastIdRead = widget.chat.member?.lastIdReadMessage ?? 0;
+    final lastReadId = math.max(
+      0,
+      (widget.chat.member?.lastIdReadMessage ?? 0) - 2,
+    );
+    final lastMessageId = widget.chat.idLastMessage ?? 0;
+
+    final hasUnread =
+        originalLastIdRead > 0 && lastMessageId > originalLastIdRead;
+    final initialAroundId = hasUnread ? lastReadId : null;
+
     _messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
         entityId: widget.chat.id,
         entityType: EntityType.chat,
         lastIdMessage: 0,
+        aroundId: initialAroundId,
+        limit: 25,
       ),
     );
   }
@@ -202,6 +216,8 @@ class _ChatScreenState extends State<ChatScreen> {
                           chatBloc: _chatBloc,
                           chat: _currentChat,
                           currentUserId: _currentUserId,
+                          initialAroundId:
+                              _currentChat.member?.lastIdReadMessage ?? 0,
                           inputReserve: _inputReserve,
                           onSendMessage: _onSendMessage,
                           onEditMessage: _onEditMessage,
@@ -280,6 +296,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             (_) => _measureInput(),
                           );
                         },
+                        onSendVoiceMessage: _onSendVoiceMessage,
                       ),
                     ),
                   ],
@@ -356,24 +373,50 @@ class _ChatScreenState extends State<ChatScreen> {
     final metaNewFiles = <MetaFileMessage>[];
     final newFilesList = <File>[];
 
-    int fileIndex = 0;
-    for (final att in _attachments) {
-      if (att.isNew && !att.isDeleted) {
-        newFilesList.add(att.file!);
-        metaNewFiles.add(
-          MetaFileMessage(
-            index: fileIndex,
-            duration: att.duration,
-            isSpoiler: att.isSpoiler,
-            deleted: false,
-            changed: false,
-          ),
-        );
-        fileIndex++;
+    if (message.attachments != null && message.attachments!.isNotEmpty) {
+      for (int i = 0; i < message.attachments!.length; i++) {
+        final att = message.attachments![i];
+        if (att.pathFile != null && att.pathFile!.isNotEmpty) {
+          final file = File(att.pathFile!);
+          if (file.existsSync()) {
+            newFilesList.add(file);
+            metaNewFiles.add(
+              MetaFileMessage(
+                index: i,
+                duration: att.duration,
+                isSpoiler: att.isSpoiler == 1,
+                deleted: false,
+                changed: false,
+              ),
+            );
+          }
+        }
+      }
+    }
+    // 🎯 2. Иначе берем файлы из текущего состояния _attachments (стандартная новая отправка)
+    else {
+      int fileIndex = 0;
+      for (final att in _attachments) {
+        if (att.isNew && !att.isDeleted) {
+          newFilesList.add(att.file!);
+          metaNewFiles.add(
+            MetaFileMessage(
+              index: fileIndex,
+              duration: att.duration,
+              isSpoiler: att.isSpoiler,
+              deleted: false,
+              changed: false,
+            ),
+          );
+          fileIndex++;
+        }
       }
     }
 
-    final localAttachments = convertFilesToAttachments(_attachments);
+    final localAttachments =
+        (message.attachments != null && message.attachments!.isNotEmpty)
+        ? message.attachments!
+        : convertFilesToAttachments(_attachments);
 
     final localMessage = Message(
       localGeneratedId: localGeneratedId,
@@ -381,11 +424,12 @@ class _ChatScreenState extends State<ChatScreen> {
       userId: _currentUserId,
       text: message.text,
       time: DateTime.now().toUtc().toString(),
-      answerMessageId: _answerMessage?.getId,
-      answerMessage: _answerMessage,
+      answerMessageId: message.answerMessageId ?? _answerMessage?.getId,
+      answerMessage: message.answerMessage ?? _answerMessage,
       attachments: localAttachments.isEmpty ? null : localAttachments,
       newFiles: newFilesList.isEmpty ? null : newFilesList,
       metaNewFilesMessage: metaNewFiles.isEmpty ? null : metaNewFiles,
+      user: sl<UserRepository>().getCurrentUser(),
     );
 
     _messageBloc.add(
@@ -439,6 +483,70 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
   }
 
+  void _onSendVoiceMessage(File file, double durationSeconds) {
+    var localGeneratedId = IdGenerator.generateId();
+    final bytes = file.lengthSync();
+    final (sizeVal, sizeUnit) = UtilFile.getFileSizeAndUnit(bytes);
+
+    // 🎯 1. Формируем списки для отправки на сервер (как мы делали с обычными файлами)
+    final newFilesList = <File>[file];
+    final metaNewFilesList = <MetaFileMessage>[
+      MetaFileMessage(
+        index: 0,
+        name: "Голосовое сообщение.m4a",
+        duration: durationSeconds,
+        isSpoiler: false,
+        deleted: false,
+        changed: false,
+      ),
+    ];
+
+    // 🎯 2. Создаем локальное сообщение для мгновенного отображения в чате
+    final localMessage = Message(
+      localGeneratedId: localGeneratedId,
+      chatId: widget.chat.id,
+      userId: _currentUserId,
+      text: '',
+      time: DateTime.now().toUtc().toString(),
+      answerMessageId: _answerMessage?.getId,
+      answerMessage: _answerMessage,
+      attachments: [
+        FileMessage(
+          id: -1,
+          messageId: null,
+          pathFile: file.path,
+          originalName: 'Голосовое сообщение.m4a',
+          size: sizeVal,
+          unit: sizeUnit,
+          fileType: FileType.audio,
+          contentType: FileContentType.voice,
+          duration: durationSeconds,
+          isSpoiler: 0,
+        ),
+      ],
+      newFiles: newFilesList,
+      metaNewFilesMessage: metaNewFilesList,
+    );
+
+    _messageBloc.add(
+      CreateMessage(
+        chatId: widget.chat.id,
+        entityId: widget.chat.id,
+        entityType: EntityType.chat,
+        localGeneratedId: localGeneratedId,
+        message: localMessage,
+      ),
+    );
+
+    if (_answerMessage != null) {
+      _cancelBanner();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messagesListKey.currentState?.scrollToBottom(animated: true);
+    });
+  }
+
   void _clearAllAttachments() {
     setState(() {
       _attachments.clear();
@@ -478,6 +586,7 @@ class _ChatScreenState extends State<ChatScreen> {
         metaNewFiles.add(
           MetaFileMessage(
             index: fileIndex,
+            name: att.name,
             duration: att.duration,
             isSpoiler: att.isSpoiler,
             deleted: false,
@@ -489,6 +598,7 @@ class _ChatScreenState extends State<ChatScreen> {
         metaCurrentFiles.add(
           MetaFileMessage(
             id: att.id,
+            name: att.name,
             duration: att.duration,
             isSpoiler: att.isSpoiler,
             deleted: att.isDeleted,

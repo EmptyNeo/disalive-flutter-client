@@ -37,6 +37,8 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
   _DragState _dragState = _DragState.none;
   bool _showLockIndicator = false;
   bool _showCancelIndicator = false;
+
+  Offset? _startDragPosition;
   double _dragOffsetX = 0.0;
   double _dragOffsetY = 0.0;
 
@@ -157,7 +159,10 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
-  void _handleDragStart(DragStartDetails details) {
+  // 🎯 ПУБЛИЧНЫЕ МЕТОДЫ ДЛЯ УПРАВЛЕНИЯ ИЗВНЕ
+
+  void startDrag(Offset localPosition) {
+    _startDragPosition = localPosition;
     setState(() {
       _dragOffsetX = 0.0;
       _dragOffsetY = 0.0;
@@ -167,33 +172,44 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
     });
   }
 
-  void _handleDragUpdate(DragUpdateDetails details) {
+  void updateDrag(Offset localPosition) {
+    if (_startDragPosition == null) return;
+
     setState(() {
-      _dragOffsetX += details.delta.dx;
-      _dragOffsetY += details.delta.dy;
+      _dragOffsetX = localPosition.dx - _startDragPosition!.dx;
+      _dragOffsetY = localPosition.dy - _startDragPosition!.dy;
 
       if (_dragOffsetX < -60) {
-        _showCancelIndicator = true;
-        _dragState = _DragState.cancel;
-        _slideCancelController.forward();
-      } else if (_dragOffsetX > -60) {
-        _showCancelIndicator = false;
-        _slideCancelController.reverse();
+        if (_dragState != _DragState.cancel) {
+          _dragState = _DragState.cancel;
+          _showCancelIndicator = true;
+          _showLockIndicator = false;
+          _slideCancelController.forward();
+        }
+      } else {
+        if (_dragState == _DragState.cancel) {
+          _dragState = _DragState.none;
+          _showCancelIndicator = false;
+          _slideCancelController.reverse();
+        }
 
         if (_dragOffsetY < -80) {
-          _showLockIndicator = true;
-          _dragState = _DragState.lock;
-        } else if (_dragOffsetY > -80) {
-          _showLockIndicator = false;
+          if (_dragState != _DragState.lock) {
+            _dragState = _DragState.lock;
+            _showLockIndicator = true;
+          }
+        } else {
           if (_dragState == _DragState.lock) {
             _dragState = _DragState.none;
+            _showLockIndicator = false;
           }
         }
       }
     });
   }
 
-  void _handleDragEnd(DragEndDetails details) {
+  void endDrag() {
+    _startDragPosition = null;
     if (_isLocked) return;
 
     if (_dragState == _DragState.lock) {
@@ -214,25 +230,21 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
       setState(() {
         _showLockIndicator = false;
         _showCancelIndicator = false;
+        _dragState = _DragState.none;
       });
     }
+  }
 
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) {
-        setState(() {
-          _dragState = _DragState.none;
-        });
-      }
-    });
+  void cancelDrag() {
+    _startDragPosition = null;
+    _handleCancel();
   }
 
   void send() async {
     final path = await _stopRecording();
-
     if (path != null) {
       final file = File(path);
       final durationSeconds = await AudioDuration.getDurationInSeconds(file);
-
       widget.onSend((file: file, durationSeconds: durationSeconds));
     } else {
       widget.onCancel();
@@ -268,37 +280,61 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
 
   @override
   Widget build(BuildContext context) {
-    // 🎯 Убран Material, возвращаем сразу прозрачный контейнер с жестами
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      child: _isLocked ? _buildLockedUI(context) : _buildRecordingUI(context),
-    );
+    return _isLocked ? _buildLockedUI(context) : _buildRecordingUI(context);
   }
 
   Widget _buildRecordingUI(BuildContext context) {
-    return GestureDetector(
-      onHorizontalDragStart: _handleDragStart,
-      onVerticalDragStart: _handleDragStart,
-      onHorizontalDragUpdate: _handleDragUpdate,
-      onVerticalDragUpdate: _handleDragUpdate,
-      onHorizontalDragEnd: _handleDragEnd,
-      onVerticalDragEnd: _handleDragEnd,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ClipPath(
-            clipper: CircularTopNotchClipper(),
-            child: Container(
-              height: 100,
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              color: AppColors.blurple,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 35),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 5),
-                    Container(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ClipPath(
+          clipper: CircularTopNotchClipper(),
+          child: Container(
+            height: 100,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            color: AppColors.blurple,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 35),
+              child: Row(
+                children: [
+                  const SizedBox(width: 5),
+                  Container(
+                    height: 40,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.white.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      children: [
+                        AnimatedOpacity(
+                          opacity: _showCancelIndicator ? 1.0 : 0.6,
+                          duration: const Duration(milliseconds: 200),
+                          child: SlideTransition(
+                            position: _slideCancelAnimation,
+                            child: Icon(
+                              CupertinoIcons.back,
+                              color: AppColors.onBlurple,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                        AnimatedOpacity(
+                          opacity: _showCancelIndicator ? 1.0 : 0.6,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            CupertinoIcons.delete,
+                            color: AppColors.onBlurple,
+                            size: 26,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
                       height: 40,
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -307,181 +343,141 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
                       ),
                       child: Row(
                         children: [
-                          AnimatedOpacity(
-                            opacity: _showCancelIndicator ? 1.0 : 0.6,
-                            duration: const Duration(milliseconds: 200),
-                            child: SlideTransition(
-                              position: _slideCancelAnimation,
-                              child: Icon(
-                                CupertinoIcons.back, // 🎯 Cupertino иконка
-                                color: AppColors.onBlurple,
-                                size: 16,
-                              ),
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: AppColors.red,
+                              shape: BoxShape.circle,
                             ),
                           ),
-                          AnimatedOpacity(
-                            opacity: _showCancelIndicator ? 1.0 : 0.6,
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              CupertinoIcons.delete, // 🎯 Cupertino иконка
+                          const SizedBox(width: 4),
+                          Text(
+                            _formatTime(_recordSeconds),
+                            style: AppText.mediumTextStyle.copyWith(
                               color: AppColors.onBlurple,
-                              size: 26,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          Expanded(child: _buildWaveform()),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Row(
-                          children: [
-                            // 🎯 Заменен Icons.square на Cupertino-совместимый Container
-                            Container(
-                              width: 10,
-                              height: 10,
-                              decoration: const BoxDecoration(
-                                color: AppColors.red,
-                                shape: BoxShape
-                                    .circle, // Или BorderRadius.circular(2) для квадрата
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              _formatTime(_recordSeconds),
-                              style: AppText.mediumTextStyle.copyWith(
-                                color: AppColors.onBlurple,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(child: _buildWaveform()),
-                          ],
-                        ),
+                  ),
+                  CupertinoButton(
+                    padding: const EdgeInsets.all(8),
+                    minSize: 0,
+                    onPressed: send,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withValues(alpha: 0.3),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        CupertinoIcons.up_arrow,
+                        color: AppColors.onBlurple,
+                        size: 24,
                       ),
                     ),
-                    // 🎯 Заменен IconButton на CupertinoButton
-                    CupertinoButton(
-                      padding: const EdgeInsets.all(8),
-                      minSize: 0,
-                      onPressed: send,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.white.withValues(alpha: 0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          CupertinoIcons.up_arrow,
-                          // Или CupertinoIcons.arrow_up
-                          color: AppColors.onBlurple,
-                          size: 24,
-                        ),
-                      ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_showLockIndicator)
+          Positioned(
+            right: 20,
+            bottom: 85,
+            child: GestureDetector(
+              onTap: _handleLockToggle,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      CupertinoIcons.up_arrow,
+                      color: AppColors.onBlurple,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 8),
+                    Icon(
+                      CupertinoIcons.lock,
+                      color: AppColors.onBlurple,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          Positioned(
+            right: 20,
+            bottom: 80,
+            child: GestureDetector(
+              onTap: _handleLockToggle,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: CupertinoColors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      CupertinoIcons.up_arrow,
+                      color: AppColors.onBlurple,
+                      size: 20,
+                    ),
+                    const SizedBox(height: 8),
+                    Icon(
+                      CupertinoIcons.lock_open,
+                      color: AppColors.onBlurple,
+                      size: 24,
                     ),
                   ],
                 ),
               ),
             ),
           ),
-          if (_showLockIndicator)
-            Positioned(
-              right: 20,
-              bottom: 85,
-              child: GestureDetector(
-                onTap: _handleLockToggle,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        CupertinoIcons.up_arrow,
-                        color: AppColors.onBlurple,
-                        size: 20,
-                      ),
-                      const SizedBox(height: 8),
-                      Icon(
-                        CupertinoIcons.lock,
-                        color: AppColors.onBlurple,
-                        size: 24,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            Positioned(
-              right: 20,
-              bottom: 80,
-              child: GestureDetector(
-                onTap: _handleLockToggle,
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(50),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        CupertinoIcons.up_arrow,
-                        color: AppColors.onBlurple,
-                        size: 20,
-                      ),
-                      const SizedBox(height: 8),
-                      Icon(
-                        CupertinoIcons.lock_open,
-                        color: AppColors.onBlurple,
-                        size: 24,
-                      ),
-                    ],
-                  ),
+        if (_dragState != _DragState.none)
+          Positioned(
+            top: 25,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                _dragState == _DragState.cancel
+                    ? 'Отменить запись'
+                    : 'Заблокировать',
+                style: AppText.mediumTextStyle.copyWith(
+                  color: AppColors.onBlurple,
                 ),
               ),
             ),
-          if (_dragState != _DragState.none)
-            Positioned(
-              top: 25,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  _dragState == _DragState.cancel
-                      ? 'Отменить запись'
-                      : 'Заблокировать',
-                  style: AppText.mediumTextStyle.copyWith(
-                    color: AppColors.onBlurple,
-                  ),
+          ),
+        if (_dragState == _DragState.none)
+          Positioned(
+            top: 25,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                "Отпустите, чтобы отправить",
+                style: AppText.mediumTextStyle.copyWith(
+                  color: AppColors.onBlurple,
                 ),
               ),
             ),
-          if (_dragState == _DragState.none)
-            Positioned(
-              top: 25,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  "Отпустите, чтобы отправить",
-                  style: AppText.mediumTextStyle.copyWith(
-                    color: AppColors.onBlurple,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -497,7 +493,6 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
           padding: const EdgeInsets.only(top: 35),
           child: Row(
             children: [
-              // 🎯 Заменен IconButton на CupertinoButton
               CupertinoButton(
                 padding: const EdgeInsets.all(6),
                 minSize: 0,
@@ -616,38 +611,6 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
       },
     );
   }
-
-  void updateManualDrag(Offset localPosition) {
-    setState(() {
-      _dragOffsetX = localPosition.dx;
-      _dragOffsetY = localPosition.dy;
-
-      if (_dragOffsetX < -60) {
-        if (_dragState != _DragState.cancel) {
-          _dragState = _DragState.cancel;
-          _showCancelIndicator = true;
-          _showLockIndicator = false;
-          _slideCancelController.forward();
-        }
-      } else if (_dragOffsetY < -80) {
-        if (_dragState != _DragState.lock) {
-          _dragState = _DragState.lock;
-          _showLockIndicator = true;
-          _showCancelIndicator = false;
-          _slideCancelController.reverse();
-        }
-      } else {
-        _dragState = _DragState.none;
-        _showCancelIndicator = false;
-        _showLockIndicator = false;
-        _slideCancelController.reverse();
-      }
-    });
-  }
-
-  void finishManualDrag() {
-    _handleDragEnd(DragEndDetails());
-  }
 }
 
 class CircularTopNotchClipper extends CustomClipper<Path> {
@@ -659,9 +622,7 @@ class CircularTopNotchClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     final path = Path();
-
     path.moveTo(0, cornerHeight);
-
     path.cubicTo(
       size.width * 0.1,
       cornerHeight - notchDepth,
@@ -670,11 +631,9 @@ class CircularTopNotchClipper extends CustomClipper<Path> {
       size.width,
       cornerHeight,
     );
-
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
-
     return path;
   }
 

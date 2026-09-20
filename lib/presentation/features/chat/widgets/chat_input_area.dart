@@ -106,9 +106,10 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   }
 
   void _removeVoiceOverlay() {
-    _voiceOverlayEntry?.remove();
-    _voiceOverlayEntry = null;
-    if (mounted) setState(() {});
+    if (_voiceOverlayEntry != null) {
+      _voiceOverlayEntry!.remove();
+      _voiceOverlayEntry = null;
+    }
   }
 
   @override

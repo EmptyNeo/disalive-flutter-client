@@ -115,6 +115,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     );
   }
 
+  List<Message> _ensureDescendingOrder(List<Message> messages) {
+    final sorted = List<Message>.from(messages);
+    sorted.sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
+    return sorted;
+  }
+
   Future<void> _onGetMessages(
     GetMessages event,
     Emitter<MessageState> emit,
@@ -125,51 +131,123 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         event.newerThanId == null &&
         event.searchQuery == null;
 
+    final bool isAroundLoad = event.aroundId != null;
     final bool isNewerLoad = event.newerThanId != null;
     final bool isOlderLoad = event.lastIdMessage > 0;
 
-    if (isInitialLoad) {
+    if (isInitialLoad || isAroundLoad) {
       emit(MessageLoading());
-      final cachedResponse = _messageRepository.getCached(event.chatId);
-      if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
-        emit(
-          MessageLoaded(
-            messages: cachedResponse.messages,
-            actions: cachedResponse.actions,
-            hasMoreMessages: cachedResponse.messages.isNotEmpty,
-            isLoadingMore: false,
-            isLoadingNewer: false,
-          ),
-        );
-        return;
-      }
-    } else {
-      final currentState = state;
-      if (currentState is MessageLoaded) {
-        final cached = _messageRepository.getCached(event.chatId);
-        if (cached != null && cached.messages.isNotEmpty) {
-          final oldestId = event.lastIdMessage;
 
-          final olderMessages =
-              cached.messages
-                  .where((m) => (m.id ?? 0) < oldestId && (m.id ?? 0) > 0)
-                  .toList()
-                ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
+      // 🎯 1. ЖЕСТКОЕ ОГРАНИЧЕНИЕ ДЛЯ КЭША ПРИ aroundId
+      if (isAroundLoad) {
+        final cachedResponse = _messageRepository.getCached(event.chatId);
+        if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
+          // Пытаемся найти aroundId в кэше
+          final aroundIndex = cachedResponse.messages.indexWhere(
+            (m) => m.id == event.aroundId,
+          );
 
-          if (olderMessages.isNotEmpty) {
-            final mergedMessages = [...currentState.messages, ...olderMessages];
-            final uniqueMessages = _removeDuplicates(mergedMessages);
+          if (aroundIndex != -1) {
+            // 🎯 ДЕЛАЕМ СРЕЗ (WINDOW) ИЗ КЭША!
+            // Берём не более event.limit сообщений вокруг aroundId.
+            // Так как список отсортирован DESC, "новее" = меньшие индексы, "старше" = большие.
+            final halfLimit = event.limit ~/ 2;
+            final start = (aroundIndex - halfLimit).clamp(
+              0,
+              cachedResponse.messages.length,
+            );
+            final end = (aroundIndex + halfLimit + 1).clamp(
+              0,
+              cachedResponse.messages.length,
+            );
+
+            final slicedMessages = cachedResponse.messages.sublist(start, end);
 
             emit(
               MessageLoaded(
-                messages: uniqueMessages,
-                actions: currentState.actions,
+                messages: slicedMessages,
+                // Эмитим ТОЛЬКО срез, а не все 50+ сообщений!
+                actions: cachedResponse.actions,
+                hasMoreMessages: true,
+                // Всегда true, так как мы показали только часть
                 isLoadingMore: false,
                 isLoadingNewer: false,
-                hasMoreMessages: true,
               ),
             );
-            return;
+            return; // Прерываем, на сервер идти не нужно, у нас уже есть нужный диапазон
+          }
+        }
+      }
+
+      // Если это isInitialLoad или aroundId не найден в кэше, идём на сервер
+      final result = await _messageRepository.get(
+        event.chatId,
+        event.entityId,
+        event.entityType,
+        event.limit,
+        event.lastIdMessage,
+        event.aroundId,
+        event.newerThanId,
+        event.searchQuery,
+      );
+
+      result.fold(
+        (failure) {
+          emit(MessageFailure(failure));
+        },
+        (response) {
+          final serverMessages = _ensureDescendingOrder(response.messages);
+
+          // 🎯 2. ЖЕСТКОЕ ОГРАНИЧЕНИЕ ДЛЯ ОТВЕТА СЕРВЕРА
+          // Даже если сервер по какой-то ошибке вернул больше, чем limit,
+          // мы обрежем список, чтобы не сломать расчёт скролла в ListView.
+          final limitedServerMessages = serverMessages.length > event.limit
+              ? serverMessages.sublist(0, event.limit)
+              : serverMessages;
+
+          _messageRepository.cacheMessages(event.chatId, limitedServerMessages);
+
+          emit(
+            MessageLoaded(
+              messages: limitedServerMessages,
+              actions: response.actions,
+              hasMoreMessages: limitedServerMessages.isNotEmpty,
+              isLoadingMore: false,
+              isLoadingNewer: false,
+            ),
+          );
+          return;
+        },
+      );
+    } else {
+      // Логика для isNewerLoad и isOlderLoad (пагинация) остаётся без изменений
+      final currentState = state;
+      if (currentState is MessageLoaded) {
+        if (isOlderLoad) {
+          final cached = _messageRepository.getCached(event.chatId);
+          if (cached != null && cached.messages.isNotEmpty) {
+            final olderMessages =
+                cached.messages
+                    .where(
+                      (m) =>
+                          (m.id ?? 0) < event.lastIdMessage && (m.id ?? 0) > 0,
+                    )
+                    .toList()
+                  ..sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
+
+            if (olderMessages.isNotEmpty) {
+              final merged = [...currentState.messages, ...olderMessages];
+              emit(
+                MessageLoaded(
+                  messages: _removeDuplicates(merged),
+                  actions: currentState.actions,
+                  isLoadingMore: false,
+                  isLoadingNewer: false,
+                  hasMoreMessages: true,
+                ),
+              );
+              return;
+            }
           }
         }
 
@@ -181,87 +259,91 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             isLoadingNewer: isNewerLoad,
           ),
         );
+      } else {
+        emit(MessageLoading());
       }
-    }
 
-    final result = await _messageRepository.get(
-      event.chatId,
-      event.entityId,
-      event.entityType,
-      event.limit,
-      event.lastIdMessage,
-      event.aroundId,
-      event.newerThanId,
-      event.searchQuery,
-    );
+      final result = await _messageRepository.get(
+        event.chatId,
+        event.entityId,
+        event.entityType,
+        event.limit,
+        event.lastIdMessage,
+        event.aroundId,
+        event.newerThanId,
+        event.searchQuery,
+      );
 
-    result.fold(
-      (failure) {
-        if (state is! MessageLoaded) {
-          emit(MessageFailure(failure));
-        } else {
-          final currentState = state as MessageLoaded;
-          emit(
-            MessageLoaded(
-              messages: currentState.messages,
-              actions: currentState.actions,
-              isLoadingMore: false,
-              isLoadingNewer: false,
-            ),
-          );
-        }
-      },
-      (response) {
-        if (isInitialLoad) {
-          _messageRepository.cacheMessages(event.chatId, response.messages);
-
-          emit(
-            MessageLoaded(
-              messages: response.messages,
-              actions: response.actions,
-              hasMoreMessages: response.messages.isNotEmpty,
-              isLoadingMore: false,
-              isLoadingNewer: false,
-            ),
-          );
-        } else {
-          final currentState = state;
-          if (currentState is MessageLoaded) {
-            if (response.messages.isEmpty) {
-              emit(
-                MessageLoaded(
-                  messages: currentState.messages,
-                  actions: currentState.actions,
-                  isLoadingMore: false,
-                  isLoadingNewer: false,
-                ),
-              );
-              return;
-            }
-
-            final mergedMessages = [
-              ...currentState.messages,
-              ...response.messages,
-            ];
-            final uniqueMessages = _removeDuplicates(mergedMessages);
-
-            _messageRepository.cacheMessages(event.chatId, uniqueMessages);
-
+      result.fold(
+        (failure) {
+          if (state is! MessageLoaded) {
+            emit(MessageFailure(failure));
+          } else {
+            final currentState = state as MessageLoaded;
             emit(
               MessageLoaded(
-                messages: uniqueMessages,
+                messages: currentState.messages,
+                actions: currentState.actions,
+                isLoadingMore: false,
+                isLoadingNewer: false,
+              ),
+            );
+          }
+        },
+        (response) {
+          final serverMessages = _ensureDescendingOrder(response.messages);
+          final currentState = state;
+
+          if (currentState is! MessageLoaded) {
+            _messageRepository.cacheMessages(event.chatId, serverMessages);
+            emit(
+              MessageLoaded(
+                messages: serverMessages,
+                actions: response.actions,
+                hasMoreMessages: serverMessages.isNotEmpty,
+                isLoadingMore: false,
+                isLoadingNewer: false,
+              ),
+            );
+            return;
+          }
+
+          if (serverMessages.isEmpty) {
+            emit(
+              MessageLoaded(
+                messages: currentState.messages,
                 actions: currentState.actions,
                 isLoadingMore: false,
                 isLoadingNewer: false,
                 hasMoreMessages: isNewerLoad
                     ? currentState.hasMoreMessages
-                    : (response.messages.length >= event.limit),
+                    : false,
               ),
             );
+            return;
           }
-        }
-      },
-    );
+
+          final mergedMessages = isNewerLoad
+              ? [...serverMessages, ...currentState.messages]
+              : [...currentState.messages, ...serverMessages];
+
+          final uniqueMessages = _removeDuplicates(mergedMessages);
+          _messageRepository.cacheMessages(event.chatId, uniqueMessages);
+
+          emit(
+            MessageLoaded(
+              messages: uniqueMessages,
+              actions: currentState.actions,
+              isLoadingMore: false,
+              isLoadingNewer: false,
+              hasMoreMessages: isNewerLoad
+                  ? currentState.hasMoreMessages
+                  : (serverMessages.length >= event.limit),
+            ),
+          );
+        },
+      );
+    }
   }
 
   Future<void> _onCreateMessage(
