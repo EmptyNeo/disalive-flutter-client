@@ -243,7 +243,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                   actions: currentState.actions,
                   isLoadingMore: false,
                   isLoadingNewer: false,
-                  hasMoreMessages: true,
+                  hasMoreMessages: currentState.hasMoreMessages,
                 ),
               );
               return;

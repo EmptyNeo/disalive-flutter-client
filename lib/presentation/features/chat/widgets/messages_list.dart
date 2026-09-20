@@ -6,12 +6,12 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/domain/models/entity_key.dart'; // 🎯 Добавлено
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
-import 'package:disalive/domain/repositories/members_repository.dart'; // 🎯 Добавлено
+import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
@@ -105,7 +105,6 @@ class MessagesListState extends State<MessagesList> {
     _readDebounceTimer?.cancel(); // 🎯 Очищаем таймер
     super.dispose();
   }
-
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final state = widget.messageBloc.state;
@@ -113,13 +112,18 @@ class MessagesListState extends State<MessagesList> {
     if (state.isLoadingMore || state.isLoadingNewer) return;
 
     final position = _scrollController.position;
-    //добавлен delay, чтобы скролл к разделителю успел сработать
+
     Future.delayed(const Duration(milliseconds: 200), () {
+      if (!mounted || !_scrollController.hasClients) return;
+
       if (position.pixels >= position.maxScrollExtent - _kLoadMoreThreshold) {
-        _loadMore(state.messages);
+        if (state.hasMoreMessages) {
+          _loadMore(state.messages);
+        }
       } else if (position.pixels <= _kLoadMoreThreshold) {
         _loadNewer(state.messages);
       }
+
       _scheduleReadTracking();
     });
   }

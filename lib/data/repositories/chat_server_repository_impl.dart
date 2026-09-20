@@ -1,4 +1,3 @@
-// lib/data/repositories/chat_server_repository_impl.dart
 import 'dart:async';
 import 'dart:convert';
 
@@ -20,8 +19,12 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   String? _currentToken;
   Timer? _reconnectTimer;
+  Timer? _pingTimer; // 🎯 Таймер для Ping-Pong
   int _retryAttempts = 0;
   bool _isManualDisconnect = false;
+
+  DateTime _lastMessageTime =
+      DateTime.now(); // 🎯 Для обнаружения тихого обрыва
 
   final _statusController = StreamController<WsConnectionStatus>.broadcast();
 
@@ -48,9 +51,9 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   Future<Either<Failure, void>> _attemptConnection() async {
     _statusController.add(WsConnectionStatus.connecting);
-    // Отменяем предыдущий таймер переподключения, если он был
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _pingTimer?.cancel(); // 🎯 Сбрасываем старый таймер пинга, если он был
 
     try {
       final tokenResult = await _wsRepository.getToken();
@@ -67,7 +70,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       }
 
       final freshToken = tokenResult.fold((l) => '', (r) => r);
-
       _currentToken = freshToken;
 
       const wsUrl = 'wss://disalive.ru:8081';
@@ -84,6 +86,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       );
 
       _setupStreamListener();
+      _startPingTimer(); // 🎯 Запускаем таймер пинга после успешного подключения
 
       _statusController.add(WsConnectionStatus.connected);
       return const Right(null);
@@ -95,9 +98,39 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     }
   }
 
+  // 🎯 Логика Ping-Pong и обнаружения тихого обрыва
+  void _startPingTimer() {
+    _lastMessageTime = DateTime.now();
+
+    // Отправляем пинг каждые 30 секунд. Это оптимальный интервал для мобильных сетей.
+    _pingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (_channel == null) {
+        timer.cancel();
+        return;
+      }
+
+      final now = DateTime.now();
+      // Если мы не получали НИКАКИХ сообщений (включая Pong или обычные сообщения) более 90 секунд,
+      // считаем соединение мертвым ("тихий обрыв") и инициируем переподключение.
+      if (now.difference(_lastMessageTime).inSeconds > 90) {
+        print(
+          '⚠️ WebSocket silent drop detected (no messages for 90s). Reconnecting...',
+        );
+        _handleDisconnect();
+        return;
+      }
+
+      // Отправляем Ping
+      send({'nameAction': 'Ping'});
+    });
+  }
+
   void _setupStreamListener() {
     _subscription = _channel!.stream.listen(
       (message) {
+        // 🎯 Обновляем время последнего полученного сообщения
+        _lastMessageTime = DateTime.now();
+
         try {
           final data = jsonDecode(message as String);
           if (data is Map<String, dynamic>) {
@@ -120,11 +153,15 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   void _handleDisconnect() {
     _statusController.add(WsConnectionStatus.disconnected);
+
+    // 🎯 Очищаем таймеры при разрыве соединения
+    _pingTimer?.cancel();
+    _pingTimer = null;
+
     _channel = null;
     _subscription?.cancel();
     _subscription = null;
 
-    // Если это не было вызвано методом disconnect(), пытаемся переподключиться
     if (!_isManualDisconnect && _currentToken != null) {
       _scheduleReconnect();
     }
@@ -133,7 +170,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _scheduleReconnect() {
     if (_isManualDisconnect) return;
 
-    // Экспоненциальная задержка: 1с, 2с, 4с, 8с, 12с, максимум 12 секунд
     final delaySeconds = (1 << _retryAttempts).clamp(1, 12);
     _retryAttempts++;
 
@@ -162,8 +198,13 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void disconnect() {
     _statusController.add(WsConnectionStatus.disconnected);
     _isManualDisconnect = true;
+
+    // 🎯 Очищаем таймеры при ручном отключении
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _pingTimer?.cancel();
+    _pingTimer = null;
+
     _subscription?.cancel();
     _subscription = null;
     _channel?.sink.close();
