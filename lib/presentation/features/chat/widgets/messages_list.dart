@@ -49,9 +49,7 @@ class MessagesList extends StatefulWidget {
   final VoidCallback? onFocusInput;
   final VoidCallback? onUnfocusInput;
 
-  final Map<dynamic, GlobalKey> messageKeys = {};
-
-  MessagesList({
+  const MessagesList({
     super.key,
     required this.messageBloc,
     required this.chatBloc,
@@ -79,8 +77,22 @@ class MessagesListState extends State<MessagesList> {
   bool _isUpdatingRead = false;
   bool _hasMarkedInitialUnread = false;
   int? _fixedSeparatorId;
-  String? _anchorMessageId;
-  bool _isSchedulingScroll = false;
+  Timer? _timeForNextSetState;
+
+  int? _highlightedMessageId;
+  Timer? _highlightTimer;
+
+  // 🎯 ИСПРАВЛЕНИЕ 1: Ключи должны жить в State, а не в виджете!
+  final Map<dynamic, GlobalKey> _messageKeys = {};
+
+  Object? _anchorMessageKeyBeforeLoad;
+
+  Object? _keyOf(Message m) => m.id ?? m.localGeneratedId;
+
+  bool _newerBatchPending = false;
+
+  static const double _kBottomThreshold = 200.0;
+  bool _isAtBottom = false;
 
   @override
   void initState() {
@@ -95,6 +107,7 @@ class MessagesListState extends State<MessagesList> {
     if (oldWidget.chat.id != widget.chat.id) {
       _fixedSeparatorId = widget.initialAroundId;
       _hasScrolledToUnread = false;
+      _messageKeys.clear(); // Очищаем ключи при смене чата
     }
   }
 
@@ -102,33 +115,40 @@ class MessagesListState extends State<MessagesList> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _readDebounceTimer?.cancel(); // 🎯 Очищаем таймер
+    _readDebounceTimer?.cancel();
+    _timeForNextSetState?.cancel();
+    _highlightTimer?.cancel();
     super.dispose();
   }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
+
     final state = widget.messageBloc.state;
     if (state is! MessageLoaded) return;
     if (state.isLoadingMore || state.isLoadingNewer) return;
 
     final position = _scrollController.position;
 
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (!mounted || !_scrollController.hasClients) return;
-
-      if (position.pixels >= position.maxScrollExtent - _kLoadMoreThreshold) {
-        if (state.hasMoreMessages) {
-          _loadMore(state.messages);
-        }
-      } else if (position.pixels <= _kLoadMoreThreshold) {
-        _loadNewer(state.messages);
-      }
-
-      _scheduleReadTracking();
+    _timeForNextSetState?.cancel();
+    _timeForNextSetState = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      setState(() {
+        _isAtBottom = position.pixels <= _kBottomThreshold;
+      });
     });
+
+    if (position.pixels >= position.maxScrollExtent - _kLoadMoreThreshold) {
+      if (state.hasMoreMessages) {
+        _loadMore(state.messages);
+      }
+    } else if (position.pixels <= _kLoadMoreThreshold) {
+      _loadNewer(state.messages);
+    }
+
+    _scheduleReadTracking();
   }
 
-  // 🎯 Запускаем отслеживание прочтения с дебаунсом
   void _scheduleReadTracking() {
     _readDebounceTimer?.cancel();
     _readDebounceTimer = Timer(
@@ -146,25 +166,18 @@ class MessagesListState extends State<MessagesList> {
     if (messages.isEmpty) return;
 
     final currentReadId = widget.chat.member?.lastIdReadMessage ?? 0;
-
-    // 1. Пытаемся найти ID самого нижнего видимого сообщения
     int? targetReadId = _getLowestVisibleMessageId(messages, context);
 
-    // 2. Fallback логика
     if (targetReadId == null) {
-      // Fallback 1: Первоначальная загрузка с непрочитанными
       if (widget.initialAroundId != null && !_hasMarkedInitialUnread) {
         targetReadId = messages.first.id;
-      }
-      // Fallback 2: Пользователь находится в самом низу (pixels < 100), и пришло новое сообщение
-      else if (_scrollController.position.pixels < 100) {
+      } else if (_scrollController.position.pixels < 100) {
         targetReadId = messages.first.id;
       } else {
-        return; // Нечего обновлять или не можем определить
+        return;
       }
     }
 
-    // 3. Обновляем статус на сервере, если нашли сообщение новее текущего прочитанного
     if (targetReadId != null && targetReadId > currentReadId) {
       _updateServerReadStatus(targetReadId);
       if (widget.initialAroundId != null) {
@@ -178,22 +191,19 @@ class MessagesListState extends State<MessagesList> {
     BuildContext context,
   ) {
     final screenHeight = MediaQuery.of(context).size.height;
-
-    // Проверяем только первые 15 сообщений.
-    // В reverse: true они находятся в самом низу списка. Это O(1) и работает мгновенно.
     final limit = messages.length < 15 ? messages.length : 15;
 
     for (int i = 0; i < limit; i++) {
       final msg = messages[i];
       final msgId = msg.id ?? msg.localGeneratedId;
-      final key = widget.messageKeys[msgId];
+      // 🎯 ИСПОЛЬЗУЕМ _messageKeys
+      final key = _messageKeys[msgId];
 
       if (key != null) {
         final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
         if (renderBox != null) {
           final offset = renderBox.localToGlobal(Offset.zero);
           final size = renderBox.size;
-
           if (offset.dy < screenHeight && (offset.dy + size.height) > 0) {
             return msg.id;
           }
@@ -235,10 +245,11 @@ class MessagesListState extends State<MessagesList> {
     final chatLastId = widget.chat.idLastMessage ?? 0;
     if (newestId >= chatLastId) return;
 
-    _anchorMessageId =
-        currentMessages.first.id?.toString() ??
-        currentMessages.first.localGeneratedId;
+    // 🎯 ЗАПОМИНАЕМ ЯКОРЬ: берем сообщение, которое сейчас первое в списке (оно над спиннером)
+    // или то, к которому мы пытаемся перейти
+    _anchorMessageKeyBeforeLoad = _keyOf(currentMessages.first);
 
+    _newerBatchPending = true; // Блокируем повторные вызовы
     widget.messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
@@ -253,7 +264,6 @@ class MessagesListState extends State<MessagesList> {
 
   void scrollToBottom({bool animated = true}) {
     if (!_scrollController.hasClients) return;
-
     if (animated) {
       _scrollController.animateTo(
         0.0,
@@ -280,43 +290,240 @@ class MessagesListState extends State<MessagesList> {
     );
   }
 
-  void _scheduleScrollToSeparator(GlobalKey separatorKey) {
-    if (_hasScrolledToUnread || _isSchedulingScroll) return;
-    _isSchedulingScroll = true;
-    _attemptScrollToSeparator(separatorKey, 0);
+  void _cleanupDeadKeys() {
+    // Оставляем в Map только те ключи, чей контекст всё ещё жив и привязан к дереву
+    _messageKeys.removeWhere((key, globalKey) {
+      return globalKey.currentContext == null;
+    });
   }
 
-  void _attemptScrollToSeparator(GlobalKey separatorKey, int attempt) {
-    if (!mounted || _hasScrolledToUnread) {
-      _isSchedulingScroll = false;
-      return;
-    }
+  Future<bool> _revealMessage(int messageId) async {
+    for (var attempt = 0; attempt < 8; attempt++) {
+      if (!mounted || !_scrollController.hasClients) return false;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final separatorContext = separatorKey.currentContext;
-      if (separatorContext == null || !_scrollController.hasClients) {
-        return;
+      // 🎯 ПРОВЕРЯЕМ, ЖИВ ЛИ КОНТЕКСТ
+      final ctx = _messageKeys[messageId]?.currentContext;
+      if (ctx != null) {
+        // Элемент построен и жив, скроллим к нему
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.5, // Центрируем
+        );
+        return true;
       }
 
-      final separatorBox = separatorContext.findRenderObject() as RenderBox?;
-      if (separatorBox == null || !_scrollController.hasClients) {
-        if (attempt < 10) {
-          _attemptScrollToSeparator(separatorKey, attempt + 1);
-        } else {
-          _isSchedulingScroll = false;
-        }
-        return;
-      }
+      // Если контекста нет, значит элемент не отрисован.
+      // Принудительно прыгаем к его предполагаемой позиции, чтобы заставить ListView его построить.
+      final state = widget.messageBloc.state;
+      if (state is! MessageLoaded || state.messages.isEmpty) return false;
 
-      final viewport = RenderAbstractViewport.of(separatorBox);
-      final reveal = viewport.getOffsetToReveal(separatorBox, 0.5);
+      final index = state.messages.indexWhere((m) => m.id == messageId);
+      if (index == -1) return false; // Сообщение исчезло из стейта
 
-      _scrollController.jumpTo(
-        reveal.offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      final pos = _scrollController.position;
+
+      // 🎯 ИСПРАВЛЕННАЯ ФОРМУЛА для reverse: true:
+      // Индекс 0 (самое новое) находится внизу (offset близок к 0).
+      // Чем больше индекс, тем выше сообщение (offset растет).
+      final avgExtent =
+          (pos.maxScrollExtent - pos.minScrollExtent + pos.viewportDimension) /
+          state.messages.length;
+
+      final targetOffset = (index * avgExtent).clamp(
+        pos.minScrollExtent,
+        pos.maxScrollExtent,
       );
 
-        _hasScrolledToUnread = true;
+      _scrollController.jumpTo(targetOffset);
+
+      // Ждем, пока Flutter отрисует кадр и создаст RenderBox
+      await WidgetsBinding.instance.endOfFrame;
+
+      // 🎯 ВАЖНО: После прыжка снова чистим мертвые ключи
+      _cleanupDeadKeys();
+    }
+    return false;
+  }
+
+  Future<void> _navigateToMessage(
+    int? targetMessageId, {
+    bool highlight = false,
+  }) async {
+    if (targetMessageId == null) return;
+
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return;
+
+    // 🎯 ШАГ 1: Очищаем мертвые ключи перед проверкой
+    _cleanupDeadKeys();
+
+    final isAlreadyLoaded = state.messages.any((m) => m.id == targetMessageId);
+    final hasValidContext =
+        _messageKeys[targetMessageId]?.currentContext != null;
+
+    // 🎯 ШАГ 2: Если сообщения нет в стейте ИЛИ его ключ мертв (не отрисован), делаем запрос
+    if (!isAlreadyLoaded || !hasValidContext) {
+      widget.messageBloc.add(
+        GetMessages(
+          chatId: widget.chat.id,
+          entityId: widget.chat.id,
+          entityType: EntityType.chat,
+          lastIdMessage: 0,
+          aroundId: targetMessageId,
+          // Используем aroundId, чтобы получить окно вокруг сообщения
+          limit: 25,
+        ),
+      );
+
+      final newState = await widget.messageBloc.stream
+          .firstWhere((s) => s is MessageLoaded || s is MessageFailure)
+          .timeout(const Duration(seconds: 10), onTimeout: () => state);
+
+      if (newState is MessageFailure || newState == state) {
+        debugPrint("❌ Не удалось загрузить сообщение $targetMessageId");
+        return;
+      }
+
+      final loadedState = newState as MessageLoaded;
+      if (!loadedState.messages.any((m) => m.id == targetMessageId)) {
+        debugPrint("❌ Сообщение $targetMessageId не найдено в ответе сервера");
+        return;
+      }
+    }
+
+    // 🎯 ШАГ 3: Даем Flutter время на перестройку дерева виджетов
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame; // Двойной фрейм для надежности
+
+    // 🎯 ШАГ 4: Снова чистим ключи, так как после перестройки могли появиться новые/старые
+    _cleanupDeadKeys();
+
+    final found = await _revealMessage(targetMessageId);
+
+    if (found && highlight && mounted) {
+      setState(() => _highlightedMessageId = targetMessageId);
+      _startHighlightTimer();
+    } else if (!found && mounted) {
+      debugPrint("⚠️ Не удалось доскроллить к сообщению $targetMessageId");
+    }
+  }
+
+  void _startHighlightTimer() {
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _highlightedMessageId = null;
+        });
+      }
     });
+  }
+
+  Future<void> _handleScrollToBottom() async {
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return;
+
+    final currentLatestId = state.messages.first.id ?? 0;
+    final chatLatestId = widget.chat.idLastMessage ?? 0;
+
+    if (currentLatestId < chatLatestId && chatLatestId > 0) {
+      widget.messageBloc.add(
+        GetMessages(
+          chatId: widget.chat.id,
+          entityId: widget.chat.id,
+          entityType: EntityType.chat,
+          lastIdMessage: 0,
+          limit: 25,
+        ),
+      );
+
+      await widget.messageBloc.stream.firstWhere((newState) {
+        if (newState is MessageLoaded) {
+          final newLatestId = newState.messages.first.id ?? 0;
+          return !newState.isLoadingMore || newLatestId >= chatLatestId;
+        }
+        return false;
+      });
+    }
+
+    if (mounted && _scrollController.hasClients) {
+      scrollToBottom(animated: true);
+    }
+  }
+
+  Widget _buildScrollToBottomButton() {
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return const SizedBox.shrink();
+    if (!_scrollController.hasClients) return const SizedBox.shrink();
+    if (state.messages.isEmpty) return const SizedBox.shrink();
+
+    if (_isAtBottom) return const SizedBox.shrink();
+
+    final unreadCount = widget.chat.unreadCount;
+    final showBadge = unreadCount > 0;
+
+    return Positioned(
+      right: 10,
+      bottom: widget.inputReserve + 5,
+      child: GestureDetector(
+        onTap: _handleScrollToBottom,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.lightGrey,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: CupertinoColors.black.withValues(alpha: 0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(
+                CupertinoIcons.chevron_down,
+                color: CupertinoColors.white,
+                size: 24,
+              ),
+              if (showBadge)
+                Positioned(
+                  top: -3,
+                  right: -3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.blurple,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                      style: AppText.lowTextStyle.copyWith(
+                        color: CupertinoColors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -325,44 +532,38 @@ class MessagesListState extends State<MessagesList> {
       listeners: [
         BlocListener<MessageBloc, MessageState>(
           listenWhen: (previous, current) {
-            // 🎯 Срабатывает ровно в тот момент, когда загрузка новых сообщений ЗАВЕРШИЛАСЬ
-            return previous is MessageLoaded &&
-                previous.isLoadingNewer == true &&
-                current is MessageLoaded &&
-                current.isLoadingNewer == false;
+            return previous is MessageLoaded && current is MessageLoaded;
           },
           listener: (context, state) {
-            // 🎯 1. ВОССТАНОВЛЕНИЕ СКРОЛЛА ПО ЯКОРЮ
-            if (_anchorMessageId != null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted || !_scrollController.hasClients) return;
+            // 🎯 ВОССТАНОВЛЕНИЕ ПОЗИЦИИ ПОСЛЕ ЗАГРУЗКИ НОВЫХ СООБЩЕНИЙ
+            if (state is MessageLoaded) {
+              if (_newerBatchPending && !state.isLoadingNewer) {
+                _newerBatchPending = false;
 
-                // Ищем наш "якорный" виджет в обновленном списке
-                final anchorKey = widget.messageKeys[_anchorMessageId];
-                if (anchorKey?.currentContext == null) return;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted ||
+                      !_scrollController.hasClients ||
+                      _anchorMessageKeyBeforeLoad == null) {
+                    return;
+                  }
 
-                final renderBox =
-                    anchorKey!.currentContext!.findRenderObject() as RenderBox?;
-                if (renderBox == null) return;
-
-                final viewport = RenderAbstractViewport.of(renderBox);
-
-                final reveal = viewport.getOffsetToReveal(renderBox, 1.0);
-
-                // Используем jumpTo для мгновенного, бесшовного восстановления (без анимации)
-                _scrollController.jumpTo(
-                  reveal.offset.clamp(
-                    0.0,
-                    _scrollController.position.maxScrollExtent,
-                  ),
-                );
-
-                _anchorMessageId =
-                    null; // 🎯 Сбрасываем якорь после успешного восстановления
-              });
+                  final ctx =
+                      _messageKeys[_anchorMessageKeyBeforeLoad]?.currentContext;
+                  if (ctx != null) {
+                    // Заставляем Flutter удержать это сообщение на той же визуальной позиции
+                    Scrollable.ensureVisible(
+                      ctx,
+                      alignment: 1.0,
+                      // 1.0 в reverse: true означает "прижать к началу списка" (верх), что компенсирует сдвиг
+                      duration: Duration
+                          .zero, // Мгновенно, без анимации, чтобы не было "мигания"
+                    );
+                  }
+                  _anchorMessageKeyBeforeLoad = null;
+                });
+              }
             }
 
-            // 🎯 2. Запускаем отслеживание прочтения (как было раньше)
             _scheduleReadTracking();
           },
         ),
@@ -405,7 +606,24 @@ class MessagesListState extends State<MessagesList> {
             );
           }
 
-          // 🎯 РАЗМОРОЗКА РАЗДЕЛИТЕЛЯ
+          // 🎯 ИСПРАВЛЕНИЕ 4: Скролл к разделителю вынесен из itemBuilder
+          if (_fixedSeparatorId != null &&
+              !_hasScrolledToUnread &&
+              state is MessageLoaded &&
+              !state.isLoadingMore) {
+            // Ищем сообщение, которое должно идти сразу после разделителя
+            final targetIndex = messages.indexWhere(
+              (m) => m.id != null && m.id! > _fixedSeparatorId!,
+            );
+            if (targetIndex != -1) {
+              _hasScrolledToUnread = true;
+              final targetId = messages[targetIndex].id!;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _revealMessage(targetId);
+              });
+            }
+          }
+
           if (_fixedSeparatorId != null) {
             final currentReadId = widget.chat.member?.lastIdReadMessage ?? 0;
             final chatLastId = widget.chat.idLastMessage ?? 0;
@@ -433,152 +651,151 @@ class MessagesListState extends State<MessagesList> {
           final isLoadingNewer = state is MessageLoaded
               ? state.isLoadingNewer
               : false;
-          final itemCount =
-              messages.length +
-              (isLoadingMore ? 1 : 0) +
-              (isLoadingNewer ? 1 : 0);
+          final itemCount = messages.length + (isLoadingMore ? 1 : 0);
 
-          return ListView.builder(
-            controller: _scrollController,
-            reverse: true,
-            padding: EdgeInsets.only(
-              top: _kHeaderReserve + 8,
-              bottom: widget.inputReserve + 8,
-            ),
-            itemCount: itemCount,
-            findChildIndexCallback: (Key key) {
-              if (key is! ValueKey<Object>) return null;
-              final id = key.value;
-              final index = groupedMessages.indexWhere((g) {
-                final m = g.message;
-                return (m.id ?? m.localGeneratedId) == id;
-              });
-              if (index == -1) return null;
-              return isLoadingNewer ? index + 1 : index;
-            },
-            itemBuilder: (context, index) {
-              if (isLoadingNewer && index == 0) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CupertinoActivityIndicator(radius: 10)),
-                );
-              }
-
-              final messageIndex = isLoadingNewer ? index - 1 : index;
-
-              if (isLoadingMore && messageIndex == messages.length) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CupertinoActivityIndicator(radius: 10)),
-                );
-              }
-
-              final grouped = groupedMessages[messageIndex];
-              final message = grouped.message;
-              final messageId = message.id ?? message.localGeneratedId;
-              final currentMsgId = message.id ?? 0;
-
-              final olderMessage = messageIndex + 1 < groupedMessages.length
-                  ? groupedMessages[messageIndex + 1].message
-                  : null;
-              final olderMsgId = olderMessage?.id ?? 0;
-
-              // 🎯 Используем _fixedSeparatorId напрямую, без пересчёта
-              final showSeparator =
-                  _fixedSeparatorId != null &&
-                  currentMsgId > _fixedSeparatorId! &&
-                  (olderMsgId <= _fixedSeparatorId! || olderMsgId == 0);
-
-              final separatorKey = showSeparator ? GlobalKey() : null;
-
-              // 🎯 Логика автоскролла
-              if (showSeparator &&
-                  !_hasScrolledToUnread &&
-                  !isLoadingMore &&
-                  separatorKey != null) {
-                _scheduleScrollToSeparator(separatorKey);
-              }
-
-              final isRead = isMessageReadByAny(
-                message: message,
-                currentUserId: widget.currentUserId ?? 0,
-                members: widget.chat.members,
-              );
-
-              final key = widget.messageKeys.putIfAbsent(
-                messageId,
-                () => GlobalKey(),
-              );
-
-              final messageWidget = SwipeToReplyMessage(
-                key: ValueKey(messageId),
-                onReply: () {
-                  widget.onAnswerMessage(message);
+          return Stack(
+            children: [
+              ListView.builder(
+                controller: _scrollController,
+                reverse: true,
+                padding: EdgeInsets.only(
+                  top: _kHeaderReserve + 8,
+                  bottom: widget.inputReserve + 8,
+                ),
+                itemCount: itemCount,
+                // 🎯 ИСПРАВЛЕНИЕ 5: Возвращаем null вместо -1
+                findChildIndexCallback: (Key key) {
+                  if (key is! ValueKey<Object>) return null;
+                  final id = key.value;
+                  final i = groupedMessages.indexWhere((g) {
+                    final m = g.message;
+                    return (m.id ?? m.localGeneratedId) == id;
+                  });
+                  return i == -1 ? null : i;
                 },
-                child: RepaintBoundary(
-                  key: key,
-                  child: MessageItem(
-                    key: ValueKey(messageId),
-                    message: message,
-                    isMine:
-                        widget.currentUserId != null &&
-                        message.userId == widget.currentUserId,
-                    isRead: isRead,
-                    showSender: widget.chat.isGroup,
-                    showAvatar: grouped.showAvatar,
-                    showTime: grouped.showTime,
-                    tailDirection: grouped.tailDirection,
-                    hasMessageAbove: grouped.hasMessageAbove,
-                    onLongPress: () => _showMessageActions(message),
-                    isLoading: message.hasLoading,
-                    hasError: message.hasErrorMessage,
-                    onTapImage: (attachmentIndex) {
-                      final renderBox =
-                          key.currentContext?.findRenderObject() as RenderBox?;
-                      if (renderBox == null) return;
+                itemBuilder: (context, index) {
+                  if (isLoadingMore && index == messages.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(
+                        child: CupertinoActivityIndicator(radius: 10),
+                      ),
+                    );
+                  }
 
-                      final sourceRect =
-                          renderBox.localToGlobal(Offset.zero) & renderBox.size;
-                      _openMediaViewer(
-                        message.getId,
-                        attachmentIndex,
-                        sourceRect,
-                      );
-                    },
+                  final grouped = groupedMessages[index];
+                  final message = grouped.message;
+                  final messageId = message.id ?? message.localGeneratedId;
+                  final currentMsgId = message.id ?? 0;
+
+                  final olderMessage = index + 1 < groupedMessages.length
+                      ? groupedMessages[index + 1].message
+                      : null;
+                  final olderMsgId = olderMessage?.id ?? 0;
+
+                  final showSeparator =
+                      _fixedSeparatorId != null &&
+                      currentMsgId > _fixedSeparatorId! &&
+                      (olderMsgId <= _fixedSeparatorId! || olderMsgId == 0);
+
+                  final separatorKey = showSeparator ? GlobalKey() : null;
+
+                  final isRead = isMessageReadByAny(
+                    message: message,
+                    currentUserId: widget.currentUserId ?? 0,
+                    members: widget.chat.members,
+                  );
+
+                  // 🎯 ИСПОЛЬЗУЕМ _messageKeys
+                  final key = _messageKeys.putIfAbsent(
+                    messageId,
+                    () => GlobalKey(),
+                  );
+
+                  final messageWidget = SwipeToReplyMessage(
+                    key: ValueKey(messageId),
+                    onReply: () => widget.onAnswerMessage(message),
+                    child: RepaintBoundary(
+                      key: key,
+                      child: MessageItem(
+                        key: ValueKey(messageId),
+                        message: message,
+                        isMine:
+                            widget.currentUserId != null &&
+                            message.userId == widget.currentUserId,
+                        isRead: isRead,
+                        showSender: widget.chat.isGroup,
+                        showAvatar: grouped.showAvatar,
+                        showTime: grouped.showTime,
+                        tailDirection: grouped.tailDirection,
+                        hasMessageAbove: grouped.hasMessageAbove,
+                        onLongPress: () => _showMessageActions(message),
+                        isLoading: message.hasLoading,
+                        hasError: message.hasErrorMessage,
+                        isHighlighted: _highlightedMessageId == messageId,
+                        onNavigateToMessage: _navigateToMessage,
+                        onTapImage: (attachmentIndex) {
+                          final renderBox =
+                              key.currentContext?.findRenderObject()
+                                  as RenderBox?;
+                          if (renderBox == null) return;
+                          _openMediaViewer(
+                            message.getId,
+                            attachmentIndex,
+                            renderBox.localToGlobal(Offset.zero) &
+                                renderBox.size,
+                          );
+                        },
+                      ),
+                    ),
+                  );
+
+                  final dayLabel = UtilDate.formatDayTime(message.time, true);
+                  final olderDayLabel = olderMessage != null
+                      ? UtilDate.formatDayTime(olderMessage.time, true)
+                      : null;
+                  final isFirstOfDay = dayLabel != olderDayLabel;
+
+                  Widget finalWidget = messageWidget;
+
+                  if (showSeparator) {
+                    finalWidget = Column(
+                      key: ValueKey(messageId),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        NewMessagesSeparator(key: separatorKey),
+                        messageWidget,
+                      ],
+                    );
+                  } else if (dayLabel != null && isFirstOfDay) {
+                    finalWidget = Column(
+                      key: ValueKey(messageId),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        DaySeparator(label: dayLabel),
+                        messageWidget,
+                      ],
+                    );
+                  }
+
+                  return finalWidget;
+                },
+              ),
+
+              if (isLoadingNewer)
+                Positioned(
+                  bottom: widget.inputReserve,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    color: AppColors.transparent,
+                    child: const Center(child: CupertinoActivityIndicator()),
                   ),
                 ),
-              );
 
-              final dayLabel = UtilDate.formatDayTime(message.time, true);
-              final olderDayLabel = olderMessage != null
-                  ? UtilDate.formatDayTime(olderMessage.time, true)
-                  : null;
-              final isFirstOfDay = dayLabel != olderDayLabel;
-
-              Widget finalWidget = messageWidget;
-
-              if (showSeparator) {
-                finalWidget = Column(
-                  key: ValueKey(messageId),
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    NewMessagesSeparator(key: separatorKey),
-                    messageWidget,
-                  ],
-                );
-              } else if (dayLabel != null && isFirstOfDay) {
-                finalWidget = Column(
-                  key: ValueKey(messageId),
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DaySeparator(label: dayLabel),
-                    messageWidget,
-                  ],
-                );
-              }
-
-              return finalWidget;
-            },
+              _buildScrollToBottomButton(),
+            ],
           );
         },
       ),
@@ -612,8 +829,6 @@ class MessagesListState extends State<MessagesList> {
             }
           },
         ),
-
-      // Ответить
       ActionItem(
         icon: CupertinoIcons.arrow_turn_up_left,
         label: 'Ответить',
@@ -622,8 +837,6 @@ class MessagesListState extends State<MessagesList> {
           widget.onFocusInput?.call();
         },
       ),
-
-      // Копировать (только если есть текст)
       if (message.text?.isNotEmpty == true)
         ActionItem(
           icon: CupertinoIcons.square_fill_on_square_fill,
@@ -632,8 +845,6 @@ class MessagesListState extends State<MessagesList> {
             AppClipboard.copyText(context, message.text!);
           },
         ),
-
-      // Переслать
       ActionItem(
         icon: CupertinoIcons.arrow_turn_up_right,
         label: 'Переслать',
@@ -646,8 +857,6 @@ class MessagesListState extends State<MessagesList> {
           );
         },
       ),
-
-      // Редактировать (только для своих)
       if (isMyMessage && message.hasError != ActionType.update)
         ActionItem(
           icon: CupertinoIcons.pencil,
@@ -657,8 +866,6 @@ class MessagesListState extends State<MessagesList> {
             widget.onFocusInput?.call();
           },
         ),
-
-      // Удалить (только для своих)
       if (isMyMessage && message.hasError != ActionType.delete)
         ActionItem(
           icon: CupertinoIcons.trash_fill,
@@ -704,35 +911,26 @@ class MessagesListState extends State<MessagesList> {
     );
   }
 
-  /// Определяет, прочитано ли сообщение ХОТЯ БЫ ОДНИМ другим участником чата.
   bool isMessageReadByAny({
     required Message message,
     required int currentUserId,
     required List<Member>? members,
   }) {
-    // 1. Статус показываем только для своих сообщений
     if (message.userId != currentUserId) return false;
 
     final otherMembers =
         members?.where((m) => m.fkUser != currentUserId).toList() ?? [];
-
-    // 2. Если других участников нет (например, соло-чат), считаем сообщение "прочитанным"
-    // (так как отправитель и получатель — одно лицо, или система доставила его мгновенно)
     if (otherMembers.isEmpty) return true;
 
     final msgId = message.id ?? 0;
 
-    // 3. Проверяем, прочитал ли ХОТЯ БЫ ОДИН участник
     for (final member in otherMembers) {
       final lastReadId = member.lastIdReadMessage ?? 0;
-
-      // Если чей-то lastIdReadMessage больше или равен ID сообщения, значит, он его видел
       if (lastReadId >= msgId) {
         return true;
       }
     }
 
-    // 4. Если цикл завершился и никто из остальных не дочитал до этого сообщения
     return false;
   }
 }

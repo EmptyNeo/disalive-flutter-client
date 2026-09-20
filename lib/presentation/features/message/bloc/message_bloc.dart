@@ -198,20 +198,44 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         (response) {
           final serverMessages = _ensureDescendingOrder(response.messages);
 
-          // 🎯 2. ЖЕСТКОЕ ОГРАНИЧЕНИЕ ДЛЯ ОТВЕТА СЕРВЕРА
-          // Даже если сервер по какой-то ошибке вернул больше, чем limit,
-          // мы обрежем список, чтобы не сломать расчёт скролла в ListView.
-          final limitedServerMessages = serverMessages.length > event.limit
-              ? serverMessages.sublist(0, event.limit)
-              : serverMessages;
+          List<Message> finalMessages;
 
-          _messageRepository.cacheMessages(event.chatId, limitedServerMessages);
+          if (isAroundLoad) {
+            final targetIndex = serverMessages.indexWhere(
+              (m) => m.id == event.aroundId,
+            );
+
+            if (targetIndex != -1) {
+              final halfLimit = event.limit ~/ 2;
+              final start = (targetIndex - halfLimit).clamp(
+                0,
+                serverMessages.length,
+              );
+              final end = (targetIndex + halfLimit + 1).clamp(
+                0,
+                serverMessages.length,
+              );
+              finalMessages = serverMessages.sublist(start, end);
+            } else {
+              // Если сообщение вдруг удалено и его нет в ответе, берем просто лимит
+              finalMessages = serverMessages.length > event.limit
+                  ? serverMessages.sublist(0, event.limit)
+                  : serverMessages;
+            }
+          } else {
+            // 🎯 Стандартная обрезка для isInitialLoad (берем самые последние)
+            finalMessages = serverMessages.length > event.limit
+                ? serverMessages.sublist(0, event.limit)
+                : serverMessages;
+          }
+
+          _messageRepository.cacheMessages(event.chatId, finalMessages);
 
           emit(
             MessageLoaded(
-              messages: limitedServerMessages,
+              messages: finalMessages,
               actions: response.actions,
-              hasMoreMessages: limitedServerMessages.isNotEmpty,
+              hasMoreMessages: finalMessages.isNotEmpty,
               isLoadingMore: false,
               isLoadingNewer: false,
             ),

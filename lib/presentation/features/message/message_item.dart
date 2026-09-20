@@ -26,7 +26,9 @@ class MessageItem extends StatelessWidget {
   final Color? backgroundMessage;
   final ActionType? isLoading;
   final bool hasError;
+  final bool isHighlighted;
 
+  final void Function(int? messageId)? onNavigateToMessage;
   final void Function(int attachmentIndex)? onTapImage;
 
   bool get hasLoading => isLoading != null;
@@ -46,7 +48,9 @@ class MessageItem extends StatelessWidget {
     this.backgroundMessage,
     this.isLoading,
     this.hasError = false,
+    this.isHighlighted = false,
     this.onTapImage,
+    this.onNavigateToMessage,
   });
 
   @override
@@ -80,14 +84,16 @@ class MessageItem extends StatelessWidget {
         !hasInviteData &&
         !MediasGrid.hasOnlyImage(contentMessage);
 
-    var backgroundColor = isMine
-        ? AppColors.blurple
-        : AppColors.actionGrey;
+    var backgroundColor = isMine ? AppColors.blurple : AppColors.actionGrey;
 
     if (isMediasOnly) {
       backgroundColor = CupertinoColors.transparent;
     } else if (backgroundMessage != null) {
       backgroundColor = backgroundMessage as Color;
+    }
+
+    if (isHighlighted && !isMediasOnly) {
+      backgroundColor = AppColors.highlight;
     }
 
     final paddingLeftBubble = isMine ? 12.0 : 0.0;
@@ -135,7 +141,9 @@ class MessageItem extends StatelessWidget {
               const SizedBox(width: 26 + 6),
             ],
             Flexible(
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 1500),
+                curve: Curves.easeOut,
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                   minWidth: 50,
@@ -194,9 +202,15 @@ class MessageItem extends StatelessWidget {
                     ],
 
                     if (hasAnswer)
-                      AnswerPreview(
-                        message: message.answerMessage,
-                        isMine: isMine,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onNavigateToMessage?.call(
+                          message.answerMessage?.id,
+                        ),
+                        child: AnswerPreview(
+                          message: message.answerMessage,
+                          isMine: isMine,
+                        ),
                       ),
 
                     if (hasText && useInlineStatus)

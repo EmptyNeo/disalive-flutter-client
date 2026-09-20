@@ -140,11 +140,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'Chat',
       action: ActionType.block,
       onData: (event) {
-        print("HELLO");
         final map = event.data['user'];
         if (map is Map<String, dynamic>) {
           final user = UserModel.fromMap(map);
-          print("MAP");
           add(UpdateUserInChat(user, true));
         }
       },
@@ -361,7 +359,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       // Проверяем, является ли чат личным
       if (chat.isPersonalChat && chat.user?.id == event.user.id) {
         if (event.isUpdateBlock) {
-          print("UPDATE BLOCK");
           cachedChats[i] = chat.copyWith(
             user: chat.user?.copyWith(
               onlyIBlocked: event.user.onlyIBlocked,
@@ -371,7 +368,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
             ),
             isBlocked: event.user.isAnyBlocked,
           );
-          print(cachedChats[i]);
         } else {
           // Обновляем user в чате
           cachedChats[i] = chat.copyWith(

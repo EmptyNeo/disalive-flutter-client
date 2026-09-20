@@ -207,9 +207,6 @@ class _EditGroupScreenState extends State<EditGroupScreen> {
         (_selectedAvatarFile != null ||
             widget.chat.urlAvatar != defaultUrlImage);
 
-    print(widget.chat.urlAvatar);
-    print(defaultUrlImage);
-
     return GestureDetector(
       onTap: _pickAvatar,
       child: SizedBox(

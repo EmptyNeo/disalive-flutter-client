@@ -129,7 +129,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final lastReadId = math.max(
       0,
       (widget.chat.member?.lastIdReadMessage ?? 0) - 2,
-    );
+    ); // -2 для того, чтобы загрузить немного старых
     final lastMessageId = widget.chat.idLastMessage ?? 0;
 
     final hasUnread =

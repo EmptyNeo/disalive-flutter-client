@@ -31,7 +31,6 @@ class AnswerPreview extends StatelessWidget {
     final isForwarded = message?.isForward ?? false;
 
     final String previewText;
-    print(message?.toMap().toString());
     if (isForwarded) {
       previewText = 'Пересланное сообщение';
     } else {

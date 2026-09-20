@@ -17,7 +17,6 @@ class WsRepositoryImpl extends WsRepository {
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        print(json);
         return json['token'] as String;
       },
     );

@@ -24,6 +24,8 @@ class AppColors {
   static const Color _darkIconGrey = Color(0xFFC6C7CC);
   static const Color _darkGreyple = Color(0xFF82858E);
 
+  static const Color _darkHighlight = Color(0x330E6EE2);
+
   // Цвета для светлой темы
   static const Color _lightDark = Color(0xFFE3E5E8); // Сайдбар серверов (Light)
   static const Color _lightMainBackground = Color(
@@ -46,10 +48,14 @@ class AppColors {
   static const Color _lightDarkGrey = Color(0xFFE0E0E0);
   static const Color _lightLightGrey = Color(0xFFFAFAFA);
 
+  static const Color _lightHighlight = Color(0x400E6EE2);
+
   static const Color gold = Color(0xFFFAA61A); // Discord-стиль золотой
 
   // Динамические цвета (возвращают значение в зависимости от темы)
   static Color get dark => _isDarkMode ? _darkDark : _lightDark;
+
+  static Color get highlight => _isDarkMode ? _darkHighlight : _lightHighlight;
 
   static Color get onBlurple => CupertinoColors.white;
 
