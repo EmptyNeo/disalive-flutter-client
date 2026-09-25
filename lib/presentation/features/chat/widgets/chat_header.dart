@@ -15,12 +15,14 @@ class ChatHeader extends StatelessWidget {
   final Chat chat;
   final bool isReconnect;
   final VoidCallback? onTap;
+  final VoidCallback? onSearchTap;
 
   const ChatHeader({
     super.key,
     required this.chat,
     required this.isReconnect,
     this.onTap,
+    this.onSearchTap,
   });
 
   @override
@@ -44,13 +46,13 @@ class ChatHeader extends StatelessWidget {
         0,
       ),
       child: Row(
+        spacing: 4,
         children: [
           GlassIconButton(
             icon: CupertinoIcons.back,
             onTap: () => Navigator.of(context).pop(),
             size: 36,
           ),
-          const SizedBox(width: 12),
 
           Expanded(
             child: GestureDetector(
@@ -69,7 +71,7 @@ class ChatHeader extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8.0,
-                      vertical: 6.0,
+                      vertical: 3.0,
                     ),
                     child: Row(
                       children: [
@@ -116,9 +118,7 @@ class ChatHeader extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 12),
 
-          // Кнопка звонка — без фона
           if (chat.isSoloChat == false) ...[
             GlassIconButton(
               icon: CupertinoIcons.phone_fill,
@@ -128,6 +128,11 @@ class ChatHeader extends StatelessWidget {
               size: 36,
             ),
           ],
+          GlassIconButton(
+            icon: CupertinoIcons.search,
+            onTap: onSearchTap,
+            size: 36,
+          ),
         ],
       ),
     );

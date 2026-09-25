@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/link_data.dart';
+import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/user.dart';
@@ -34,6 +35,7 @@ class Message extends Equatable {
   final List<File>? newFiles;
   final List<MetaFileMessage>? metaCurrentFilesMessage;
   final List<MetaFileMessage>? metaNewFilesMessage;
+  final SymbolData? symbolData;
 
   const Message({
     this.id,
@@ -57,6 +59,7 @@ class Message extends Equatable {
     this.newFiles,
     this.metaCurrentFilesMessage,
     this.metaNewFilesMessage,
+    this.symbolData,
   });
 
   factory Message.fromMap(Map<String, dynamic> map) {
@@ -144,6 +147,7 @@ class Message extends Equatable {
     List<File>? newFiles,
     List<MetaFileMessage>? metaCurrentFilesMessage,
     List<MetaFileMessage>? metaNewFilesMessage,
+    SymbolData? symbolData,
   }) {
     return Message(
       id: id ?? this.id,
@@ -167,6 +171,7 @@ class Message extends Equatable {
       metaCurrentFilesMessage:
           metaCurrentFilesMessage ?? this.metaCurrentFilesMessage,
       metaNewFilesMessage: metaNewFilesMessage ?? this.metaNewFilesMessage,
+      symbolData: symbolData ?? this.symbolData,
     );
   }
 

@@ -30,6 +30,9 @@ class ChatInputArea extends StatefulWidget {
   final Function(ChatAttachment) onRemoveAttachment;
   final Function(ChatAttachment) onUpdateAttachment;
   final Function(File file, double durationSeconds) onSendVoiceMessage;
+  final Function() onToggleExtraPanel;
+  final Function() onOpenKeyboard;
+  final bool isExtraPanelOpen;
 
   const ChatInputArea({
     super.key,
@@ -49,6 +52,9 @@ class ChatInputArea extends StatefulWidget {
     required this.onRemoveAttachment,
     required this.onUpdateAttachment,
     required this.onSendVoiceMessage,
+    required this.onToggleExtraPanel,
+    required this.onOpenKeyboard,
+    required this.isExtraPanelOpen,
   });
 
   @override
@@ -149,7 +155,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                   onTap: widget.onPickAttachment,
                   size: 36,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 5),
               ],
               Expanded(
                 child: ClipRRect(
@@ -199,7 +205,18 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                 ),
               ),
               if (isInputAllowed) ...[
-                const SizedBox(width: 10),
+                const SizedBox(width: 5),
+                !widget.isExtraPanelOpen
+                    ? GlassIconButton(
+                        icon: CupertinoIcons.smiley,
+                        onTap: widget.onToggleExtraPanel,
+                      )
+                    : GlassIconButton(
+                        icon: CupertinoIcons.keyboard,
+                        onTap: widget.onOpenKeyboard,
+                      ),
+
+                const SizedBox(width: 5),
                 // 🎯 GestureDetector теперь управляет всем циклом записи
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,

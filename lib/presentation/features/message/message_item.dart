@@ -8,6 +8,7 @@ import 'package:disalive/presentation/features/message/widgets/link_preview.dart
 import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -92,7 +93,7 @@ class MessageItem extends StatelessWidget {
       backgroundColor = backgroundMessage as Color;
     }
 
-    if (isHighlighted && !isMediasOnly) {
+    if (isHighlighted) {
       backgroundColor = AppColors.highlight;
     }
 
@@ -142,8 +143,9 @@ class MessageItem extends StatelessWidget {
             ],
             Flexible(
               child: AnimatedContainer(
+                key: ValueKey('highlight_anim_${message.id}'),
                 duration: const Duration(milliseconds: 1500),
-                curve: Curves.easeOut,
+                curve: Curves.linear,
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.75,
                   minWidth: 50,
@@ -221,13 +223,15 @@ class MessageItem extends StatelessWidget {
                             textWidthBasis: TextWidthBasis.longestLine,
                             TextSpan(
                               children: [
-                                TextSpan(
-                                  text: contentMessage.text!,
-                                  style: AppText.mediumTextStyle.copyWith(
-                                    color: isMine
-                                        ? AppColors.onBlurple
-                                        : AppColors.white,
-                                  ),
+                                ...EmojiTextParser.parse(
+                                  contentMessage.text!,
+                                  baseTextStyle: AppText.mediumTextStyle
+                                      .copyWith(
+                                        color: isMine
+                                            ? AppColors.onBlurple
+                                            : AppColors.white,
+                                      ),
+                                  emojiSize: 20, // Размер эмодзи
                                 ),
                                 WidgetSpan(
                                   alignment: PlaceholderAlignment.middle,
@@ -240,7 +244,6 @@ class MessageItem extends StatelessWidget {
                             right: 0,
                             bottom: 0,
                             child: MessageStatusRow(
-                              // 🎯 Используем новый виджет
                               message: message,
                               isMine: isMine,
                               isRead: isRead,
@@ -252,12 +255,19 @@ class MessageItem extends StatelessWidget {
                         ],
                       )
                     else if (hasText)
-                      Text(
-                        contentMessage.text!,
-                        textWidthBasis: TextWidthBasis.longestLine,
-                        style: AppText.mediumTextStyle.copyWith(
-                          color: isMine ? AppColors.onBlurple : AppColors.white,
+                      Text.rich(
+                        TextSpan(
+                          children: EmojiTextParser.parse(
+                            contentMessage.text!,
+                            baseTextStyle: AppText.mediumTextStyle.copyWith(
+                              color: isMine
+                                  ? AppColors.onBlurple
+                                  : AppColors.white,
+                            ),
+                            emojiSize: 20,
+                          ),
                         ),
+                        textWidthBasis: TextWidthBasis.longestLine,
                       ),
 
                     if (hasLinkPreview)

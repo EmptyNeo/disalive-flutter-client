@@ -35,6 +35,7 @@ class CreateMessage extends MessageEvent {
   final EntityType entityType;
   final String localGeneratedId;
   final Message message;
+  final SymbolData? symbolData;
   final bool isWs;
 
   CreateMessage({
@@ -43,6 +44,7 @@ class CreateMessage extends MessageEvent {
     required this.entityType,
     required this.localGeneratedId,
     required this.message,
+    this.symbolData,
     this.isWs = false,
   });
 }

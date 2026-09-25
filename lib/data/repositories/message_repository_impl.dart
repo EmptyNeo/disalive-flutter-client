@@ -5,6 +5,7 @@ import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
@@ -67,6 +68,9 @@ class MessageRepositoryImpl implements MessageRepository {
     EntityType entityType,
     String localGeneratedId,
     Message message,
+    String? filePath,
+    FileContentType? typeFile,
+    int? packId,
   ) async {
     String? jsonMetaFiles = message.metaNewFilesMessage != null
         ? jsonEncode(
@@ -84,6 +88,9 @@ class MessageRepositoryImpl implements MessageRepository {
         'answerMessageId': message.answerMessageId,
         'forwardMessageId': message.forwardMessageId,
         'metaFiles': jsonMetaFiles,
+        'filePath': filePath,
+        'typeFile': typeFile?.value,
+        'idPack': packId,
       },
       files: message.toMapFiles(),
       apiType: ApiType.v1,

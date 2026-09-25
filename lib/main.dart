@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/data/network/cert_http_overrides.dart';
 import 'package:disalive/domain/my_router.dart';
+import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/domain/services/push_notification_service.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
@@ -31,6 +34,8 @@ Future<void> main() async {
   await setupDependencies();
 
   runApp(const DisaliveApp());
+
+  unawaited(EmojisHandler.instance.initialize());
 }
 
 class DisaliveApp extends StatelessWidget {

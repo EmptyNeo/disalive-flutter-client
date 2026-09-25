@@ -189,7 +189,7 @@ class HttpClientService {
         return Left(ParsingFailure('Invalid JSON response'));
       }
 
-      final bool success = jsonResponse['success'] ?? false;
+      final bool success = jsonResponse['success'];
 
       if (!success) {
         final error = jsonResponse['error'].toString();

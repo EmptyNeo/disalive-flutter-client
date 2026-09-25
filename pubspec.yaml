@@ -81,6 +81,7 @@ dependencies:
   mime: ^1.0.5
   path: ^1.8.3
   just_audio: ^0.9.36
+  visibility_detector: ^0.4.0+2
 
 dev_dependencies:
   flutter_test:
@@ -109,6 +110,8 @@ flutter:
     - assets/icons/icon.png
     - assets/icons/icon120x120.png
     - assets/certs/globalsign.pem
+    - assets/gifs/logo.svg
+    - assets/emojis/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

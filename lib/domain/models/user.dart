@@ -44,6 +44,7 @@ class UserModel extends Equatable {
   final List<BadgeUserModel>? badges;
   final int? fkMainBadge;
   final BadgeModel? mainBadge;
+  final bool? isNsfw;
   final File? fileAvatar;
   final File? fileBanner;
   final bool? deleteAvatar;
@@ -85,6 +86,7 @@ class UserModel extends Equatable {
     this.badges,
     this.fkMainBadge,
     this.mainBadge,
+    this.isNsfw,
     this.fileAvatar,
     this.fileBanner,
     this.deleteAvatar,
@@ -140,6 +142,7 @@ class UserModel extends Equatable {
       mainBadge: map['mainBadge'] != null
           ? BadgeModel.fromMap(map['mainBadge'] as Map<String, dynamic>)
           : null,
+      isNsfw: DataParser.parseBool(map['isNsfw']),
     );
   }
 

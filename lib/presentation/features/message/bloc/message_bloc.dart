@@ -4,16 +4,15 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/history_action.dart';
-import 'package:disalive/domain/models/ui/message_grouped.dart';
+import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
-import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
-import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'message_event.dart';
@@ -138,19 +137,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     if (isInitialLoad || isAroundLoad) {
       emit(MessageLoading());
 
-      // 🎯 1. ЖЕСТКОЕ ОГРАНИЧЕНИЕ ДЛЯ КЭША ПРИ aroundId
       if (isAroundLoad) {
         final cachedResponse = _messageRepository.getCached(event.chatId);
         if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
-          // Пытаемся найти aroundId в кэше
           final aroundIndex = cachedResponse.messages.indexWhere(
             (m) => m.id == event.aroundId,
           );
 
           if (aroundIndex != -1) {
-            // 🎯 ДЕЛАЕМ СРЕЗ (WINDOW) ИЗ КЭША!
-            // Берём не более event.limit сообщений вокруг aroundId.
-            // Так как список отсортирован DESC, "новее" = меньшие индексы, "старше" = большие.
             final halfLimit = event.limit ~/ 2;
             final start = (aroundIndex - halfLimit).clamp(
               0,
@@ -166,20 +160,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             emit(
               MessageLoaded(
                 messages: slicedMessages,
-                // Эмитим ТОЛЬКО срез, а не все 50+ сообщений!
                 actions: cachedResponse.actions,
                 hasMoreMessages: true,
-                // Всегда true, так как мы показали только часть
+                hasNewerMessages: true,
                 isLoadingMore: false,
                 isLoadingNewer: false,
               ),
             );
-            return; // Прерываем, на сервер идти не нужно, у нас уже есть нужный диапазон
+            return;
           }
         }
       }
 
-      // Если это isInitialLoad или aroundId не найден в кэше, идём на сервер
       final result = await _messageRepository.get(
         event.chatId,
         event.entityId,
@@ -197,7 +189,6 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         },
         (response) {
           final serverMessages = _ensureDescendingOrder(response.messages);
-
           List<Message> finalMessages;
 
           if (isAroundLoad) {
@@ -217,13 +208,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               );
               finalMessages = serverMessages.sublist(start, end);
             } else {
-              // Если сообщение вдруг удалено и его нет в ответе, берем просто лимит
               finalMessages = serverMessages.length > event.limit
                   ? serverMessages.sublist(0, event.limit)
                   : serverMessages;
             }
           } else {
-            // 🎯 Стандартная обрезка для isInitialLoad (берем самые последние)
             finalMessages = serverMessages.length > event.limit
                 ? serverMessages.sublist(0, event.limit)
                 : serverMessages;
@@ -235,7 +224,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             MessageLoaded(
               messages: finalMessages,
               actions: response.actions,
-              hasMoreMessages: finalMessages.isNotEmpty,
+              hasMoreMessages: isAroundLoad
+                  ? true
+                  : (finalMessages.length >= event.limit),
+              hasNewerMessages: isAroundLoad ? true : false,
               isLoadingMore: false,
               isLoadingNewer: false,
             ),
@@ -244,7 +236,6 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         },
       );
     } else {
-      // Логика для isNewerLoad и isOlderLoad (пагинация) остаётся без изменений
       final currentState = state;
       if (currentState is MessageLoaded) {
         if (isOlderLoad) {
@@ -268,6 +259,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                   isLoadingMore: false,
                   isLoadingNewer: false,
                   hasMoreMessages: currentState.hasMoreMessages,
+                  hasNewerMessages: currentState.hasNewerMessages,
                 ),
               );
               return;
@@ -281,6 +273,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             actions: currentState.actions,
             isLoadingMore: isOlderLoad,
             isLoadingNewer: isNewerLoad,
+            hasMoreMessages: currentState.hasMoreMessages,
+            hasNewerMessages: currentState.hasNewerMessages,
           ),
         );
       } else {
@@ -310,6 +304,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                 actions: currentState.actions,
                 isLoadingMore: false,
                 isLoadingNewer: false,
+                hasMoreMessages: currentState.hasMoreMessages,
+                hasNewerMessages: currentState.hasNewerMessages,
               ),
             );
           }
@@ -324,7 +320,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               MessageLoaded(
                 messages: serverMessages,
                 actions: response.actions,
-                hasMoreMessages: serverMessages.isNotEmpty,
+                hasMoreMessages: serverMessages.length >= event.limit,
+                hasNewerMessages: isNewerLoad
+                    ? (serverMessages.length >= event.limit)
+                    : true,
                 isLoadingMore: false,
                 isLoadingNewer: false,
               ),
@@ -339,9 +338,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                 actions: currentState.actions,
                 isLoadingMore: false,
                 isLoadingNewer: false,
-                hasMoreMessages: isNewerLoad
-                    ? currentState.hasMoreMessages
-                    : false,
+                hasMoreMessages: currentState.hasMoreMessages,
+                hasNewerMessages: false,
               ),
             );
             return;
@@ -363,6 +361,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               hasMoreMessages: isNewerLoad
                   ? currentState.hasMoreMessages
                   : (serverMessages.length >= event.limit),
+              hasNewerMessages: isNewerLoad
+                  ? (serverMessages.length >= event.limit)
+                  : currentState.hasNewerMessages,
             ),
           );
         },
@@ -389,6 +390,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       event.entityType,
       event.localGeneratedId,
       event.message,
+      event.symbolData?.filePath,
+      event.symbolData?.typeFile,
+      event.symbolData?.packId,
     );
 
     result.fold((failure) {
@@ -405,7 +409,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final chatId = _wsChatId(event);
     final cached = _messageRepository.getCached(chatId);
     if (cached == null) return;
-
+    print(event.localGeneratedId);
     final localIndex = cached.messages.indexWhere(
       (m) => m.localGeneratedId == event.localGeneratedId,
     );
@@ -580,6 +584,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
   void _emitFromCache(int chatId, Emitter<MessageState> emit) {
     if (state is! MessageLoaded) return;
+    final currentState = state as MessageLoaded;
     final cached = _messageRepository.getCached(chatId);
 
     if (!_chatRepository.isCurrentChat(chatId)) return;
@@ -588,6 +593,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       MessageLoaded(
         messages: cached?.messages ?? [],
         actions: cached?.actions ?? [],
+        isLoadingMore: currentState.isLoadingMore,
+        isLoadingNewer: currentState.isLoadingNewer,
+        hasMoreMessages: currentState.hasMoreMessages,
+        hasNewerMessages: currentState.hasNewerMessages,
       ),
     );
   }

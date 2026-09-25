@@ -2,6 +2,7 @@
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart'
     show ChatAttachment;
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
@@ -45,7 +46,7 @@ class FileMessage extends Equatable {
     return FileMessage(
       id: map['id'],
       messageId: map['fkMessage'],
-      packId: map['idPack'],
+      packId: DataParser.parseInt(map['idPack']),
       pathFile: map['pathFile'],
       originalName: originalName,
       size: (map['size'] as num?)?.toDouble(),

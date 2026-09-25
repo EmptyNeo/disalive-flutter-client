@@ -73,7 +73,7 @@ class MediasGrid extends StatelessWidget {
         if (stickers.isNotEmpty) ...[
           if (hasContentAbove) const SizedBox(height: 4),
           StickerItem(
-            sticker: stickers.first,
+            file: stickers.first,
           ),
           if (images.isNotEmpty || audios.isNotEmpty || files.isNotEmpty)
             const SizedBox(height: 6),

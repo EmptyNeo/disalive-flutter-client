@@ -259,7 +259,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         width: double.infinity,
                         height: double.infinity,

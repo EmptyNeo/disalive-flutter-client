@@ -1,6 +1,7 @@
 // lib/domain/repositories/message_repository.dart
 import 'package:dartz/dartz.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
@@ -23,6 +24,9 @@ abstract class MessageRepository {
     EntityType entityType,
     String localGeneratedId,
     Message message,
+    String? filePath,
+    FileContentType? typeFile,
+    int? packId,
   );
 
   Future<Either<Failure, bool>> update(

@@ -6,10 +6,12 @@ import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
+import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -17,6 +19,7 @@ import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
@@ -26,6 +29,7 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/personal_profile_screen.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/settings/settings_screen.dart';
+import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/features/home/widgets/supportive/keep_alive_page.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
@@ -116,6 +120,10 @@ class _HomeScreenState extends State<HomeScreen> {
             sl<SecureStorageService>(),
             sl<WsEventBus>(),
           ),
+        ),
+        BlocProvider<GifBloc>(create: (_) => GifBloc(sl<GifsRepository>())),
+        BlocProvider<StickerBloc>(
+          create: (_) => StickerBloc(sl<StickerPackRepository>()),
         ),
       ],
       child: MultiBlocListener(

@@ -10,23 +10,30 @@ import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat/screens/search_messages_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_input_area.dart';
 import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
+import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
+import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:disalive/presentation/utils/ui/util_file.dart';
+import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p show basename, extension;
@@ -47,6 +54,8 @@ class ChatScreen extends StatefulWidget {
     MessageBloc messageBloc = context.read<MessageBloc>();
     ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
     MembersBloc membersBloc = context.read<MembersBloc>();
+    GifBloc gifBloc = context.read<GifBloc>();
+    StickerBloc stickerBloc = context.read<StickerBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
     return SwipeToDismissRoute.push(
       context,
@@ -56,6 +65,8 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: messageBloc),
           BlocProvider.value(value: chatServerBloc),
           BlocProvider.value(value: membersBloc),
+          BlocProvider.value(value: gifBloc),
+          BlocProvider.value(value: stickerBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -69,7 +80,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final GlobalKey<MessagesListState> _messagesListKey =
       GlobalKey<MessagesListState>();
-  late final TextEditingController _textController;
+  late final EmojiTextEditingController _textController;
   final ValueNotifier<bool> _hasNeedSend = ValueNotifier(false);
   final FocusNode _inputFocusNode = FocusNode();
   List<ChatAttachment> _attachments = [];
@@ -90,11 +101,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   late Chat _currentChat;
 
+  bool _isExtraPanelOpen = false;
+  final double _extraPanelHeight = 335;
+
   @override
   void initState() {
     super.initState();
     _currentChat = widget.chat;
-    _textController = TextEditingController();
+    _textController = EmojiTextEditingController();
     _textController.addListener(_onTextChanged);
 
     _messageBloc = context.read<MessageBloc>();
@@ -115,12 +129,141 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _measureInput() {
-    if (!mounted) return;
+    if (!mounted || _isExtraPanelOpen) return;
     final box = _inputKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final measured = box.size.height + _kFloatingPanelMargin;
     if ((measured - _inputReserve).abs() > 1) {
       setState(() => _inputReserve = measured);
+    }
+  }
+
+  void _toggleExtraPanel() {
+    setState(() {
+      _isExtraPanelOpen = !_isExtraPanelOpen;
+    });
+
+    if (_isExtraPanelOpen) {
+      _inputFocusNode.requestFocus();
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => SystemChannels.textInput.invokeMethod('TextInput.hide'),
+      );
+    } else {
+      if (_inputFocusNode.hasFocus) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      } else {
+        _inputFocusNode.requestFocus();
+      }
+    }
+  }
+
+  void _onOpenKeyboard() {
+    _toggleExtraPanel();
+    _inputFocusNode.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _inputFocusNode.requestFocus();
+    });
+  }
+
+  void _insertEmoji(String fullEmojiId) {
+    // Гарантируем, что поле активно, а клавиатура скрыта
+    _inputFocusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => SystemChannels.textInput.invokeMethod('TextInput.hide'),
+    );
+
+    final currentText = _textController.text;
+    final currentSelection = _textController.selection;
+
+    final insertPosition = currentSelection.isCollapsed
+        ? currentSelection.start
+        : currentText.length;
+
+    final emojiWithSpace = '$fullEmojiId ';
+
+    final newText = currentText.replaceRange(
+      currentSelection.start,
+      currentSelection.end,
+      emojiWithSpace,
+    );
+
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: insertPosition + emojiWithSpace.length,
+      ),
+    );
+
+    _onTextChanged();
+  }
+
+  void _deleteLastEmojiOrChar() {
+    final currentText = _textController.text;
+    final currentSelection = _textController.selection;
+
+    // Если есть выделение, просто удаляем его (стандартное поведение)
+    if (!currentSelection.isCollapsed) {
+      final newText = currentText.replaceRange(
+        currentSelection.start,
+        currentSelection.end,
+        '',
+      );
+      _textController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: currentSelection.start),
+      );
+      _onTextChanged();
+      return;
+    }
+
+    if (currentSelection.start == 0) return; // Нечего удалять
+
+    final textBeforeCursor = currentText.substring(0, currentSelection.start);
+
+    // 🎯 Регекс ищет паттерн [category:id] с возможным пробелом на конце строки
+    final regex = RegExp(r'\[[a-zA-Z0-9_]+:\d+\]\s?$');
+    final match = regex.firstMatch(textBeforeCursor);
+
+    String newText;
+    int newCursorOffset;
+
+    if (match != null) {
+      // Удаляем весь тег эмодзи целиком
+      newText = currentText.replaceRange(
+        match.start,
+        currentSelection.start,
+        '',
+      );
+      newCursorOffset = match.start;
+    } else {
+      // Стандартное удаление: стираем 1 последний символ
+      newText = currentText.replaceRange(
+        currentSelection.start - 1,
+        currentSelection.start,
+        '',
+      );
+      newCursorOffset = currentSelection.start - 1;
+    }
+
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorOffset),
+    );
+    _onTextChanged();
+  }
+
+  Future<void> _onSearchTap() async {
+    final selectedMessage = await SearchMessagesScreen.open(
+      context,
+      _currentChat,
+    );
+
+    if (selectedMessage != null && mounted) {
+      // Передаём управление в MessagesList для навигации с подсветкой
+      _messagesListKey.currentState?.navigateToPublic(
+        selectedMessage.id,
+        highlight: true,
+      );
     }
   }
 
@@ -218,7 +361,9 @@ class _ChatScreenState extends State<ChatScreen> {
                           currentUserId: _currentUserId,
                           initialAroundId:
                               _currentChat.member?.lastIdReadMessage ?? 0,
-                          inputReserve: _inputReserve,
+                          inputReserve:
+                              _inputReserve +
+                              (_isExtraPanelOpen ? _extraPanelHeight : 0),
                           onSendMessage: _onSendMessage,
                           onEditMessage: _onEditMessage,
                           onDeleteMessage: _onDeleteMessage,
@@ -239,12 +384,95 @@ class _ChatScreenState extends State<ChatScreen> {
                           context,
                           chat: widget.chat,
                         ),
+                        onSearchTap: _onSearchTap,
                       ),
                     ),
                     Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
+                        height: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                        child: _isExtraPanelOpen
+                            ? ChatExtraPanel(
+                                height: _extraPanelHeight,
+                                onClose: _toggleExtraPanel,
+                                onStickerPackLongPress: (pack) {
+                                  print('Long press on pack: ${pack.name}');
+                                },
+                                onTapEmoji: (emoji) {
+                                  String fullEmojiId =
+                                      '[${emoji.categoryName}:${emoji.id}]';
+                                  _insertEmoji(fullEmojiId);
+                                },
+                                onTapSticker: (sticker) {
+                                  final optimisticFileMessage = FileMessage(
+                                    id: -1,
+                                    messageId: null,
+                                    pathFile: sticker.urlPath,
+                                    originalName: 'sticker',
+                                    size: 0,
+                                    unit: 'B',
+                                    fileType: FileType.image,
+                                    contentType: FileContentType.sticker,
+                                    duration: 0,
+                                    isSpoiler: 0,
+                                  );
+
+                                  // 2. Создаем SymbolData для бэкенда
+                                  final symbolData = SymbolData(
+                                    filePath: sticker.urlPath,
+                                    typeFile: FileContentType.sticker,
+                                    packId: sticker.packId,
+                                  );
+
+                                  final message = Message(
+                                    attachments: [optimisticFileMessage],
+                                    symbolData: symbolData,
+                                  );
+
+                                  _onSendMessage(message);
+                                },
+                                onTapGif: (gif) {
+                                  final optimisticFileMessage = FileMessage(
+                                    id: -1,
+                                    messageId: null,
+                                    pathFile: gif.fullUrl,
+                                    originalName: 'gif',
+                                    size: 0,
+                                    unit: 'B',
+                                    fileType: FileType.image,
+                                    contentType: FileContentType.gif,
+                                    duration: 0,
+                                    isSpoiler: 0,
+                                  );
+
+                                  final symbolData = SymbolData(
+                                    filePath: gif.fullUrl,
+                                    typeFile: FileContentType.gif,
+                                  );
+
+                                  final message = Message(
+                                    attachments: [optimisticFileMessage],
+                                    symbolData: symbolData,
+                                  );
+
+                                  _onSendMessage(message);
+                                },
+                                onBackspace: _deleteLastEmojiOrChar,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      left: 0,
+                      right: 0,
+                      bottom: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                      // 👈 СДВИГАЕТСЯ ВВЕРХ НА ВЫСОТУ ПАНЕЛИ
                       child: ChatInputArea(
                         key: const ValueKey('chat_input_area'),
                         chat: _currentChat,
@@ -286,17 +514,18 @@ class _ChatScreenState extends State<ChatScreen> {
                               }
                               return false;
                             });
-
                             if (index != -1) {
                               _attachments[index] = updatedAttachment;
                             }
                           });
-
                           WidgetsBinding.instance.addPostFrameCallback(
                             (_) => _measureInput(),
                           );
                         },
                         onSendVoiceMessage: _onSendVoiceMessage,
+                        onToggleExtraPanel: _toggleExtraPanel,
+                        onOpenKeyboard: _onOpenKeyboard,
+                        isExtraPanelOpen: _isExtraPanelOpen,
                       ),
                     ),
                   ],
@@ -368,7 +597,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onSendMessage(Message message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _messagesListKey.currentState?.handleScrollToBottom(animated: false);
+    });
+
     var localGeneratedId = message.localGeneratedId ?? IdGenerator.generateId();
+    print(localGeneratedId);
 
     final metaNewFiles = <MetaFileMessage>[];
     final newFilesList = <File>[];
@@ -439,6 +673,7 @@ class _ChatScreenState extends State<ChatScreen> {
         entityType: EntityType.chat,
         localGeneratedId: localGeneratedId,
         message: localMessage,
+        symbolData: message.symbolData,
       ),
     );
 

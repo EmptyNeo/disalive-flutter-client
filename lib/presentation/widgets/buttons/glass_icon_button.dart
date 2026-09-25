@@ -21,25 +21,31 @@ class GlassIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoButton(
-      padding: EdgeInsets.zero, // Убираем все внутренние отступы кнопки
-      minSize: size,            // Используем minSize (правильное свойство для CupertinoButton)
+      padding: EdgeInsets.zero,
+      // Используем minSize (правильное свойство для CupertinoButton)
       onPressed: onTap,
-      child: Center(            // 1. Гарантируем центрирование всего блока
+      minimumSize: Size(size, size),
+      child: Center(
+        // 1. Гарантируем центрирование всего блока
         child: Container(
+          alignment: Alignment.center,
           width: size,
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: filled ? AppColors.blurple : AppColors.lightGrey,
             border: Border.all(
-              color: filled ? AppColors.blurple : AppColors.white.withOpacity(0.12),
+              color: filled
+                  ? AppColors.blurple
+                  : AppColors.white.withValues(alpha: 0.12),
               width: 1,
             ),
           ),
-          child: Center(        // 2. Двойное центрирование для иконки
+          child: Center(
+            // 2. Двойное центрирование для иконки
             child: Icon(
               icon,
-              size: size * 0.5, // Чуть увеличил с 0.48 до 0.5 для лучшей визуальной пропорции
+              size: size * 0.5,
               color: filled ? AppColors.onBlurple : AppColors.iconGrey,
             ),
           ),

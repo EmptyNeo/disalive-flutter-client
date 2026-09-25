@@ -267,7 +267,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final message = event.message;
     final chatId = message.chatId ?? 0;
 
-    if (chatId == 0 && event.isSelf) return;
+    if (chatId == 0 || event.isSelf) return;
 
     final cachedChats = _chatRepository.getCached();
     final chatIndex = cachedChats.indexWhere((c) => c.id == chatId);
