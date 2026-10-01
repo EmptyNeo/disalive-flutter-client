@@ -21,7 +21,7 @@ class _VideoStickerGate {
 
   static final _VideoStickerGate instance = _VideoStickerGate._();
 
-  static const int maxConcurrent = 3;
+  static const int maxConcurrent = 10;
 
   int _active = 0;
   final List<_StickerItemState> _waiting = [];

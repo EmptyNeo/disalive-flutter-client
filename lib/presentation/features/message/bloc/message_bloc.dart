@@ -8,10 +8,12 @@ import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/history_action.dart';
+import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -21,6 +23,7 @@ part 'message_state.dart';
 
 class MessageBloc extends Bloc<MessageEvent, MessageState> {
   final MessageRepository _messageRepository;
+  final ReactionsRepository _reactionsRepository;
   final ChatRepository _chatRepository;
   final WsEventBus _eventBus;
 
@@ -28,14 +31,24 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   StreamSubscription? _updateSubscription;
   StreamSubscription? _deleteSubscription;
 
-  final String tableName = 'Message';
+  StreamSubscription? _reactionCreateSubscription;
+  StreamSubscription? _reactionDeleteSubscription;
 
-  MessageBloc(this._messageRepository, this._chatRepository, this._eventBus)
-    : super(MessageInitial()) {
+  final String tableName = 'Message';
+  final String reactionTableName = 'ReactionsMessage';
+
+  MessageBloc(
+    this._messageRepository,
+    this._reactionsRepository,
+    this._chatRepository,
+    this._eventBus,
+  ) : super(MessageInitial()) {
     on<GetMessages>(_onGetMessages);
     on<CreateMessage>(_onCreateMessage);
     on<DeleteMessage>(_onDeleteMessage);
     on<UpdateMessage>(_onUpdateMessage);
+    on<ToggleReaction>(_onToggleReaction);
+    on<UpdateReactionFromWs>(_onUpdateReactionFromWs);
   }
 
   void setupListeners() {
@@ -57,6 +70,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       table: tableName,
       action: ActionType.delete,
       onData: _onWsDeleteEvent,
+    );
+
+    _reactionCreateSubscription = _eventBus.subscribe(
+      table: reactionTableName,
+      action: ActionType.create,
+      onData: (event) => _dispatchReactionEvent(event, isCreate: true),
+    );
+
+    _reactionDeleteSubscription = _eventBus.subscribe(
+      table: reactionTableName,
+      action: ActionType.delete,
+      onData: (event) => _dispatchReactionEvent(event, isCreate: false),
     );
   }
 
@@ -640,6 +665,132 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     cached.messages.removeWhere((m) => m.id == messageId);
   }
 
+  Future<void> _onToggleReaction(
+    ToggleReaction event,
+    Emitter<MessageState> emit,
+  ) async {
+    // Просто делаем запрос. UI обновится автоматически, когда придет WS-событие.
+    final result = await _reactionsRepository.toggleReaction(
+      chatId: event.chatId,
+      entityId: event.entityId,
+      entityType: event.entityType,
+      messageId: event.messageId,
+      reactionName: event.reactionName,
+    );
+
+    result.fold(
+      (failure) {
+        debugPrint('Failed to toggle reaction: ${failure.message}');
+      },
+      (_) {
+        debugPrint(
+          'Reaction toggle request sent successfully. Waiting for WS update.',
+        );
+      },
+    );
+  }
+
+  void _dispatchReactionEvent(WsEvent event, {required bool isCreate}) {
+    final data = event.data;
+    final messageId = data['messageId'] as int?;
+    final chatId = data['chatId'] as int?;
+    final nameReaction = data['nameReaction'] as String?;
+    final amount = data['amount'] as int?;
+    final hasUserReaction = data['hasUserReaction'] as bool? ?? false;
+    final userId = data['userId'] as int?;
+
+    if (messageId != null &&
+        chatId != null &&
+        nameReaction != null &&
+        amount != null) {
+      add(
+        UpdateReactionFromWs(
+          chatId: chatId,
+          messageId: messageId,
+          nameReaction: nameReaction,
+          amount: amount,
+          hasUserReaction: hasUserReaction,
+          userId: userId,
+        ),
+      );
+    }
+  }
+
+  Future<void> _onUpdateReactionFromWs(
+    UpdateReactionFromWs event,
+    Emitter<MessageState> emit,
+  ) async {
+    // 1. Проверяем, есть ли сообщение в кэше
+    final cached = _messageRepository.getCached(event.chatId);
+    if (cached == null) return;
+
+    final msgIndex = cached.messages.indexWhere((m) => m.id == event.messageId);
+    if (msgIndex == -1) return; // Сообщения нет в кэше, ничего не делаем
+
+    final msg = cached.messages[msgIndex];
+    final currentReactions = msg.reactions ?? [];
+    final reactionIndex = currentReactions.indexWhere(
+      (r) => r.nameReaction == event.nameReaction,
+    );
+
+    List<ReactionMessage> newReactions = List.from(currentReactions);
+
+    // 2. Формируем новый список реакций
+    if (event.hasUserReaction) {
+      if (reactionIndex != -1) {
+        newReactions[reactionIndex] = newReactions[reactionIndex].copyWith(
+          amount: event.amount,
+          hasUserReaction: true,
+        );
+      } else {
+        newReactions.add(
+          ReactionMessage(
+            messageId: event.messageId,
+            userId: event.userId,
+            nameReaction: event.nameReaction,
+            amount: event.amount,
+            hasUserReaction: true,
+          ),
+        );
+      }
+    } else {
+      if (reactionIndex != -1) {
+        if (event.amount == 0) {
+          newReactions.removeAt(reactionIndex);
+        } else {
+          newReactions[reactionIndex] = newReactions[reactionIndex].copyWith(
+            amount: event.amount,
+            hasUserReaction: false,
+          );
+        }
+      }
+    }
+
+    // 3. Обновляем кэш (мутируем объект, как это делается в _onWsCreateEvent)
+    cached.messages[msgIndex] = msg.copyWith(
+      reactions: newReactions.isEmpty ? null : newReactions,
+    );
+
+    // Синхронизируем кэш в репозитории (на случай, если он ожидает явного вызова)
+    _messageRepository.cacheMessages(event.chatId, cached.messages);
+
+    // 4. Эмитим состояние ТОЛЬКО если мы сейчас находимся в этом чате
+    if (_chatRepository.isCurrentChat(event.chatId) && state is MessageLoaded) {
+      final currentState = state as MessageLoaded;
+      emit(
+        MessageLoaded(
+          messages: cached.messages,
+          // Передаем новый список, чтобы триггернуть перерисовку
+          actions: currentState.actions,
+          isLoadingMore: currentState.isLoadingMore,
+          isLoadingNewer: currentState.isLoadingNewer,
+          hasMoreMessages: currentState.hasMoreMessages,
+          hasNewerMessages: currentState.hasNewerMessages,
+        ),
+      );
+    }
+  }
+
   @override
   Future<void> close() {
     closeSubs();
@@ -651,5 +802,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     _createSubscription?.cancel();
     _updateSubscription?.cancel();
     _deleteSubscription?.cancel();
+    _reactionCreateSubscription?.cancel();
+    _reactionDeleteSubscription?.cancel();
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
@@ -19,6 +18,7 @@ class ChatInputArea extends StatefulWidget {
   final FocusNode inputFocusNode;
   final GlobalKey inputKey;
   final bool hasEdit;
+  final bool hasAnswer;
   final Message? answerMessage;
   final ValueNotifier<bool> hasNeedSend;
   final TextEditingController textController;
@@ -31,7 +31,7 @@ class ChatInputArea extends StatefulWidget {
   final Function(ChatAttachment) onUpdateAttachment;
   final Function(File file, double durationSeconds) onSendVoiceMessage;
   final Function() onToggleExtraPanel;
-  final Function() onOpenKeyboard;
+  final Function() onHideKeyboard;
   final bool isExtraPanelOpen;
 
   const ChatInputArea({
@@ -41,6 +41,7 @@ class ChatInputArea extends StatefulWidget {
     required this.inputKey,
     required this.textController,
     required this.hasEdit,
+    required this.hasAnswer,
     required this.answerMessage,
     required this.hasNeedSend,
     required this.cancelBanner,
@@ -53,7 +54,7 @@ class ChatInputArea extends StatefulWidget {
     required this.onUpdateAttachment,
     required this.onSendVoiceMessage,
     required this.onToggleExtraPanel,
-    required this.onOpenKeyboard,
+    required this.onHideKeyboard,
     required this.isExtraPanelOpen,
   });
 
@@ -64,9 +65,12 @@ class ChatInputArea extends StatefulWidget {
 class _ChatInputAreaState extends State<ChatInputArea> {
   // 🎯 Ключ для прямого вызова методов внутри VoiceRecordOverlay
   final GlobalKey<VoiceRecordOverlayState> _voiceRecorderKey = GlobalKey();
+  final GlobalKey _micButtonKey = GlobalKey();
   OverlayEntry? _voiceOverlayEntry;
 
   bool get _isRecording => _voiceOverlayEntry != null;
+
+  bool get _hasBanner => widget.hasEdit || widget.hasAnswer;
 
   @override
   void dispose() {
@@ -74,15 +78,14 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     super.dispose();
   }
 
-  void _showVoiceRecorder(Offset initialGlobalPosition) {
+  void _showVoiceRecorder() async {
+    widget.onHideKeyboard();
+
     if (_voiceOverlayEntry != null) return;
 
     _voiceOverlayEntry = OverlayEntry(
       builder: (context) => Stack(
         children: [
-          // Блокирует тапы по всему, что под оверлеем, пока идёт запись —
-          // раньше это пытался делать локальный Positioned.fill внутри
-          // Column инпут-бара, что не работало (Positioned требует Stack).
           const Positioned.fill(child: AbsorbPointer(absorbing: true)),
           Positioned(
             left: 0,
@@ -95,9 +98,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                 widget.onSendVoiceMessage(data.file, data.durationSeconds);
               },
               onCancel: _removeVoiceOverlay,
-              onLock: (isLocked) {
-                // Тактильный отклик можно добавить здесь
-              },
+              onLock: (isLocked) {},
             ),
           ),
         ],
@@ -105,9 +106,23 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     );
 
     Overlay.of(context, rootOverlay: true).insert(_voiceOverlayEntry!);
-    // Небольшая задержка, чтобы виджет успел отрисоваться перед первым вызовом
+
+    // 🎯 3. ЖДЁМ, ПОКА ИНТЕРФЕЙС НАЧНЁТ СДВИГАТЬСЯ ПОСЛЕ СКРЫТИЯ КЛАВИАТУРЫ
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _voiceRecorderKey.currentState?.startDrag(initialGlobalPosition);
+      // Небольшая задержка гарантирует, что RenderBox кнопки уже обновил свои координаты
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        final micBox =
+            _micButtonKey.currentContext?.findRenderObject() as RenderBox?;
+
+        if (micBox != null && _voiceRecorderKey.currentState != null) {
+          // Получаем ЦЕНТР кнопки микрофона в новых глобальных координатах
+          final centerPosition = micBox.localToGlobal(
+            Offset(micBox.size.width / 2, micBox.size.height / 2),
+          );
+
+          _voiceRecorderKey.currentState!.startDrag(centerPosition);
+        }
+      });
     });
   }
 
@@ -118,9 +133,15 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     }
   }
 
+  BorderRadiusGeometry get _getRadiusForButton => BorderRadius.only(
+    topLeft: Radius.circular(_hasBanner ? 12 : 36),
+    topRight: Radius.circular(_hasBanner ? 12 : 36),
+    bottomLeft: const Radius.circular(36),
+    bottomRight: const Radius.circular(36),
+  );
+
   @override
   Widget build(BuildContext context) {
-    bool hasAnswer = widget.answerMessage != null;
     final bool isInputAllowed =
         !widget.chat.isAnyBlocked && !widget.isReconnect;
 
@@ -137,12 +158,12 @@ class _ChatInputAreaState extends State<ChatInputArea> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.hasEdit) _buildEditBanner(),
-          if (hasAnswer) _buildAnswerBanner(widget.answerMessage),
-          if (widget.hasEdit || hasAnswer) const SizedBox(height: 6),
+          if (widget.hasAnswer) _buildAnswerBanner(widget.answerMessage),
+          if (_hasBanner) const SizedBox(height: 6),
           if (widget.attachments.isNotEmpty)
             AttachmentContainer(
               attachments: widget.attachments,
-              hasBanner: widget.hasEdit || hasAnswer,
+              hasBanner: _hasBanner,
               onRemove: widget.onRemoveAttachment,
               onUpdate: widget.onUpdateAttachment,
             ),
@@ -154,14 +175,16 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                   icon: CupertinoIcons.add,
                   onTap: widget.onPickAttachment,
                   size: 36,
+                  borderRadius: _getRadiusForButton,
+                  hasBorderRadius: true,
                 ),
                 const SizedBox(width: 5),
               ],
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(widget.hasEdit ? 8 : 20),
-                    topRight: Radius.circular(widget.hasEdit ? 8 : 20),
+                    topLeft: Radius.circular(_hasBanner ? 8 : 20),
+                    topRight: Radius.circular(_hasBanner ? 8 : 20),
                     bottomLeft: const Radius.circular(20),
                     bottomRight: const Radius.circular(20),
                   ),
@@ -169,8 +192,8 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                     decoration: BoxDecoration(
                       color: AppColors.lightGrey,
                       borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(widget.hasEdit ? 8 : 20),
-                        topRight: Radius.circular(widget.hasEdit ? 8 : 20),
+                        topLeft: Radius.circular(_hasBanner ? 8 : 20),
+                        topRight: Radius.circular(_hasBanner ? 8 : 20),
                         bottomLeft: const Radius.circular(20),
                         bottomRight: const Radius.circular(20),
                       ),
@@ -210,15 +233,20 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                     ? GlassIconButton(
                         icon: CupertinoIcons.smiley,
                         onTap: widget.onToggleExtraPanel,
+                        borderRadius: _getRadiusForButton,
+                        hasBorderRadius: true,
                       )
                     : GlassIconButton(
                         icon: CupertinoIcons.keyboard,
-                        onTap: widget.onOpenKeyboard,
+                        onTap: widget.onToggleExtraPanel,
+                        borderRadius: _getRadiusForButton,
+                        hasBorderRadius: true,
                       ),
 
                 const SizedBox(width: 5),
                 // 🎯 GestureDetector теперь управляет всем циклом записи
                 GestureDetector(
+                  key: _micButtonKey,
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
                     final message = Message(
@@ -233,7 +261,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                   },
                   onLongPressStart: (details) {
                     if (!widget.hasEdit && !widget.hasNeedSend.value) {
-                      _showVoiceRecorder(details.globalPosition);
+                      _showVoiceRecorder();
                     }
                   },
                   onLongPressMoveUpdate: (details) {
@@ -275,6 +303,8 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                           widget.textController.clear();
                         },
                         size: 36,
+                        borderRadius: _getRadiusForButton,
+                        hasBorderRadius: true,
                       );
                     },
                   ),

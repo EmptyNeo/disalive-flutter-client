@@ -9,6 +9,7 @@ import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
+import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
@@ -106,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
         BlocProvider<MessageBloc>(
           create: (_) => MessageBloc(
             sl<MessageRepository>(),
+            sl<ReactionsRepository>(),
             sl<ChatRepository>(),
             sl<WsEventBus>(),
           ),

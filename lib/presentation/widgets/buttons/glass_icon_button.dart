@@ -10,6 +10,8 @@ class GlassIconButton extends StatelessWidget {
     this.filled = false,
     this.size = 36.0,
     this.blur, // Оставил, но см. примечание ниже
+    this.borderRadius,
+    this.hasBorderRadius = false,
   });
 
   final IconData icon;
@@ -17,6 +19,9 @@ class GlassIconButton extends StatelessWidget {
   final bool filled;
   final double size;
   final double? blur;
+  final BorderRadiusGeometry? borderRadius;
+
+  final bool hasBorderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +37,8 @@ class GlassIconButton extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
+            shape: hasBorderRadius ? BoxShape.rectangle : BoxShape.circle,
+            borderRadius: hasBorderRadius ? borderRadius : null,
             color: filled ? AppColors.blurple : AppColors.lightGrey,
             border: Border.all(
               color: filled

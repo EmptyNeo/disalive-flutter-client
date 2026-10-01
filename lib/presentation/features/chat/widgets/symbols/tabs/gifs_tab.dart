@@ -40,12 +40,12 @@ class _GifsTabState extends State<GifsTab> {
     super.dispose();
   }
 
-  // 🎯 ЛОГИКА ПАГИНАЦИИ: Срабатывает, когда до конца списка осталось 200 пикселей
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       final state = context.read<GifBloc>().state;
-      if (state is GifLoaded && !state.hasReachedMax) {
+
+      if (state is GifLoaded && !state.hasReachedMax && !state.isLoadingMore) {
         context.read<GifBloc>().add(
           LoadGifs(
             type: state.currentType,

@@ -173,7 +173,14 @@ class VoiceRecordOverlayState extends State<VoiceRecordOverlay>
   }
 
   void updateDrag(Offset localPosition) {
-    if (_startDragPosition == null) return;
+    if (_startDragPosition == null) {
+      _startDragPosition = localPosition;
+      setState(() {
+        _dragOffsetX = 0.0;
+        _dragOffsetY = 0.0;
+      });
+      return;
+    }
 
     setState(() {
       _dragOffsetX = localPosition.dx - _startDragPosition!.dx;

@@ -32,7 +32,7 @@ class _StickersTabState extends State<StickersTab> {
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
-        alignment: 0.0, // Прокрутить к началу секции
+        alignment: 0.0, // Прокрутить к началу секции (заголовку)
       );
     }
   }
@@ -46,68 +46,75 @@ class _StickersTabState extends State<StickersTab> {
         }
 
         if (state is StickerLoaded) {
+          // 🎯 ФОРМИРУЕМ СПИСОК СЛИВЕРОВ ДИНАМИЧЕСКИ
+          final List<Widget> slivers = [];
+
+          for (int i = 0; i < state.packs.length; i++) {
+            final pack = state.packs[i];
+            final sectionKey = _packKeys.putIfAbsent(
+              pack.id,
+              () => GlobalKey(),
+            );
+
+            // 🎯 SliverMainAxisGroup группирует заголовок и грид в один логический блок,
+            // на который можно повесить GlobalKey для прокрутки.
+            slivers.add(
+              SliverMainAxisGroup(
+                key: sectionKey,
+                slivers: [
+                  // 1. Заголовок пака
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 8,
+                      ),
+                      child: Text(
+                        pack.name,
+                        style: AppText.lowTextStyle.copyWith(
+                          color: AppColors.greyple,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 2. Истинно ленивый грид стикеров (без shrinkWrap!)
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            mainAxisSpacing: 8,
+                            crossAxisSpacing: 8,
+                          ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final sticker = pack.attachments![index];
+                        return StickerItem(
+                          sticker: sticker,
+                          maxSize: 80,
+                          onTap: () => widget.onTap.call(sticker),
+                        );
+                      }, childCount: pack.attachments?.length ?? 0),
+                    ),
+                  ),
+
+                  // 3. Отступ между паками
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                ],
+              ),
+            );
+          }
+
           return Column(
             children: [
-              // 🎯 ОСНОВНОЙ ГРИД СО ВСЕМИ ПАКАМИ
+              // 🎯 ОСНОВНОЙ ЛЕНИВЫЙ СПИСОК
               Expanded(
-                child: ListView.builder(
+                child: CustomScrollView(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: state.packs.length,
-                  itemBuilder: (context, index) {
-                    final pack = state.packs[index];
-
-                    // Создаем или получаем ключ для этой секции
-                    final sectionKey = _packKeys.putIfAbsent(
-                      pack.id,
-                      () => GlobalKey(),
-                    );
-
-                    return Column(
-                      key: sectionKey,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Заголовок пака
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 8,
-                            horizontal: 4,
-                          ),
-                          child: Text(
-                            pack.name,
-                            style: AppText.lowTextStyle.copyWith(
-                              color: AppColors.greyple,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        // Сетка стикеров этого пака
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 4,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                              ),
-                          itemCount: pack.attachments?.length ?? 0,
-                          itemBuilder: (context, i) {
-                            final sticker = pack.attachments![i];
-                            return StickerItem(
-                              sticker: sticker,
-                              maxSize: 80,
-                              onTap: () {
-                                widget.onTap.call(sticker);
-                              },
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                    );
-                  },
+                  slivers: slivers,
                 ),
               ),
 
@@ -115,7 +122,7 @@ class _StickersTabState extends State<StickersTab> {
 
               // 🎯 УЛЬТРА-КОМПАКТНАЯ ГОРИЗОНТАЛЬНАЯ ПАНЕЛЬ
               Container(
-                height: 44, // 🎯 УМЕНЬШЕНО до 48 (стандарт компактных панелей)
+                height: 44,
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
@@ -133,15 +140,13 @@ class _StickersTabState extends State<StickersTab> {
                       onTap: () => _scrollToPack(pack.id),
                       onLongPress: () => widget.onPackLongPress(pack),
                       child: Container(
-                        width: 36, // 🎯 УМЕНЬШЕНО до 40
+                        width: 36,
                         margin: EdgeInsets.only(
                           left: index == 0 ? 0 : 2,
-                          // 🎯 Плотнее прижаты друг к другу
                           right: 2,
                         ),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
-                          // 🎯 Чуть меньше скругление
                           color: AppColors.white.withValues(alpha: 0.06),
                           border: Border.all(
                             color: AppColors.white.withValues(alpha: 0.08),
@@ -150,11 +155,7 @@ class _StickersTabState extends State<StickersTab> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: firstSticker != null
-                              ? StickerItem(
-                                  sticker: firstSticker,
-                                  maxSize:
-                                      24, // 🎯 Идеальный размер для кнопки 40x40
-                                )
+                              ? StickerItem(sticker: firstSticker, maxSize: 24)
                               : Center(
                                   child: Text(
                                     pack.name.isNotEmpty
@@ -162,7 +163,7 @@ class _StickersTabState extends State<StickersTab> {
                                         : '?',
                                     style: AppText.mediumTextStyle.copyWith(
                                       color: AppColors.greyple,
-                                      fontSize: 14, // 🎯 Компактный шрифт
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),

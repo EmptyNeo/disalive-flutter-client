@@ -85,13 +85,9 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
           height: widget.height,
           margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           decoration: BoxDecoration(
-            color: AppColors.lightGrey.withValues(alpha: 0.85),
-            // Или AppColors.mainBackground.withValues(alpha: 0.85)
+            color: AppColors.lightGrey,
             borderRadius: const BorderRadius.all(Radius.circular(24)),
-            border: Border.all(
-              color: AppColors.white.withValues(alpha: 0.1),
-              width: 1,
-            ),
+            border: Border.all(color: AppColors.divider, width: 0.5),
             boxShadow: [
               BoxShadow(
                 color: CupertinoColors.black.withValues(alpha: 0.2),

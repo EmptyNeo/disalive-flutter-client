@@ -13,11 +13,11 @@ class GifsRepositoryImpl extends GifsRepository {
 
   @override
   Future<Either<Failure, List<Gif>>> get(
-      GifTypeSearch type,
-      String tags,
-      int skip,
-      int take,
-      ) async {
+    GifTypeSearch type,
+    String tags,
+    int skip,
+    int take,
+  ) async {
     final result = await _httpClient.postFormData<List<Gif>>(
       endpoint: "gifs/",
       data: {"action": type.value, "tags": tags, "skip": skip, "take": take},
@@ -33,15 +33,12 @@ class GifsRepositoryImpl extends GifsRepository {
       },
     );
 
-    result.fold(
-            (failure) => null,
-            (response) {
-          if (skip == 0) {
-            _gifs.clear();
-          }
-          _gifs.addAll(response);
-        }
-    );
+    result.fold((failure) => null, (response) {
+      if (skip == 0) {
+        _gifs.clear();
+      }
+      _gifs.addAll(response);
+    });
 
     return result;
   }

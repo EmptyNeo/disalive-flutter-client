@@ -7,6 +7,7 @@ import 'package:disalive/data/repositories/gifs_repository_impl.dart';
 import 'package:disalive/data/repositories/members_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/permission_repository_impl.dart';
+import 'package:disalive/data/repositories/reactions_repository_impl.dart';
 import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
@@ -22,6 +23,7 @@ import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
+import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
@@ -88,12 +90,15 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<StickerPackRepository>(
     () => StickerPackRepositoryImpl(),
   );
+  sl.registerLazySingleton<ReactionsRepository>(
+    () => ReactionsRepositoryImpl(),
+  );
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl(), sl()));
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
-  sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl()));
+  sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl()));
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));

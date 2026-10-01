@@ -1,3 +1,4 @@
+// lib/presentation/features/gifs/bloc/gif_state.dart
 part of 'gif_bloc.dart';
 
 abstract class GifState extends Equatable {
@@ -13,11 +14,12 @@ class GifLoading extends GifState {}
 
 class GifLoaded extends GifState {
   final List<Gif> gifs;
-  final int skip; // Следующее значение skip для пагинации
+  final int skip;
   final int take;
-  final bool hasReachedMax; // true, если пришло меньше гифок, чем requested take
+  final bool hasReachedMax;
   final String currentTags;
   final GifTypeSearch currentType;
+  final bool isLoadingMore; // 🎯 НОВЫЙ ФЛАГ
 
   const GifLoaded({
     required this.gifs,
@@ -26,6 +28,7 @@ class GifLoaded extends GifState {
     required this.hasReachedMax,
     required this.currentTags,
     required this.currentType,
+    this.isLoadingMore = false,
   });
 
   GifLoaded copyWith({
@@ -35,6 +38,7 @@ class GifLoaded extends GifState {
     bool? hasReachedMax,
     String? currentTags,
     GifTypeSearch? currentType,
+    bool? isLoadingMore,
   }) {
     return GifLoaded(
       gifs: gifs ?? this.gifs,
@@ -43,11 +47,12 @@ class GifLoaded extends GifState {
       hasReachedMax: hasReachedMax ?? this.hasReachedMax,
       currentTags: currentTags ?? this.currentTags,
       currentType: currentType ?? this.currentType,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 
   @override
-  List<Object?> get props => [gifs, skip, take, hasReachedMax, currentTags, currentType];
+  List<Object?> get props => [gifs, skip, take, hasReachedMax, currentTags, currentType, isLoadingMore];
 }
 
 class GifError extends GifState {

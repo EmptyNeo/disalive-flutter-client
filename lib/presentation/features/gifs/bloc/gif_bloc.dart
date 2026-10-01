@@ -21,23 +21,26 @@ class GifBloc extends Bloc<GifEvent, GifState> {
     if (event.skip == 0) {
       final cachedGifs = _gifsRepository.getCache();
       if (cachedGifs.isNotEmpty) {
-        // Показываем кэш мгновенно, не дожидаясь сети
         emit(GifLoaded(
           gifs: cachedGifs,
           skip: event.take,
           take: event.take,
-          hasReachedMax: false, // Пока не знаем, есть ли ещё, пусть грузит
+          hasReachedMax: false,
           currentTags: event.tags,
           currentType: event.type,
         ));
-        // ВАЖНО: Мы НЕ делаем return здесь. Код пойдет дальше и обновит данные в фоне.
       } else {
-        // Если кэша нет, показываем спиннер
         emit(GifLoading());
+      }
+    } else {
+      // 🎯 ДЛЯ ПАГИНАЦИИ: Помечаем, что идет загрузка
+      final currentState = state;
+      if (currentState is GifLoaded) {
+        emit(currentState.copyWith(isLoadingMore: true));
       }
     }
 
-    // 🎯 ШАГ 2: СЕТЕВОЙ ЗАПРОС (Обновление данных)
+    // 🎯 ШАГ 2: СЕТЕВОЙ ЗАПРОС
     final result = await _gifsRepository.get(
       event.type,
       event.tags,
@@ -47,39 +50,36 @@ class GifBloc extends Bloc<GifEvent, GifState> {
 
     result.fold(
           (failure) {
-        // Показываем ошибку только если это первая загрузка и кэша не было
         if (event.skip == 0 && state is! GifLoaded) {
           emit(GifError(failure));
+        } else if (event.skip > 0 && state is GifLoaded) {
+          // 🎯 При ошибке пагинации снимаем флаг загрузки
+          emit((state as GifLoaded).copyWith(isLoadingMore: false));
         }
-        // Если это пагинация (skip > 0) и произошла ошибка, мы просто ничего не эмитим.
-        // Список останется на экране, пользователь сможет попробовать проскроллить еще раз.
       },
           (fetchedGifs) {
         final currentState = state;
         List<Gif> updatedGifs;
 
-        // 🎯 КЛЮЧЕВАЯ ЛОГИКА ПАГИНАЦИИ:
         if (event.skip == 0) {
-          // Новая загрузка или новый поиск: заменяем список полностью
           updatedGifs = fetchedGifs;
         } else if (currentState is GifLoaded) {
-          // Пагинация: добавляем новые гифки в конец существующего списка
           updatedGifs = [...currentState.gifs, ...fetchedGifs];
         } else {
           updatedGifs = fetchedGifs;
         }
 
-        // Если пришло меньше гифок, чем мы запросили (take), значит, мы достигли конца
         final hasReachedMax = fetchedGifs.length < event.take;
 
         emit(
           GifLoaded(
             gifs: updatedGifs,
-            skip: event.skip + event.take, // Готовим skip для следующего запроса
+            skip: event.skip + event.take,
             take: event.take,
             hasReachedMax: hasReachedMax,
             currentTags: event.tags,
             currentType: event.type,
+            isLoadingMore: false, // 🎯 Снимаем флаг после загрузки
           ),
         );
       },

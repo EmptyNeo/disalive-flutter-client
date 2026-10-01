@@ -83,3 +83,37 @@ class DeleteMessage extends MessageEvent {
     this.isWs = false,
   });
 }
+
+class ToggleReaction extends MessageEvent {
+  final int chatId;
+  final int entityId;
+  final EntityType entityType;
+  final int messageId;
+  final String reactionName;
+
+  ToggleReaction({
+    required this.chatId,
+    required this.entityId,
+    required this.entityType,
+    required this.messageId,
+    required this.reactionName,
+  });
+}
+
+class UpdateReactionFromWs extends MessageEvent {
+  final int chatId;
+  final int messageId;
+  final String nameReaction;
+  final int amount;
+  final bool hasUserReaction;
+  final int? userId;
+
+  UpdateReactionFromWs({
+    required this.chatId,
+    required this.messageId,
+    required this.nameReaction,
+    required this.amount,
+    required this.hasUserReaction,
+    this.userId,
+  });
+}

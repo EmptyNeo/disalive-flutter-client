@@ -99,6 +99,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool get _hasEdit => _editingMessageId != null;
 
+  bool get _hasAnswer => _answerMessage != null;
+
   late Chat _currentChat;
 
   bool _isExtraPanelOpen = false;
@@ -129,7 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _measureInput() {
-    if (!mounted || _isExtraPanelOpen) return;
+    if (!mounted) return;
     final box = _inputKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final measured = box.size.height + _kFloatingPanelMargin;
@@ -155,14 +157,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _inputFocusNode.requestFocus();
       }
     }
-  }
-
-  void _onOpenKeyboard() {
-    _toggleExtraPanel();
-    _inputFocusNode.unfocus();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _inputFocusNode.requestFocus();
-    });
   }
 
   void _insertEmoji(String fullEmojiId) {
@@ -479,6 +473,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         inputKey: _inputKey,
                         textController: _textController,
                         hasEdit: _hasEdit,
+                        hasAnswer: _hasAnswer,
                         answerMessage: _answerMessage,
                         hasNeedSend: _hasNeedSend,
                         cancelBanner: _cancelBanner,
@@ -524,7 +519,11 @@ class _ChatScreenState extends State<ChatScreen> {
                         },
                         onSendVoiceMessage: _onSendVoiceMessage,
                         onToggleExtraPanel: _toggleExtraPanel,
-                        onOpenKeyboard: _onOpenKeyboard,
+                        onHideKeyboard: () {
+                          if (_inputFocusNode.hasFocus) {
+                            _inputFocusNode.unfocus();
+                          }
+                        },
                         isExtraPanelOpen: _isExtraPanelOpen,
                       ),
                     ),
@@ -602,7 +601,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     var localGeneratedId = message.localGeneratedId ?? IdGenerator.generateId();
-    print(localGeneratedId);
 
     final metaNewFiles = <MetaFileMessage>[];
     final newFilesList = <File>[];
@@ -689,6 +687,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onEditMessage(Message message) {
+    if (_isExtraPanelOpen) {
+      _toggleExtraPanel();
+    }
+
     _textController.text = message.text ?? '';
     _textController.selection = TextSelection.fromPosition(
       TextPosition(offset: _textController.text.length),
@@ -884,6 +886,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onAnswerMessage(Message message) {
+    if (_isExtraPanelOpen) {
+      _toggleExtraPanel();
+    }
+
     setState(() {
       _editingMessageId = null;
       _answerMessage = message;
