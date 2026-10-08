@@ -9,6 +9,7 @@ import 'package:disalive/domain/models/session.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 
 class SessionRepositoryImpl implements SessionRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
@@ -18,7 +19,7 @@ class SessionRepositoryImpl implements SessionRepository {
   Future<Either<Failure, List<SessionModel>>> get() async {
     final result = await _httpClient.postFormData<List<SessionModel>>(
       endpoint: 'sessions/get.php',
-      data: {},
+      data: null,
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
@@ -76,5 +77,20 @@ class SessionRepositoryImpl implements SessionRepository {
       (sessions) =>
           sessions.firstWhereOrNull((s) => s.isCurrentSession == true)?.id,
     );
+  }
+
+  @override
+  Future<Either<Failure, bool>> updateFcmToken(String? fcmToken) async {
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'sessions/update.php',
+      data: {"fcmToken": fcmToken},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        return DataParser.parseBool(json["success"]) == true;
+      },
+    );
+
+    return result;
   }
 }

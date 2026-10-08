@@ -8,6 +8,6 @@ abstract class ReactionsRepository {
     required int entityId,
     required EntityType entityType,
     required int messageId,
-    required String reactionName,
+    required String nameReaction,
   });
 }

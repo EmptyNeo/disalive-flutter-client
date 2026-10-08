@@ -7,5 +7,9 @@ abstract class StickerPackRepository {
 
   Future<Either<Failure, StickerPack?>> getById(int packId, int skip, int take);
 
+  Future<Either<Failure, StickerPack>> create(String packName);
+
+  Future<Either<Failure, bool>> update(int packId, String packName);
+
   List<StickerPack> getCache();
 }

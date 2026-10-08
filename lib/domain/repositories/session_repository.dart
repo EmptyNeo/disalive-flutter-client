@@ -8,6 +8,8 @@ abstract class SessionRepository {
 
   Future<Either<Failure, bool>> delete(int id, ActionSessionType type);
 
+  Future<Either<Failure, bool>> updateFcmToken(String? fcmToken);
+
   List<SessionModel> getSessions();
 
   Future<int?> getCurrentSessionId();

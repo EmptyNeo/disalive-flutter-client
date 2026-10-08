@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'package:flutter/services.dart';
-
 class EmojiFrame {
   final double x;
   final double y;

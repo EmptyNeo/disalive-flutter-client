@@ -19,12 +19,11 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
 
   String? _currentToken;
   Timer? _reconnectTimer;
-  Timer? _pingTimer; // 🎯 Таймер для Ping-Pong
+  Timer? _pingTimer;
   int _retryAttempts = 0;
   bool _isManualDisconnect = false;
 
-  DateTime _lastMessageTime =
-      DateTime.now(); // 🎯 Для обнаружения тихого обрыва
+  DateTime _lastMessageTime = DateTime.now();
 
   final _statusController = StreamController<WsConnectionStatus>.broadcast();
 
@@ -53,7 +52,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _statusController.add(WsConnectionStatus.connecting);
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _pingTimer?.cancel(); // 🎯 Сбрасываем старый таймер пинга, если он был
+    _pingTimer?.cancel();
 
     try {
       final tokenResult = await _wsRepository.getToken();
@@ -61,7 +60,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       if (tokenResult.isLeft()) {
         final failure = tokenResult.fold((l) => l, (r) => null);
         print(
-          '❌ Не удалось получить wsToken для подключения: ${failure?.message}',
+          'Не удалось получить wsToken для подключения: ${failure?.message}',
         );
         _statusController.add(WsConnectionStatus.disconnected);
         _channel = null;
@@ -86,7 +85,7 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       );
 
       _setupStreamListener();
-      _startPingTimer(); // 🎯 Запускаем таймер пинга после успешного подключения
+      _startPingTimer();
 
       _statusController.add(WsConnectionStatus.connected);
       return const Right(null);
@@ -98,11 +97,9 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     }
   }
 
-  // 🎯 Логика Ping-Pong и обнаружения тихого обрыва
   void _startPingTimer() {
     _lastMessageTime = DateTime.now();
 
-    // Отправляем пинг каждые 30 секунд. Это оптимальный интервал для мобильных сетей.
     _pingTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (_channel == null) {
         timer.cancel();
@@ -110,17 +107,14 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
       }
 
       final now = DateTime.now();
-      // Если мы не получали НИКАКИХ сообщений (включая Pong или обычные сообщения) более 90 секунд,
-      // считаем соединение мертвым ("тихий обрыв") и инициируем переподключение.
       if (now.difference(_lastMessageTime).inSeconds > 90) {
         print(
-          '⚠️ WebSocket silent drop detected (no messages for 90s). Reconnecting...',
+          'WebSocket silent drop detected (no messages for 90s). Reconnecting...',
         );
         _handleDisconnect();
         return;
       }
 
-      // Отправляем Ping
       send({'nameAction': 'Ping'});
     });
   }
@@ -128,7 +122,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _setupStreamListener() {
     _subscription = _channel!.stream.listen(
       (message) {
-        // 🎯 Обновляем время последнего полученного сообщения
         _lastMessageTime = DateTime.now();
 
         try {
@@ -154,7 +147,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _handleDisconnect() {
     _statusController.add(WsConnectionStatus.disconnected);
 
-    // 🎯 Очищаем таймеры при разрыве соединения
     _pingTimer?.cancel();
     _pingTimer = null;
 
@@ -199,7 +191,6 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
     _statusController.add(WsConnectionStatus.disconnected);
     _isManualDisconnect = true;
 
-    // 🎯 Очищаем таймеры при ручном отключении
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _pingTimer?.cancel();

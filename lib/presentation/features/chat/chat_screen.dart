@@ -26,7 +26,8 @@ import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
-import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
+import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:disalive/presentation/utils/ui/util_file.dart';
@@ -55,8 +56,11 @@ class ChatScreen extends StatefulWidget {
     ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
     MembersBloc membersBloc = context.read<MembersBloc>();
     GifBloc gifBloc = context.read<GifBloc>();
-    StickerBloc stickerBloc = context.read<StickerBloc>();
+    StickersPackBloc stickerBloc = context.read<StickersPackBloc>();
+    PreferredReactionsBloc preferredReactionsBloc = context
+        .read<PreferredReactionsBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
+
     return SwipeToDismissRoute.push(
       context,
       (context) => MultiBlocProvider(
@@ -67,6 +71,7 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: membersBloc),
           BlocProvider.value(value: gifBloc),
           BlocProvider.value(value: stickerBloc),
+          BlocProvider.value(value: preferredReactionsBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -117,6 +122,19 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatBloc = context.read<ChatBloc>();
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+    context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
+
+    _inputFocusNode.addListener(_handleFocusChange);
+  }
+
+  void _handleFocusChange() {
+    if (_isExtraPanelOpen && _inputFocusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _isExtraPanelOpen && _inputFocusNode.hasFocus) {
+          SystemChannels.textInput.invokeMethod('TextInput.hide');
+        }
+      });
+    }
   }
 
   void _onTextChanged() {
@@ -140,23 +158,26 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _toggleExtraPanel() {
+  void _toggleExtraPanel({bool requestFocus = true}) {
     setState(() {
       _isExtraPanelOpen = !_isExtraPanelOpen;
     });
 
-    if (_isExtraPanelOpen) {
-      _inputFocusNode.requestFocus();
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => SystemChannels.textInput.invokeMethod('TextInput.hide'),
-      );
-    } else {
-      if (_inputFocusNode.hasFocus) {
-        SystemChannels.textInput.invokeMethod('TextInput.show');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (_isExtraPanelOpen) {
+        if (requestFocus) {
+          _inputFocusNode.requestFocus();
+          SystemChannels.textInput.invokeMethod('TextInput.hide');
+        }
       } else {
-        _inputFocusNode.requestFocus();
+        if (requestFocus) {
+          _inputFocusNode.requestFocus();
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        }
       }
-    }
+    });
   }
 
   void _insertEmoji(String fullEmojiId) {
@@ -287,6 +308,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _inputFocusNode.removeListener(_handleFocusChange);
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
     _hasNeedSend.dispose();
@@ -296,238 +318,251 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocListener(
-      listeners: [
-        BlocListener<ChatBloc, ChatState>(
-          listener: (context, state) {
-            if (state is ChatLoaded) {
-              // Ищем обновленный чат в списке
-              final updatedChat = state.chats.firstWhere(
-                (c) => c.id == _currentChat.id,
-                orElse: () => _currentChat,
-              );
+    // 🎯 1. Оборачиваем весь экран в PopScope для перехвата кнопки "Назад"
+    return PopScope(
+      // Разрешаем стандартный pop (выход из экрана) ТОЛЬКО если панель закрыта
+      canPop: !_isExtraPanelOpen,
 
-              if (updatedChat != _currentChat) {
+      // 🎯 2. Перехватываем действие "Назад"
+      onPopInvoked: (bool didPop) {
+        if (didPop) return; // Если экран все-таки закрылся, ничего не делаем
+
+        if (_isExtraPanelOpen) {
+          // Если панель открыта, закрываем её и возвращаем фокус/клавиатуру
+          _toggleExtraPanel(requestFocus: false);
+        }
+      },
+
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<ChatBloc, ChatState>(
+            listener: (context, state) {
+              if (state is ChatLoaded) {
+                final updatedChat = state.chats.firstWhere(
+                  (c) => c.id == _currentChat.id,
+                  orElse: () => _currentChat,
+                );
+
+                if (updatedChat != _currentChat) {
+                  setState(() {
+                    _currentChat = updatedChat;
+                  });
+                }
+              }
+            },
+          ),
+          BlocListener<ChatServerBloc, ChatServerState>(
+            listener: (context, state) {
+              final shouldShowReconnect = state is! ChatServerConnected;
+
+              if (isReconnect != shouldShowReconnect) {
                 setState(() {
-                  _currentChat = updatedChat;
+                  isReconnect = shouldShowReconnect;
                 });
               }
-            }
-          },
-        ),
-        BlocListener<ChatServerBloc, ChatServerState>(
-          listener: (context, state) {
-            final shouldShowReconnect = state is! ChatServerConnected;
-
-            if (isReconnect != shouldShowReconnect) {
-              setState(() {
-                isReconnect = shouldShowReconnect;
-              });
-            }
-          },
-        ),
-      ],
-      child: CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.transparent,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                color: AppColors.mainBackground,
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.12),
-                  width: 1,
-                ),
+            },
+          ),
+        ],
+        child: CupertinoPageScaffold(
+          backgroundColor: CupertinoColors.transparent,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8.0,
+                vertical: 6.0,
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: RepaintBoundary(
-                        child: MessagesList(
-                          key: _messagesListKey,
-                          messageBloc: _messageBloc,
-                          chatBloc: _chatBloc,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  color: AppColors.mainBackground,
+                  border: Border.all(
+                    color: AppColors.white.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: RepaintBoundary(
+                          child: MessagesList(
+                            key: _messagesListKey,
+                            messageBloc: _messageBloc,
+                            chatBloc: _chatBloc,
+                            chat: _currentChat,
+                            currentUserId: _currentUserId,
+                            initialAroundId:
+                                _currentChat.member?.lastIdReadMessage ?? 0,
+                            inputReserve:
+                                _inputReserve +
+                                (_isExtraPanelOpen ? _extraPanelHeight : 0),
+                            onSendMessage: _onSendMessage,
+                            onEditMessage: _onEditMessage,
+                            onDeleteMessage: _onDeleteMessage,
+                            onAnswerMessage: _onAnswerMessage,
+                            onFocusInput: _focusInput,
+                            onUnfocusInput: _unfocusInput,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: ChatHeader(
                           chat: _currentChat,
-                          currentUserId: _currentUserId,
-                          initialAroundId:
-                              _currentChat.member?.lastIdReadMessage ?? 0,
-                          inputReserve:
-                              _inputReserve +
-                              (_isExtraPanelOpen ? _extraPanelHeight : 0),
-                          onSendMessage: _onSendMessage,
-                          onEditMessage: _onEditMessage,
-                          onDeleteMessage: _onDeleteMessage,
-                          onAnswerMessage: _onAnswerMessage,
-                          onFocusInput: _focusInput,
-                          onUnfocusInput: _unfocusInput,
+                          isReconnect: isReconnect,
+                          onTap: () => DeterminantProfileScreen.open(
+                            context,
+                            chat: widget.chat,
+                          ),
+                          onSearchTap: _onSearchTap,
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: ChatHeader(
-                        chat: _currentChat,
-                        isReconnect: isReconnect,
-                        onTap: () => DeterminantProfileScreen.open(
-                          context,
-                          chat: widget.chat,
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          height: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                          child: _isExtraPanelOpen
+                              ? ChatExtraPanel(
+                                  height: _extraPanelHeight,
+                                  onClose: _toggleExtraPanel,
+                                  onTapEmoji: (emoji) {
+                                    String fullEmojiId =
+                                        '[${emoji.categoryName}:${emoji.id}]';
+                                    _insertEmoji(fullEmojiId);
+                                  },
+                                  onTapSticker: (sticker) {
+                                    final optimisticFileMessage = FileMessage(
+                                      id: -1,
+                                      messageId: null,
+                                      pathFile: sticker.urlPath,
+                                      originalName: 'sticker',
+                                      size: 0,
+                                      unit: 'B',
+                                      fileType: FileType.image,
+                                      contentType: FileContentType.sticker,
+                                      duration: 0,
+                                      isSpoiler: 0,
+                                    );
+
+                                    final symbolData = SymbolData(
+                                      filePath: sticker.urlPath,
+                                      typeFile: FileContentType.sticker,
+                                      packId: sticker.packId,
+                                    );
+
+                                    final message = Message(
+                                      attachments: [optimisticFileMessage],
+                                      symbolData: symbolData,
+                                    );
+
+                                    _onSendMessage(message);
+                                  },
+                                  onTapGif: (gif) {
+                                    final optimisticFileMessage = FileMessage(
+                                      id: -1,
+                                      messageId: null,
+                                      pathFile: gif.fullUrl,
+                                      originalName: 'gif',
+                                      size: 0,
+                                      unit: 'B',
+                                      fileType: FileType.image,
+                                      contentType: FileContentType.gif,
+                                      duration: 0,
+                                      isSpoiler: 0,
+                                    );
+
+                                    final symbolData = SymbolData(
+                                      filePath: gif.fullUrl,
+                                      typeFile: FileContentType.gif,
+                                    );
+
+                                    final message = Message(
+                                      attachments: [optimisticFileMessage],
+                                      symbolData: symbolData,
+                                    );
+
+                                    _onSendMessage(message);
+                                  },
+                                  onBackspace: _deleteLastEmojiOrChar,
+                                )
+                              : const SizedBox.shrink(),
                         ),
-                        onSearchTap: _onSearchTap,
                       ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AnimatedContainer(
+                      AnimatedPositioned(
                         duration: const Duration(milliseconds: 250),
                         curve: Curves.easeOutCubic,
-                        height: _isExtraPanelOpen ? _extraPanelHeight : 0,
-                        child: _isExtraPanelOpen
-                            ? ChatExtraPanel(
-                                height: _extraPanelHeight,
-                                onClose: _toggleExtraPanel,
-                                onStickerPackLongPress: (pack) {
-                                  print('Long press on pack: ${pack.name}');
-                                },
-                                onTapEmoji: (emoji) {
-                                  String fullEmojiId =
-                                      '[${emoji.categoryName}:${emoji.id}]';
-                                  _insertEmoji(fullEmojiId);
-                                },
-                                onTapSticker: (sticker) {
-                                  final optimisticFileMessage = FileMessage(
-                                    id: -1,
-                                    messageId: null,
-                                    pathFile: sticker.urlPath,
-                                    originalName: 'sticker',
-                                    size: 0,
-                                    unit: 'B',
-                                    fileType: FileType.image,
-                                    contentType: FileContentType.sticker,
-                                    duration: 0,
-                                    isSpoiler: 0,
-                                  );
-
-                                  // 2. Создаем SymbolData для бэкенда
-                                  final symbolData = SymbolData(
-                                    filePath: sticker.urlPath,
-                                    typeFile: FileContentType.sticker,
-                                    packId: sticker.packId,
-                                  );
-
-                                  final message = Message(
-                                    attachments: [optimisticFileMessage],
-                                    symbolData: symbolData,
-                                  );
-
-                                  _onSendMessage(message);
-                                },
-                                onTapGif: (gif) {
-                                  final optimisticFileMessage = FileMessage(
-                                    id: -1,
-                                    messageId: null,
-                                    pathFile: gif.fullUrl,
-                                    originalName: 'gif',
-                                    size: 0,
-                                    unit: 'B',
-                                    fileType: FileType.image,
-                                    contentType: FileContentType.gif,
-                                    duration: 0,
-                                    isSpoiler: 0,
-                                  );
-
-                                  final symbolData = SymbolData(
-                                    filePath: gif.fullUrl,
-                                    typeFile: FileContentType.gif,
-                                  );
-
-                                  final message = Message(
-                                    attachments: [optimisticFileMessage],
-                                    symbolData: symbolData,
-                                  );
-
-                                  _onSendMessage(message);
-                                },
-                                onBackspace: _deleteLastEmojiOrChar,
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                    ),
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      left: 0,
-                      right: 0,
-                      bottom: _isExtraPanelOpen ? _extraPanelHeight : 0,
-                      // 👈 СДВИГАЕТСЯ ВВЕРХ НА ВЫСОТУ ПАНЕЛИ
-                      child: ChatInputArea(
-                        key: const ValueKey('chat_input_area'),
-                        chat: _currentChat,
-                        inputKey: _inputKey,
-                        textController: _textController,
-                        hasEdit: _hasEdit,
-                        hasAnswer: _hasAnswer,
-                        answerMessage: _answerMessage,
-                        hasNeedSend: _hasNeedSend,
-                        cancelBanner: _cancelBanner,
-                        onSendMessage: _onSendMessage,
-                        onApplyEdit: _onApplyEdit,
-                        inputFocusNode: _inputFocusNode,
-                        isReconnect: isReconnect,
-                        attachments: _attachments,
-                        onPickAttachment: _pickAttachments,
-                        onRemoveAttachment: (attachment) {
-                          setState(() {
-                            if (!attachment.isNew && attachment.id != null) {
-                              attachment.isDeleted = true;
-                              _deletedAttachments.add(attachment);
-                            }
-                            _attachments.remove(attachment);
+                        left: 0,
+                        right: 0,
+                        bottom: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                        child: ChatInputArea(
+                          key: const ValueKey('chat_input_area'),
+                          chat: _currentChat,
+                          inputKey: _inputKey,
+                          textController: _textController,
+                          hasEdit: _hasEdit,
+                          hasAnswer: _hasAnswer,
+                          answerMessage: _answerMessage,
+                          hasNeedSend: _hasNeedSend,
+                          cancelBanner: _cancelBanner,
+                          onSendMessage: _onSendMessage,
+                          onApplyEdit: _onApplyEdit,
+                          inputFocusNode: _inputFocusNode,
+                          isReconnect: isReconnect,
+                          attachments: _attachments,
+                          onPickAttachment: _pickAttachments,
+                          onRemoveAttachment: (attachment) {
+                            setState(() {
+                              if (!attachment.isNew && attachment.id != null) {
+                                attachment.isDeleted = true;
+                                _deletedAttachments.add(attachment);
+                              }
+                              _attachments.remove(attachment);
+                              WidgetsBinding.instance.addPostFrameCallback(
+                                (_) => _measureInput(),
+                              );
+                            });
+                          },
+                          onUpdateAttachment: (updatedAttachment) {
+                            setState(() {
+                              final index = _attachments.indexWhere((a) {
+                                if (a.id != null &&
+                                    updatedAttachment.id != null) {
+                                  return a.id == updatedAttachment.id;
+                                }
+                                if (a.file != null &&
+                                    updatedAttachment.file != null) {
+                                  return a.file!.path ==
+                                      updatedAttachment.file!.path;
+                                }
+                                return false;
+                              });
+                              if (index != -1) {
+                                _attachments[index] = updatedAttachment;
+                              }
+                            });
                             WidgetsBinding.instance.addPostFrameCallback(
                               (_) => _measureInput(),
                             );
-                          });
-                        },
-                        onUpdateAttachment: (updatedAttachment) {
-                          setState(() {
-                            final index = _attachments.indexWhere((a) {
-                              if (a.id != null &&
-                                  updatedAttachment.id != null) {
-                                return a.id == updatedAttachment.id;
-                              }
-                              if (a.file != null &&
-                                  updatedAttachment.file != null) {
-                                return a.file!.path ==
-                                    updatedAttachment.file!.path;
-                              }
-                              return false;
-                            });
-                            if (index != -1) {
-                              _attachments[index] = updatedAttachment;
+                          },
+                          onSendVoiceMessage: _onSendVoiceMessage,
+                          onToggleExtraPanel: _toggleExtraPanel,
+                          onHideKeyboard: () {
+                            if (_inputFocusNode.hasFocus) {
+                              _inputFocusNode.unfocus();
                             }
-                          });
-                          WidgetsBinding.instance.addPostFrameCallback(
-                            (_) => _measureInput(),
-                          );
-                        },
-                        onSendVoiceMessage: _onSendVoiceMessage,
-                        onToggleExtraPanel: _toggleExtraPanel,
-                        onHideKeyboard: () {
-                          if (_inputFocusNode.hasFocus) {
-                            _inputFocusNode.unfocus();
-                          }
-                        },
-                        isExtraPanelOpen: _isExtraPanelOpen,
+                          },
+                          isExtraPanelOpen: _isExtraPanelOpen,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

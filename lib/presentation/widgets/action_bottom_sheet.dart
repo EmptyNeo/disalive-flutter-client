@@ -1,21 +1,47 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/models/preferred_reaction.dart';
+import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/reactions/reaction_item.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ActionBottomSheet extends StatefulWidget {
-  const ActionBottomSheet({super.key, this.title, required this.actions});
-
   final String? title;
   final List<ActionItem> actions;
+  final List<PreferredReaction>? preferredReactions;
+  final Function(PreferredReaction)? onReactionTap;
+
+  const ActionBottomSheet({
+    super.key,
+    this.title,
+    required this.actions,
+    this.preferredReactions,
+    this.onReactionTap,
+  });
 
   static Future<void> show(
     BuildContext context, {
     String? title,
     required List<ActionItem> actions,
+    List<PreferredReaction>? preferredReactions,
+    Function(PreferredReaction)? onReactionTap,
   }) {
+    PreferredReactionsBloc preferredReactionsBloc = context
+        .read<PreferredReactionsBloc>();
+
     return showCupertinoModalPopup(
       context: context,
-      builder: (context) => ActionBottomSheet(title: title, actions: actions),
+      builder: (context) => BlocProvider.value(
+        value: preferredReactionsBloc,
+        child: ActionBottomSheet(
+          title: title,
+          actions: actions,
+          preferredReactions: preferredReactions,
+          onReactionTap: onReactionTap,
+        ),
+      ),
     );
   }
 
@@ -132,6 +158,9 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
                   children: [
                     _buildGrabber(),
                     if (widget.title != null) _buildHeader(),
+                    if (widget.preferredReactions != null &&
+                        widget.preferredReactions!.isNotEmpty)
+                      _buildFrequentReactionsRow(),
 
                     // 🎯 ИСПРАВЛЕНИЕ: Ограничиваем высоту и добавляем прокрутку
                     ConstrainedBox(
@@ -204,6 +233,43 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
                   ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFrequentReactionsRow() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: widget.preferredReactions!.asMap().entries.map((entry) {
+              final index = entry.key;
+              final pref = entry.value;
+              final isLast = index == widget.preferredReactions!.length - 1;
+
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : 8),
+                  child: ReactionItem(
+                    reaction: ReactionMessage(
+                      nameReaction: pref.nameReaction,
+                      hasUserReaction: false,
+                    ),
+                    isMine: false,
+                    onTap: () {
+                      Navigator.pop(context);
+                      widget.onReactionTap?.call(pref);
+                    },
+                    minHeight: 40,
+                    emojiSize: 25,
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),

@@ -45,6 +45,7 @@ class UserModel extends Equatable {
   final int? fkMainBadge;
   final BadgeModel? mainBadge;
   final bool? isNsfw;
+  final bool? hasFcm;
   final File? fileAvatar;
   final File? fileBanner;
   final bool? deleteAvatar;
@@ -87,6 +88,7 @@ class UserModel extends Equatable {
     this.fkMainBadge,
     this.mainBadge,
     this.isNsfw,
+    this.hasFcm,
     this.fileAvatar,
     this.fileBanner,
     this.deleteAvatar,
@@ -143,6 +145,7 @@ class UserModel extends Equatable {
           ? BadgeModel.fromMap(map['mainBadge'] as Map<String, dynamic>)
           : null,
       isNsfw: DataParser.parseBool(map['isNsfw']),
+      hasFcm: DataParser.parseBool(map['hasFcm']),
     );
   }
 
@@ -239,6 +242,7 @@ class UserModel extends Equatable {
     File? fileBanner,
     bool? deleteAvatar,
     bool? deleteBanner,
+    bool? hasFcm,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -278,6 +282,7 @@ class UserModel extends Equatable {
       badges: badges ?? this.badges,
       fkMainBadge: fkMainBadge ?? this.fkMainBadge,
       mainBadge: mainBadge ?? this.mainBadge,
+      hasFcm: hasFcm ?? this.hasFcm,
       fileAvatar: fileAvatar ?? this.fileAvatar,
       fileBanner: fileBanner ?? this.fileBanner,
       deleteAvatar: deleteAvatar ?? this.deleteAvatar,
@@ -285,7 +290,6 @@ class UserModel extends Equatable {
     );
   }
 
-  // Геттеры для удобства
   bool get isOnline => status == UserStatus.online;
 
   bool get isOffline => status == UserStatus.offline;
@@ -305,6 +309,8 @@ class UserModel extends Equatable {
   String get getDisplayName => displayName ?? 'Пользователь';
 
   String get getDateRegistration => dateRegistration ?? 'N/A';
+
+  bool get hasCurrentFcm => hasFcm == true;
 
   int get getId => id ?? 0;
 

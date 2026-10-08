@@ -1,4 +1,5 @@
 // lib/presentation/features/message/widgets/reactions/reactions_grid.dart
+import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/presentation/features/reactions/reaction_item.dart';
 import 'package:flutter/cupertino.dart';
@@ -8,9 +9,17 @@ import 'package:flutter/cupertino.dart';
 /// по ширине пузыря сообщения.
 class ReactionsGrid extends StatelessWidget {
   final List<ReactionMessage> reactions;
-  final void Function(ReactionMessage reaction)? onTapReaction;
+  final Message message;
+  final bool isMine;
+  final void Function(Message message, ReactionMessage reaction)? onTapReaction;
 
-  const ReactionsGrid({super.key, required this.reactions, this.onTapReaction});
+  const ReactionsGrid({
+    super.key,
+    required this.reactions,
+    required this.message,
+    required this.isMine,
+    this.onTapReaction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,9 +32,10 @@ class ReactionsGrid extends StatelessWidget {
           .map(
             (reaction) => ReactionItem(
               reaction: reaction,
+              isMine: isMine,
               onTap: onTapReaction == null
                   ? null
-                  : () => onTapReaction!(reaction),
+                  : () => onTapReaction!(message, reaction),
             ),
           )
           .toList(),

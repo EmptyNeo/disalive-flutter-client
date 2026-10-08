@@ -18,7 +18,6 @@ class BadgeModel extends Equatable {
     this.color,
   });
 
-  // Фабричный метод из JSON (соответствует PHP fromArray)
   factory BadgeModel.fromMap(Map<String, dynamic> map) {
     return BadgeModel(
       id: map['id'],
@@ -29,7 +28,6 @@ class BadgeModel extends Equatable {
     );
   }
 
-  // Преобразование в Map (соответствует PHP toArray)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -40,7 +38,6 @@ class BadgeModel extends Equatable {
     };
   }
 
-  // copyWith метод
   BadgeModel copyWith({
     int? id,
     String? name,

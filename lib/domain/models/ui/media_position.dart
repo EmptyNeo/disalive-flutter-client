@@ -3,7 +3,7 @@
 /// вложения внутри message.attachments.
 class MediaPosition {
   const MediaPosition({
-    required this.messageId, // <-- Заменили messageIndex на messageId
+    required this.messageId,
     required this.attachmentIndex,
   });
 

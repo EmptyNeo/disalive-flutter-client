@@ -3,13 +3,14 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/gif_type_search.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/gif.dart';
+import 'package:disalive/domain/models/preferred_reaction.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/sticker_pack.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/emojis_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/gifs_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/stickers_tab.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
-import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
+import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,7 +18,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class ChatExtraPanel extends StatefulWidget {
   final double height;
   final VoidCallback onClose;
-  final Function(StickerPack pack) onStickerPackLongPress;
   final Function(EmojiDefinition emoji) onTapEmoji;
   final Function(StickerContent sticker) onTapSticker;
   final Function(Gif gif) onTapGif;
@@ -27,7 +27,6 @@ class ChatExtraPanel extends StatefulWidget {
     super.key,
     required this.height,
     required this.onClose,
-    required this.onStickerPackLongPress,
     required this.onTapEmoji,
     required this.onTapSticker,
     required this.onTapGif,
@@ -58,7 +57,7 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
     _animationController.forward();
 
     // Инициализация BLoC при открытии
-    context.read<StickerBloc>().add(const LoadStickerPacks(skip: 0, take: 10));
+    context.read<StickersPackBloc>().add(const LoadStickerPacks(skip: 0, take: 10));
     context.read<GifBloc>().add(
       const LoadGifs(type: GifTypeSearch.popular, tags: '', skip: 0, take: 20),
     );
@@ -126,7 +125,6 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                         onBackspace: widget.onBackspace,
                       ),
                       StickersTab(
-                        onPackLongPress: widget.onStickerPackLongPress,
                         onTap: widget.onTapSticker,
                       ),
                       GifsTab(onTap: widget.onTapGif),

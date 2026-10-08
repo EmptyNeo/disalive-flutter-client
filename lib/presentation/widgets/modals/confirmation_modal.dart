@@ -10,7 +10,7 @@ Future<bool?> showConfirmationDialog(
   required String title,
   required String description,
   String confirmText = 'Подтвердить',
-  String cancelText = 'Отмена',
+  String? cancelText = 'Отмена',
   bool isDestructive = false, // Если true, кнопка подтверждения будет красной
   IconData? icon,
 }) {
@@ -47,7 +47,7 @@ class _ConfirmationModalContent extends StatelessWidget {
   final String title;
   final String description;
   final String confirmText;
-  final String cancelText;
+  final String? cancelText;
   final bool isDestructive;
   final IconData? icon;
 
@@ -115,33 +115,35 @@ class _ConfirmationModalContent extends StatelessWidget {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).pop(false),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 10,
-                              horizontal: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.darkGrey,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.divider,
-                                width: 1,
+                      if (cancelText != null) ...[
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.of(context).pop(false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 10,
                               ),
-                            ),
-                            child: Text(
-                              cancelText,
-                              textAlign: TextAlign.center,
-                              style: AppText.mediumTextStyle.copyWith(
-                                color: AppColors.white,
+                              decoration: BoxDecoration(
+                                color: AppColors.darkGrey,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppColors.divider,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                cancelText!,
+                                textAlign: TextAlign.center,
+                                style: AppText.mediumTextStyle.copyWith(
+                                  color: AppColors.white,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                        const SizedBox(width: 12),
+                      ],
                       // Кнопка подтверждения
                       Expanded(
                         child: GestureDetector(

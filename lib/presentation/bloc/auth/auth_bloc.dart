@@ -17,6 +17,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc(this._authRepository, this._userRepository) : super(AuthInitial()) {
     on<LoginButtonPressed>(_onLoginButtonPressed);
     on<CheckAuthStatus>(_onCheckAuthStatus);
+    on<VerifyTotpButtonPressed>(_onVerifyTotpButtonPressed);
     on<AuthLogout>(_onLogout);
   }
 
@@ -26,7 +27,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   ) async {
     emit(AuthLoading());
 
-    final result = await _authRepository.login(event.email, event.password);
+    final result = await _authRepository.login(
+      event.email,
+      event.password,
+      event.fcmToken,
+    );
 
     result.fold(
       (failure) {
@@ -38,6 +43,28 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         } else {
           emit(AuthAuthenticated());
         }
+      },
+    );
+  }
+
+  Future<void> _onVerifyTotpButtonPressed(
+    VerifyTotpButtonPressed event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthTotpVerifying());
+
+    final result = await _authRepository.verifyTotp(
+      event.email,
+      event.password,
+      event.totpCode,
+      event.fcmToken,
+    );
+    result.fold(
+      (failure) {
+        emit(AuthFailure(error: failure.message));
+      },
+      (appLogin) {
+        emit(AuthAuthenticated());
       },
     );
   }

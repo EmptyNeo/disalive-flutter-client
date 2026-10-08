@@ -89,14 +89,14 @@ class ToggleReaction extends MessageEvent {
   final int entityId;
   final EntityType entityType;
   final int messageId;
-  final String reactionName;
+  final String nameReaction;
 
   ToggleReaction({
     required this.chatId,
     required this.entityId,
     required this.entityType,
     required this.messageId,
-    required this.reactionName,
+    required this.nameReaction,
   });
 }
 

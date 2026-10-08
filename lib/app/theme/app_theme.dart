@@ -129,12 +129,6 @@ class AppText {
   );
 }
 
-/// CupertinoThemeData умеет задавать только базовые вещи (primaryColor,
-/// barBackgroundColor, scaffoldBackgroundColor, textTheme). У Cupertino нет
-/// InputDecorationTheme/ElevatedButtonThemeData/DividerTheme — декорации
-/// инпутов, кнопок и разделителей задаются на уровне самих виджетов, поэтому
-/// ниже рядом с CupertinoThemeData добавлены готовые константы под них,
-/// чтобы не размазывать цвета по экранам.
 class AppTheme {
   static final CupertinoThemeData darkTheme = CupertinoThemeData(
     brightness: Brightness.dark,

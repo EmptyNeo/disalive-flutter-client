@@ -1,17 +1,17 @@
-part of 'sticker_bloc.dart';
+part of 'stickers_pack_bloc.dart';
 
-abstract class StickerState extends Equatable {
-  const StickerState();
+abstract class StickersPackState extends Equatable {
+  const StickersPackState();
 
   @override
   List<Object?> get props => [];
 }
 
-class StickerInitial extends StickerState {}
+class StickersPackInitial extends StickersPackState {}
 
-class StickerLoading extends StickerState {}
+class StickersPackLoading extends StickersPackState {}
 
-class StickerLoaded extends StickerState {
+class StickersPackLoaded extends StickersPackState {
   final List<StickerPack> packs;
   final int skip;
   final int take;
@@ -20,7 +20,7 @@ class StickerLoaded extends StickerState {
   final StickerPack? activePack;
   final bool isLoadingActivePack;
 
-  const StickerLoaded({
+  const StickersPackLoaded({
     required this.packs,
     required this.skip,
     required this.take,
@@ -29,7 +29,7 @@ class StickerLoaded extends StickerState {
     this.isLoadingActivePack = false,
   });
 
-  StickerLoaded copyWith({
+  StickersPackLoaded copyWith({
     List<StickerPack>? packs,
     int? skip,
     int? take,
@@ -37,7 +37,7 @@ class StickerLoaded extends StickerState {
     StickerPack? activePack,
     bool? isLoadingActivePack,
   }) {
-    return StickerLoaded(
+    return StickersPackLoaded(
       packs: packs ?? this.packs,
       skip: skip ?? this.skip,
       take: take ?? this.take,
@@ -58,10 +58,10 @@ class StickerLoaded extends StickerState {
   ];
 }
 
-class StickerError extends StickerState {
+class StickersPackError extends StickersPackState {
   final Failure failure;
 
-  const StickerError(this.failure);
+  const StickersPackError(this.failure);
 
   @override
   List<Object?> get props => [failure];

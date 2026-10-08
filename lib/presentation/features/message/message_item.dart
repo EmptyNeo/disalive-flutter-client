@@ -3,11 +3,13 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/presentation/features/message/widgets/answer_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
+import 'package:disalive/presentation/features/reactions/reactions_grid.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
@@ -31,6 +33,7 @@ class MessageItem extends StatelessWidget {
 
   final void Function(int? messageId)? onNavigateToMessage;
   final void Function(int attachmentIndex)? onTapImage;
+  final void Function(Message message, ReactionMessage reaction)? onTapReaction;
 
   bool get hasLoading => isLoading != null;
 
@@ -52,6 +55,7 @@ class MessageItem extends StatelessWidget {
     this.isHighlighted = false,
     this.onTapImage,
     this.onNavigateToMessage,
+    this.onTapReaction,
   });
 
   @override
@@ -291,7 +295,15 @@ class MessageItem extends StatelessWidget {
                       hasError: hasError,
                     ),
 
-                    if (hasReactions) _stubLine('Реакции'),
+                    if (hasReactions) ...[
+                      const SizedBox(height: 4),
+                      ReactionsGrid(
+                        reactions: message.reactions!,
+                        message: message,
+                        isMine: isMine,
+                        onTapReaction: onTapReaction,
+                      ),
+                    ],
 
                     // 🎯 Используем новый виджет и здесь, если статус не inline
                     if (showStatusRow &&

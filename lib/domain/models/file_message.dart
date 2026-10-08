@@ -1,7 +1,5 @@
 // lib/domain/models/file_message.dart
 import 'package:disalive/data/network/domain.dart';
-import 'package:disalive/domain/models/ui/chat_attachment.dart'
-    show ChatAttachment;
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
@@ -120,7 +118,6 @@ class FileMessage extends Equatable {
     return null;
   }
 
-  // Геттеры
   bool get isSpoilerFile => isSpoiler == 1;
 
   bool get isDefaultFile => contentType == FileContentType.defaultFile;

@@ -7,12 +7,14 @@ import 'package:disalive/data/repositories/gifs_repository_impl.dart';
 import 'package:disalive/data/repositories/members_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/permission_repository_impl.dart';
+import 'package:disalive/data/repositories/preferred_reactions_repository_impl.dart';
 import 'package:disalive/data/repositories/reactions_repository_impl.dart';
 import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
 import 'package:disalive/data/repositories/sticker_pack_repository_impl.dart';
 import 'package:disalive/data/repositories/user_repository_impl.dart';
+import 'package:disalive/data/repositories/user_stickers_pack_repository_impl.dart';
 import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
@@ -23,12 +25,14 @@ import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
+import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:disalive/domain/repositories/ws_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
@@ -42,10 +46,11 @@ import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/reset/bloc/reset_password_bloc.dart';
-import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
+import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/features/verify/bloc/verify_code_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -93,6 +98,12 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<ReactionsRepository>(
     () => ReactionsRepositoryImpl(),
   );
+  sl.registerLazySingleton<PreferredReactionsRepository>(
+    () => PreferredReactionsRepositoryImpl(),
+  );
+  sl.registerLazySingleton<UserStickersPackRepository>(
+    () => UserStickersPackRepositoryImpl(),
+  );
 
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
@@ -107,5 +118,8 @@ Future<void> setupDependencies() async {
   sl.registerFactory<VerifyCodeBloc>(() => VerifyCodeBloc(sl(), sl()));
   sl.registerFactory<ResetPasswordBloc>(() => ResetPasswordBloc(sl(), sl()));
   sl.registerFactory<GifBloc>(() => GifBloc(sl()));
-  sl.registerFactory<StickerBloc>(() => StickerBloc(sl()));
+  sl.registerFactory<StickersPackBloc>(() => StickersPackBloc(sl(), sl()));
+  sl.registerLazySingleton<PreferredReactionsBloc>(
+    () => PreferredReactionsBloc(sl<PreferredReactionsRepositoryImpl>()),
+  );
 }

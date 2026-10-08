@@ -9,10 +9,12 @@ import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
@@ -21,6 +23,8 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/features/message/widgets/new_messages_separator.dart';
 import 'package:disalive/presentation/features/message/widgets/swipes/swipe_to_reply_message.dart';
+import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/reactions/reaction_bottom_sheet.dart';
 import 'package:disalive/presentation/utils/app_clipboard.dart';
 import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
@@ -262,7 +266,6 @@ class MessagesListState extends State<MessagesList> {
     if (state is! MessageLoaded) return;
 
     final isLoaded = state.messages.any((m) => m.id == targetMessageId);
-    print(isLoaded);
 
     // 1. Пробуем мгновенный скролл, если сообщение уже построено
     if (isLoaded && await _revealMessage(targetMessageId)) {
@@ -659,7 +662,6 @@ class MessagesListState extends State<MessagesList> {
               });
             }
           }
-          print(sl<UserRepository>().getCurrentUser());
 
           final groupedMessages = MessageGrouper.group(
             messages as List<Message>,
@@ -715,6 +717,7 @@ class MessagesListState extends State<MessagesList> {
                   showTime: grouped.showTime,
                   tailDirection: grouped.tailDirection,
                   hasMessageAbove: grouped.hasMessageAbove,
+                  onTap: () => _showMessageActions(message),
                   onLongPress: () => _showMessageActions(message),
                   isLoading: message.hasLoading,
                   hasError: message.hasErrorMessage,
@@ -731,6 +734,7 @@ class MessagesListState extends State<MessagesList> {
                       );
                     }
                   },
+                  onTapReaction: onToggleReaction,
                 ),
               ),
             );
@@ -809,8 +813,9 @@ class MessagesListState extends State<MessagesList> {
                               ),
                             );
                           }
-                          if (index < groupedMessages.length)
+                          if (index < groupedMessages.length) {
                             return buildMessage(index);
+                          }
                           return const SizedBox.shrink();
                         },
                         childCount:
@@ -853,6 +858,52 @@ class MessagesListState extends State<MessagesList> {
     );
   }
 
+  void _showReactionSheet(Message message) {
+    ReactionBottomSheet.show(
+      context,
+      onReactionSelected: (emoji) {
+        final nameReaction = "[${emoji.categoryName}:${emoji.id}]";
+
+        final chatId = widget.chat.id;
+        final entity = DeterminingContextService.getEntityKey();
+        final entityId = entity?.entityId;
+        final entityType = entity?.entityType;
+        final messageId = message.id;
+
+        if (entityId == null || entityType == null || messageId == null) {
+          return;
+        }
+
+        context.read<MessageBloc>().add(
+          ToggleReaction(
+            chatId: chatId,
+            entityId: entityId,
+            entityType: entityType,
+            messageId: messageId,
+            nameReaction: nameReaction,
+          ),
+        );
+
+        final reactions = message.reactions;
+        if (reactions != null &&
+            reactions.contains(
+              reactions.firstWhere((r) => r.nameReaction == nameReaction),
+            )) {
+          context.read<PreferredReactionsBloc>().add(
+            UpsertPreferredReaction(nameReaction: nameReaction),
+          );
+        }
+      },
+      preferredReactions:
+          (context.read<PreferredReactionsBloc>().state
+              is PreferredReactionsLoaded)
+          ? (context.read<PreferredReactionsBloc>().state
+                    as PreferredReactionsLoaded)
+                .reactions
+          : null,
+    );
+  }
+
   void _showMessageActions(Message message) {
     widget.onUnfocusInput?.call();
 
@@ -880,6 +931,13 @@ class MessagesListState extends State<MessagesList> {
             }
           },
         ),
+      ActionItem(
+        icon: CupertinoIcons.smiley,
+        label: "Добавить реакцию",
+        onTap: () {
+          _showReactionSheet(message);
+        },
+      ),
       ActionItem(
         icon: CupertinoIcons.arrow_turn_up_left,
         label: 'Ответить',
@@ -932,6 +990,40 @@ class MessagesListState extends State<MessagesList> {
       context,
       title: "Сообщение от ${message.user?.displayName}",
       actions: actions,
+      preferredReactions:
+          (context.read<PreferredReactionsBloc>().state
+              is PreferredReactionsLoaded)
+          ? (context.read<PreferredReactionsBloc>().state
+                    as PreferredReactionsLoaded)
+                .reactions
+                .take(4)
+                .toList()
+          : null,
+      onReactionTap: (prefReaction) {
+        final entity = DeterminingContextService.getEntityKey();
+        final nameReaction = prefReaction.nameReaction;
+        if (entity?.entityId != null &&
+            entity?.entityType != null &&
+            message.id != null &&
+            nameReaction != null) {
+          context.read<MessageBloc>().add(
+            ToggleReaction(
+              chatId: widget.chat.id,
+              entityId: entity!.entityId,
+              entityType: entity.entityType,
+              messageId: message.getId,
+              nameReaction: nameReaction,
+            ),
+          );
+
+          final reactions = message.reactions;
+          if (reactions != null && reactions.contains(prefReaction)) {
+            context.read<PreferredReactionsBloc>().add(
+              UpsertPreferredReaction(nameReaction: nameReaction),
+            );
+          }
+        }
+      },
     );
   }
 
@@ -983,6 +1075,38 @@ class MessagesListState extends State<MessagesList> {
     }
 
     return false;
+  }
+
+  void onToggleReaction(Message message, ReactionMessage reaction) {
+    final chatId = widget.chat.id;
+    final entity = DeterminingContextService.getEntityKey();
+    final entityId = entity?.entityId;
+    final entityType = entity?.entityType;
+    final messageId = reaction.messageId;
+    final nameReaction = reaction.nameReaction;
+    if (entityId == null ||
+        entityType == null ||
+        messageId == null ||
+        nameReaction == null) {
+      return;
+    }
+
+    widget.messageBloc.add(
+      ToggleReaction(
+        chatId: chatId,
+        entityId: entityId,
+        entityType: entityType,
+        messageId: messageId,
+        nameReaction: nameReaction,
+      ),
+    );
+
+    final reactions = message.reactions;
+    if (reactions != null && reactions.contains(reaction)) {
+      context.read<PreferredReactionsBloc>().add(
+        UpsertPreferredReaction(nameReaction: nameReaction),
+      );
+    }
   }
 }
 

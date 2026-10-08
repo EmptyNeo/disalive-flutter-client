@@ -27,7 +27,6 @@ class Chat extends Equatable {
   final RoleMember? role;
   final UserModel? user;
 
-  // 🎯 НОВОЕ ПОЛЕ: Легковесный список участников для статусов прочтения
   final List<Member>? members;
 
   const Chat({
@@ -50,11 +49,10 @@ class Chat extends Equatable {
     this.member,
     this.role,
     this.user,
-    this.members, // 🎯 Добавлено
+    this.members,
   });
 
   factory Chat.fromMap(Map<String, dynamic> map) {
-    // 🎯 Парсинг легковесного массива участников
     List<Member>? parsedMembers;
     if (map['members'] is List) {
       parsedMembers = (map['members'] as List)
@@ -115,7 +113,6 @@ class Chat extends Equatable {
       if (member != null) 'member': member?.toMap(),
       if (role != null) 'role': role?.toMap(),
       if (user != null) 'user': user?.toMap(),
-      // 🎯 Добавлено: сереализуем легковесный формат
       if (members != null)
         'members': members
             ?.map(
@@ -148,7 +145,7 @@ class Chat extends Equatable {
     Member? member,
     RoleMember? role,
     UserModel? user,
-    List<Member>? members, // 🎯 Добавлено
+    List<Member>? members,
   }) {
     return Chat(
       id: chatId ?? id,
@@ -170,7 +167,7 @@ class Chat extends Equatable {
       member: member ?? this.member,
       role: role ?? this.role,
       user: user ?? this.user,
-      members: members ?? this.members, // 🎯 Добавлено
+      members: members ?? this.members,
     );
   }
 
@@ -198,8 +195,6 @@ class Chat extends Equatable {
     return math.max(0, (idLastMessage ?? 0) - (member?.lastIdReadMessage ?? 0));
   }
 
-  // 🎯 НОВЫЙ ГЕТТЕР: Мгновенная карта статусов прочтения (O(1) поиск)
-  // Используется в MessageBloc для отрисовки галочек
   Map<int, int> get membersReadStatus => {
     for (final m in members ?? [])
       if (m.fkUser != null && m.lastIdReadMessage != null)
@@ -227,6 +222,6 @@ class Chat extends Equatable {
     member,
     role,
     user,
-    members, // 🎯 Добавлено
+    members,
   ];
 }

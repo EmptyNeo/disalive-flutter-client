@@ -69,7 +69,6 @@ class EmojisHandler {
     _isInitialized = true;
   }
 
-  // 🎯 ПОИСК ПО КАТЕГОРИИ И ID
   EmojiDefinition? getEmojiById(String categoryName, String id) {
     final normalizedCategory = categoryName.toLowerCase().replaceAll(' ', '_');
     return _sheets[normalizedCategory]?.emojis[id];
@@ -78,5 +77,21 @@ class EmojisHandler {
   EmojiSheetData? getSheetDataByCategory(String categoryName) {
     final normalizedCategory = categoryName.toLowerCase().replaceAll(' ', '_');
     return _sheets[normalizedCategory];
+  }
+
+  EmojiDefinition? getEmojiByName(String nameReaction) {
+    if (nameReaction.isEmpty) return null;
+
+    final regex = RegExp(r'^\[([a-zA-Z0-9_]+):(\d+)\]$');
+    final match = regex.firstMatch(nameReaction);
+
+    if (match != null) {
+      final category = match.group(1)!;
+      final id = match.group(2)!;
+
+      return getEmojiById(category, id);
+    }
+
+    return null;
   }
 }

@@ -2,7 +2,7 @@ enum AppThemeMode {
   system('system', 'Системная'),
   light('light', 'Светлая'),
   dark('dark', 'Тёмная'),
-  amoled('amoled', 'AMOLED (Чёрная)'); // Готова к расширению
+  amoled('amoled', 'AMOLED (Чёрная)');
 
   final String value;
   final String displayName;

@@ -175,7 +175,6 @@ class Message extends Equatable {
     );
   }
 
-  // Геттеры
   bool get hasAttachments => attachments != null && attachments!.isNotEmpty;
 
   bool get hasReactions => reactions != null && reactions!.isNotEmpty;

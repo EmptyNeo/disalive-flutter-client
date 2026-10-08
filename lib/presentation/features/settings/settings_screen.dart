@@ -5,6 +5,7 @@ import 'package:disalive/presentation/bloc/theme/theme_cubit.dart'; // 🎯 До
 import 'package:disalive/presentation/bloc/theme/theme_state.dart'; // 🎯 Добавлено
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/profile/edit_profile_screen.dart';
+import 'package:disalive/presentation/features/settings/screens/notification_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/privacy_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/sessions_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/theme_settings_screen.dart';
@@ -105,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 title: 'Уведомления и звуки',
                                 subtitle: 'Push, звуки сообщений и звонков',
                                 onTap: () {
-                                  // TODO: Открыть экран уведомлений
+                                  NotificationSettingsScreen.open(context);
                                 },
                               ),
 

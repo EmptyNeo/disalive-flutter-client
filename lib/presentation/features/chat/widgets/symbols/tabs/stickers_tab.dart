@@ -1,21 +1,20 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/sticker_pack.dart';
+import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/sticker_item.dart';
-import 'package:disalive/presentation/features/stickers/bloc/sticker_bloc.dart';
+import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
+import 'package:disalive/presentation/features/stickers/widgets/sticker_pack_modal.dart';
+import 'package:disalive/presentation/features/stickers/widgets/sticker_pack_view_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/custom_divider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class StickersTab extends StatefulWidget {
-  final Function(StickerPack pack) onPackLongPress;
   final Function(StickerContent sticker) onTap;
 
-  const StickersTab({
-    super.key,
-    required this.onPackLongPress,
-    required this.onTap,
-  });
+  const StickersTab({super.key, required this.onTap});
 
   @override
   State<StickersTab> createState() => _StickersTabState();
@@ -37,15 +36,65 @@ class _StickersTabState extends State<StickersTab> {
     }
   }
 
+  // 🎯 НОВЫЙ МЕТОД: Показ меню действий при долгом нажатии
+  void _showPackActions(BuildContext context, StickerPack pack) {
+    final List<ActionItem> actions = [
+      // 1. Просмотр набора (Заглушка)
+      ActionItem(
+        label: 'Просмотреть набор',
+        icon: CupertinoIcons.eye,
+        onTap: () {
+          Navigator.pop(context); // Закрываем меню действий
+          StickerPackViewBottomSheet.open(
+            context,
+            pack: pack,
+            onStickerTap: widget.onTap, // 🎯 Прокидываем функцию отправки стикера!
+          );
+        },
+      ),
+
+      // 2. Удалить из доступных (Заглушка)
+      ActionItem(
+        label: 'Удалить из доступных',
+        icon: CupertinoIcons.trash,
+        color: AppColors.errorRed,
+        isDestructive: true,
+        onTap: () {
+          // TODO: Реализовать запрос к API для удаления пака из списка доступных пользователя
+          debugPrint('Удаление из доступных: ${pack.name} (ID: ${pack.id})');
+        },
+      ),
+    ];
+
+    // 3. Редактировать (Только для создателя)
+    if (pack.isCreator) {
+      actions.add(
+        ActionItem(
+          label: 'Редактировать',
+          icon: CupertinoIcons.pencil,
+          onTap: () {
+            StickerPackModal.open(context, existingPack: pack);
+          },
+        ),
+      );
+    }
+
+    ActionBottomSheet.show(
+      context,
+      title: pack.name, // Передаем название набора как заголовок шторки
+      actions: actions,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<StickerBloc, StickerState>(
+    return BlocBuilder<StickersPackBloc, StickersPackState>(
       builder: (context, state) {
-        if (state is StickerLoading && state is! StickerLoaded) {
+        if (state is StickersPackLoading && state is! StickersPackLoaded) {
           return const Center(child: CupertinoActivityIndicator());
         }
 
-        if (state is StickerLoaded) {
+        if (state is StickersPackLoaded) {
           // 🎯 ФОРМИРУЕМ СПИСОК СЛИВЕРОВ ДИНАМИЧЕСКИ
           final List<Widget> slivers = [];
 
@@ -127,9 +176,33 @@ class _StickersTabState extends State<StickersTab> {
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: state.packs.length,
+                  itemCount: state.packs.length + 1,
                   itemBuilder: (context, index) {
-                    final pack = state.packs[index];
+                    if (index == 0) {
+                      return GestureDetector(
+                        onTap: () => StickerPackModal.open(context),
+                        child: Container(
+                          width: 36,
+                          margin: const EdgeInsets.only(left: 0, right: 2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            color: AppColors.blurple.withOpacity(0.15),
+                            border: Border.all(
+                              color: AppColors.blurple.withOpacity(0.3),
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              CupertinoIcons.add,
+                              color: AppColors.blurple,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    final pack = state.packs[index - 1];
                     final firstSticker =
                         (pack.attachments != null &&
                             pack.attachments!.isNotEmpty)
@@ -138,7 +211,7 @@ class _StickersTabState extends State<StickersTab> {
 
                     return GestureDetector(
                       onTap: () => _scrollToPack(pack.id),
-                      onLongPress: () => widget.onPackLongPress(pack),
+                      onLongPress: () => _showPackActions(context, pack),
                       child: Container(
                         width: 36,
                         margin: EdgeInsets.only(

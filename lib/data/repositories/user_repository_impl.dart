@@ -29,7 +29,6 @@ class UserRepositoryImpl implements UserRepository {
       fromJson: (json) => UserModel.fromMap(json),
       onUnauthorized: () {
         _secureStorage.clearAll();
-        // Вызываем переданный колбэк, если он есть
         if (onUnauthorized != null) {
           onUnauthorized();
         }

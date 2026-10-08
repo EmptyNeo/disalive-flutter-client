@@ -61,6 +61,28 @@ class StickerPackRepositoryImpl extends StickerPackRepository {
   }
 
   @override
+  Future<Either<Failure, StickerPack>> create(String packName) async {
+    return await _httpClient.postFormData<StickerPack>(
+      endpoint: 'stickerPack/create.php',
+      data: {'packName': packName},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) => StickerPack.fromMap(json as Map<String, dynamic>),
+    );
+  }
+
+  @override
+  Future<Either<Failure, bool>> update(int packId, String packName) async {
+    return await _httpClient.postFormData<bool>(
+      endpoint: 'stickerPack/update.php',
+      data: {'packId': packId, 'packName': packName},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) => true,
+    );
+  }
+
+  @override
   List<StickerPack> getCache() {
     return _packs;
   }

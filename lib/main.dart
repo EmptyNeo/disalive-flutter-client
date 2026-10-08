@@ -28,6 +28,7 @@ Future<void> main() async {
   await Firebase.initializeApp();
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await PushNotificationService().init();
 
   await CertHttpOverrides.init();
 

@@ -6,7 +6,6 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
-import 'package:disalive/presentation/utils/data_parser.dart';
 
 class ReactionsRepositoryImpl implements ReactionsRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
@@ -17,7 +16,7 @@ class ReactionsRepositoryImpl implements ReactionsRepository {
     required int entityId,
     required EntityType entityType,
     required int messageId,
-    required String reactionName,
+    required String nameReaction,
   }) async {
     return await _httpClient.postFormData<bool>(
       endpoint: 'reactions/toggle.php',
@@ -25,7 +24,7 @@ class ReactionsRepositoryImpl implements ReactionsRepository {
         'entityId': entityId,
         'entityType': entityType.value,
         'messageId': messageId,
-        'reactionName': reactionName,
+        'nameReaction': nameReaction,
       },
       apiType: ApiType.v1,
       requireAuth: true,

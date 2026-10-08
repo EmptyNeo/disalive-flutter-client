@@ -7,6 +7,8 @@ class AuthInitial extends AuthState {}
 
 class AuthLoading extends AuthState {}
 
+class AuthTotpVerifying extends AuthState {}
+
 class AuthTotpRequired extends AuthState {
   AuthTotpRequired();
 }

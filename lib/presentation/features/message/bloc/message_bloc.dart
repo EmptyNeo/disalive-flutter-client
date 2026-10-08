@@ -669,24 +669,139 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     ToggleReaction event,
     Emitter<MessageState> emit,
   ) async {
-    // Просто делаем запрос. UI обновится автоматически, когда придет WS-событие.
+    final cached = _messageRepository.getCached(event.chatId);
+
+    // Если кэша нет, просто делаем запрос к API (fallback)
+    if (cached == null) {
+      await _doApiToggle(event);
+      return;
+    }
+
+    final msgIndex = cached.messages.indexWhere((m) => m.id == event.messageId);
+    if (msgIndex == -1) {
+      await _doApiToggle(event);
+      return;
+    }
+
+    // 1. СОХРАНЯЕМ исходное состояние для возможного отката (rollback)
+    final originalMsg = cached.messages[msgIndex];
+    final currentReactions = originalMsg.reactions ?? [];
+    final reactionIndex = currentReactions.indexWhere(
+      (r) => r.nameReaction == event.nameReaction,
+    );
+
+    List<ReactionMessage> newReactions = List.from(currentReactions);
+
+    // 2. ОПТИМИСТИЧНО обновляем кэш
+    if (reactionIndex != -1) {
+      final existing = currentReactions[reactionIndex];
+      if (existing.hasUserReaction ?? false) {
+        // Пользователь УДАЛЯЕТ реакцию
+        final newAmount = (existing.amount ?? 1) - 1;
+        if (newAmount <= 0) {
+          newReactions.removeAt(reactionIndex);
+        } else {
+          newReactions[reactionIndex] = existing.copyWith(
+            amount: newAmount,
+            hasUserReaction: false,
+          );
+        }
+      } else {
+        // Пользователь ДОБАВЛЯЕТ реакцию к уже существующей
+        newReactions[reactionIndex] = existing.copyWith(
+          amount: (existing.amount ?? 0) + 1,
+          hasUserReaction: true,
+        );
+      }
+    } else {
+      // Реакции не было, добавляем новую
+      newReactions.add(
+        ReactionMessage(
+          messageId: event.messageId,
+          nameReaction: event.nameReaction,
+          amount: 1,
+          hasUserReaction: true,
+        ),
+      );
+    }
+
+    // Применяем изменения в кэш
+    cached.messages[msgIndex] = originalMsg.copyWith(
+      reactions: newReactions.isEmpty ? null : newReactions,
+    );
+    _messageRepository.cacheMessages(event.chatId, cached.messages);
+
+    // 3. Мгновенно эмитим новое состояние, если мы в этом чате
+    if (_chatRepository.isCurrentChat(event.chatId) && state is MessageLoaded) {
+      final currentState = state as MessageLoaded;
+      emit(
+        MessageLoaded(
+          messages: List.from(cached.messages),
+          actions: currentState.actions,
+          isLoadingMore: currentState.isLoadingMore,
+          isLoadingNewer: currentState.isLoadingNewer,
+          hasMoreMessages: currentState.hasMoreMessages,
+          hasNewerMessages: currentState.hasNewerMessages,
+        ),
+      );
+    }
+
+    // 4. Отправляем запрос на сервер
     final result = await _reactionsRepository.toggleReaction(
       chatId: event.chatId,
       entityId: event.entityId,
       entityType: event.entityType,
       messageId: event.messageId,
-      reactionName: event.reactionName,
+      nameReaction: event.nameReaction,
     );
 
+    // 5. ОБРАБОТКА РЕЗУЛЬТАТА
     result.fold(
       (failure) {
-        debugPrint('Failed to toggle reaction: ${failure.message}');
+        debugPrint(
+          'Failed to toggle reaction: ${failure.message}. Rolling back...',
+        );
+        // 🎯 ОТКАТ: Возвращаем исходное сообщение, если запрос провалился
+        cached.messages[msgIndex] = originalMsg;
+        _messageRepository.cacheMessages(event.chatId, cached.messages);
+
+        if (_chatRepository.isCurrentChat(event.chatId) &&
+            state is MessageLoaded) {
+          final currentState = state as MessageLoaded;
+          emit(
+            MessageLoaded(
+              messages: List.from(cached.messages),
+              actions: currentState.actions,
+              isLoadingMore: currentState.isLoadingMore,
+              isLoadingNewer: currentState.isLoadingNewer,
+              hasMoreMessages: currentState.hasMoreMessages,
+              hasNewerMessages: currentState.hasNewerMessages,
+            ),
+          );
+        }
       },
       (_) {
-        debugPrint(
-          'Reaction toggle request sent successfully. Waiting for WS update.',
-        );
+        debugPrint('Reaction toggle request sent successfully.');
+        // Успех! Когда придёт WebSocket, он просто подтвердит это состояние.
       },
+    );
+  }
+
+  // Вынесенный вспомогательный метод для случая, когда кэша нет
+  Future<void> _doApiToggle(ToggleReaction event) async {
+    final result = await _reactionsRepository.toggleReaction(
+      chatId: event.chatId,
+      entityId: event.entityId,
+      entityType: event.entityType,
+      messageId: event.messageId,
+      nameReaction: event.nameReaction,
+    );
+    result.fold(
+      (failure) => debugPrint(
+        'Failed to toggle reaction (no cache): ${failure.message}',
+      ),
+      (_) =>
+          debugPrint('Reaction toggle request sent successfully (no cache).'),
     );
   }
 
@@ -696,7 +811,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final chatId = data['chatId'] as int?;
     final nameReaction = data['nameReaction'] as String?;
     final amount = data['amount'] as int?;
-    final hasUserReaction = data['hasUserReaction'] as bool? ?? false;
+    final hasUserReaction =
+        event.isSelf && (data['hasUserReaction'] as bool? ?? false);
     final userId = data['userId'] as int?;
 
     if (messageId != null &&
@@ -720,12 +836,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     UpdateReactionFromWs event,
     Emitter<MessageState> emit,
   ) async {
-    // 1. Проверяем, есть ли сообщение в кэше
     final cached = _messageRepository.getCached(event.chatId);
     if (cached == null) return;
 
     final msgIndex = cached.messages.indexWhere((m) => m.id == event.messageId);
-    if (msgIndex == -1) return; // Сообщения нет в кэше, ничего не делаем
+    if (msgIndex == -1) return;
 
     final msg = cached.messages[msgIndex];
     final currentReactions = msg.reactions ?? [];
@@ -733,9 +848,23 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       (r) => r.nameReaction == event.nameReaction,
     );
 
+    // 🎯 ПРОВЕРКА: Если состояние в кэше УЖЕ совпадает с тем, что пришло по WS,
+    // мы ничего не делаем, чтобы избежать лишнего эмита.
+    if (reactionIndex != -1) {
+      final existing = currentReactions[reactionIndex];
+      if (existing.amount == event.amount &&
+          existing.hasUserReaction == event.hasUserReaction) {
+        return; // Состояние уже актуально (скорее всего, благодаря оптимистичному обновлению)
+      }
+    } else if (!event.hasUserReaction && event.amount == 0) {
+      // Реакции нет в кэше, и по WS пришло, что её тоже нет (amount 0, hasUserReaction false).
+      // Состояние уже актуально.
+      return;
+    }
+
+    // Если мы дошли сюда, значит состояние в кэше отличается от пришедшего по WS. Обновляем.
     List<ReactionMessage> newReactions = List.from(currentReactions);
 
-    // 2. Формируем новый список реакций
     if (event.hasUserReaction) {
       if (reactionIndex != -1) {
         newReactions[reactionIndex] = newReactions[reactionIndex].copyWith(
@@ -766,21 +895,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       }
     }
 
-    // 3. Обновляем кэш (мутируем объект, как это делается в _onWsCreateEvent)
+    // Обновляем кэш
     cached.messages[msgIndex] = msg.copyWith(
       reactions: newReactions.isEmpty ? null : newReactions,
     );
-
-    // Синхронизируем кэш в репозитории (на случай, если он ожидает явного вызова)
     _messageRepository.cacheMessages(event.chatId, cached.messages);
 
-    // 4. Эмитим состояние ТОЛЬКО если мы сейчас находимся в этом чате
+    // Эмитим состояние ТОЛЬКО если мы сейчас находимся в этом чате
     if (_chatRepository.isCurrentChat(event.chatId) && state is MessageLoaded) {
       final currentState = state as MessageLoaded;
       emit(
         MessageLoaded(
-          messages: cached.messages,
-          // Передаем новый список, чтобы триггернуть перерисовку
+          messages: List.from(cached.messages),
           actions: currentState.actions,
           isLoadingMore: currentState.isLoadingMore,
           isLoadingNewer: currentState.isLoadingNewer,

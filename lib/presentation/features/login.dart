@@ -2,10 +2,12 @@
 import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/my_router.dart';
+import 'package:disalive/domain/services/push_notification_service.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
 import 'package:disalive/presentation/features/register/register_screen.dart';
 import 'package:disalive/presentation/features/reset/reset_password_screen.dart';
+import 'package:disalive/presentation/features/verify/totp_verification_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true;
 
+  String? _currentFcmToken;
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     FocusScope.of(context).unfocus();
 
     final email = _emailController.text.trim();
@@ -64,8 +68,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    _currentFcmToken = await PushNotificationService.getToken();
+    if (!mounted) return;
+
     context.read<AuthBloc>().add(
-      LoginButtonPressed(email: email, password: password),
+      LoginButtonPressed(
+        email: email,
+        password: password,
+        fcmToken: _currentFcmToken,
+      ),
     );
   }
 
@@ -108,6 +119,19 @@ class _LoginScreenState extends State<LoginScreen> {
       listener: (context, state) {
         if (state is AuthFailure) {
           CustomToast.show(context: context, message: state.error);
+        } else if (state is AuthTotpRequired) {
+          final email = _emailController.text.trim();
+          final password = _passwordController.text.trim();
+
+          Navigator.of(context).push(
+            CupertinoPageRoute(
+              builder: (context) => TotpVerificationScreen(
+                email: email,
+                password: password,
+                fcmToken: _currentFcmToken,
+              ),
+            ),
+          );
         } else if (state is AuthAuthenticated) {
           Navigator.of(context).pushAndRemoveUntil(
             CupertinoPageRoute(builder: (context) => const HomeScreen()),

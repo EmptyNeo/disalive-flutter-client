@@ -12,7 +12,6 @@ class CertHttpOverrides extends HttpOverrides {
     return super.createHttpClient(context);
   }
 
-  // Статический метод можно вызвать без создания экземпляра класса
   static Future<void> init() async {
     final ByteData certData = await rootBundle.load(
       'assets/certs/globalsign.pem',
