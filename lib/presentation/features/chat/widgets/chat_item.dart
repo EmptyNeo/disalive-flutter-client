@@ -1,5 +1,8 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/app/di/di.dart';
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/presentation/utils/ui/pluralize.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
@@ -24,6 +27,24 @@ class ChatItem extends StatefulWidget {
 
 class _ChatItemState extends State<ChatItem> {
   bool _pressed = false;
+  late final LocalChatStateRepository _localState;
+
+  @override
+  void initState() {
+    super.initState();
+    _localState = sl<LocalChatStateRepository>();
+    _localState.revision.addListener(_onDraftChanged);
+  }
+
+  void _onDraftChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _localState.revision.removeListener(_onDraftChanged);
+    super.dispose();
+  }
 
   void _setPressed(bool value) {
     if (_pressed == value) return;
@@ -38,6 +59,12 @@ class _ChatItemState extends State<ChatItem> {
     final int unreadCount = chat.unreadCount;
     final bool hasUnread = chat.hasUnreadMessages;
     final String? time = UtilDate.formatDayTime(chat.lastMessageTime, false);
+    final draft = _localState.getDraft(
+      sl<UserRepository>().getCurrentUser()?.id,
+      chat.id,
+    );
+    final hasDraft = draft != null && !draft.isEmpty;
+    final draftText = draft?.text.trim() ?? '';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -133,7 +160,20 @@ class _ChatItemState extends State<ChatItem> {
                   Row(
                     children: [
                       Expanded(
-                        child: (chat.isGroup && chat.memberCount != null)
+                        child: hasDraft
+                            ? Text(
+                                draftText.isEmpty
+                                    ? 'Черновик:'
+                                    : 'Черновик: $draftText',
+                                style: const TextStyle(
+                                  color: AppColors.red,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            : (chat.isGroup && chat.memberCount != null)
                             ? Text(
                                 Pluralize.members(chat.memberCount!),
                                 style: TextStyle(

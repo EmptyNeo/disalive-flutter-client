@@ -46,6 +46,7 @@ class MessagesList extends StatefulWidget {
   final int? currentUserId;
   final double inputReserve;
   final int? initialAroundId;
+  final int? initialPositionId;
 
   final Function(Message message) onSendMessage;
   final Function(Message message) onEditMessage;
@@ -63,6 +64,7 @@ class MessagesList extends StatefulWidget {
     required this.chat,
     required this.currentUserId,
     required this.initialAroundId,
+    this.initialPositionId,
     required this.inputReserve,
     required this.onSendMessage,
     required this.onEditMessage,
@@ -108,6 +110,7 @@ class MessagesListState extends State<MessagesList> {
   int? _highlightedMessageId;
   Timer? _highlightTimer;
   final Map<dynamic, GlobalKey> _messageKeys = {};
+  bool _restoredPosition = false;
 
   static const double _kBottomThreshold = 200.0;
 
@@ -118,6 +121,8 @@ class MessagesListState extends State<MessagesList> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _fixedSeparatorId = widget.initialAroundId;
+    _anchorKey = widget.initialPositionId;
+    _hasScrolledToUnread = widget.initialPositionId != null;
 
     _startTimeForNextState();
   }
@@ -131,6 +136,9 @@ class MessagesListState extends State<MessagesList> {
       _messageKeys.clear();
       _anchorKey = null;
       _newerBatchPending = false;
+      _anchorKey = widget.initialPositionId;
+      _restoredPosition = false;
+      _hasScrolledToUnread = widget.initialPositionId != null;
     }
   }
 
@@ -172,6 +180,34 @@ class MessagesListState extends State<MessagesList> {
     _messageKeys.removeWhere(
       (key, globalKey) => globalKey.currentContext == null,
     );
+  }
+
+  int? firstVisibleMessageId() {
+    if (!_scrollController.hasClients) return null;
+    final state = widget.messageBloc.state;
+    if (state is! MessageLoaded) return null;
+    final viewport = context.findRenderObject() as RenderBox?;
+    if (viewport == null || !viewport.hasSize) return null;
+    final top = viewport.localToGlobal(Offset.zero).dy + _kHeaderReserve;
+    final bottom =
+        viewport.localToGlobal(Offset(0, viewport.size.height)).dy -
+        widget.inputReserve;
+    int? firstId;
+    double firstTop = double.infinity;
+    for (final message in state.messages) {
+      final id = message.id;
+      if (id == null) continue;
+      final box =
+          _messageKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final y = box.localToGlobal(Offset.zero).dy;
+      if (y + box.size.height <= top || y >= bottom) continue;
+      if (y < firstTop) {
+        firstTop = y;
+        firstId = id;
+      }
+    }
+    return firstId;
   }
 
   void _startTimeForNextState() {
@@ -322,7 +358,7 @@ class MessagesListState extends State<MessagesList> {
     }
   }
 
-  Future<bool> _revealMessage(int messageId) async {
+  Future<bool> _revealMessage(int messageId, {double alignment = 0.5}) async {
     if (!mounted || !_scrollController.hasClients) return false;
 
     // 1. Быстрая проверка: может, он уже построен и находится в кэше?
@@ -333,7 +369,7 @@ class MessagesListState extends State<MessagesList> {
       // Да, построен! Плавно центрируем его.
       await Scrollable.ensureVisible(
         ctx,
-        alignment: 0.5,
+        alignment: alignment,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
@@ -379,7 +415,7 @@ class MessagesListState extends State<MessagesList> {
     if (ctx != null) {
       // Теперь ensureVisible сработает идеально и плавно доцентрует сообщение
       // с учетом его реальной, а не примерной высоты.
-      await Scrollable.ensureVisible(ctx, alignment: 0.5);
+      await Scrollable.ensureVisible(ctx, alignment: alignment);
       return true;
     }
 
@@ -603,7 +639,7 @@ class MessagesListState extends State<MessagesList> {
               c is MessageLoading || (p is MessageLoaded && c is MessageLoaded),
           listener: (context, state) {
             if (state is MessageLoading) {
-              _anchorKey = null;
+              _anchorKey = _restoredPosition ? null : widget.initialPositionId;
               _newerBatchPending = false;
               return;
             }
@@ -652,6 +688,17 @@ class MessagesListState extends State<MessagesList> {
                 ),
               ),
             );
+          }
+
+          if (widget.initialPositionId != null &&
+              !_restoredPosition &&
+              state is MessageLoaded &&
+              !state.isLoadingMore) {
+            _restoredPosition = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              await _revealMessage(widget.initialPositionId!, alignment: 0.1);
+            });
           }
 
           // 🎯 ИСПРАВЛЕННАЯ ЛОГИКА РАЗДЕЛИТЕЛЯ

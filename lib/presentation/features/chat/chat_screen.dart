@@ -1,9 +1,11 @@
 // lib/presentation/features/chat/chat_screen.dart
 import 'dart:io';
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
@@ -89,7 +91,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final GlobalKey<MessagesListState> _messagesListKey =
       GlobalKey<MessagesListState>();
   late final EmojiTextEditingController _textController;
@@ -100,6 +102,9 @@ class _ChatScreenState extends State<ChatScreen> {
   int? _editingMessageId;
   Message? _answerMessage;
   bool isReconnect = false;
+  Timer? _draftTimer;
+  bool _restoringDraft = false;
+  int? _initialPositionId;
 
   late final MessageBloc _messageBloc;
   late final ChatBloc _chatBloc;
@@ -121,12 +126,16 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentChat = widget.chat;
     _textController = EmojiTextEditingController();
     _textController.addListener(_onTextChanged);
 
     _messageBloc = context.read<MessageBloc>();
     _chatBloc = context.read<ChatBloc>();
+    _restoreDraft();
+    _initialPositionId = sl<LocalChatStateRepository>()
+        .getFirstVisibleMessageId(_currentUserId, widget.chat.id);
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
     context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
@@ -146,7 +155,70 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onTextChanged() {
     _onChangedNeedSend();
+    _scheduleDraftSave();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+  }
+
+  void _restoreDraft() {
+    final draft = sl<LocalChatStateRepository>().getDraft(
+      _currentUserId,
+      widget.chat.id,
+    );
+    if (draft == null) return;
+    _restoringDraft = true;
+    _textController.text = draft.text;
+    _attachments = draft.attachments
+        .where(
+          (attachment) =>
+              attachment.file == null || attachment.file!.existsSync(),
+        )
+        .toList();
+    _deletedAttachments.addAll(draft.deletedAttachments);
+    _answerMessage = draft.answerMessage;
+    _editingMessageId = draft.editingMessageId;
+    _onChangedNeedSend();
+    _restoringDraft = false;
+  }
+
+  void _scheduleDraftSave() {
+    if (_restoringDraft) return;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 300), _saveDraft);
+  }
+
+  void _saveDraft() {
+    _draftTimer?.cancel();
+    sl<LocalChatStateRepository>().saveDraft(
+      _currentUserId,
+      widget.chat.id,
+      ChatDraft(
+        text: _textController.text,
+        attachments: List.of(_attachments),
+        deletedAttachments: List.of(_deletedAttachments),
+        answerMessage: _answerMessage,
+        editingMessageId: _editingMessageId,
+      ),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _saveDraft();
+      _savePosition();
+    }
+  }
+
+  void _savePosition() {
+    final id = _messagesListKey.currentState?.firstVisibleMessageId();
+    if (id != null) {
+      sl<LocalChatStateRepository>().saveFirstVisibleMessageId(
+        _currentUserId,
+        widget.chat.id,
+        id,
+      );
+    }
   }
 
   void _onChangedNeedSend() {
@@ -303,7 +375,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final hasUnread =
         originalLastIdRead > 0 && lastMessageId > originalLastIdRead;
-    final initialAroundId = hasUnread ? lastReadId : null;
+    final initialAroundId =
+        _initialPositionId ?? (hasUnread ? lastReadId : null);
 
     _messageBloc.add(
       GetMessages(
@@ -319,6 +392,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _saveDraft();
+    _savePosition();
     _inputFocusNode.removeListener(_handleFocusChange);
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
@@ -336,7 +412,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // 🎯 2. Перехватываем действие "Назад"
       onPopInvoked: (bool didPop) {
-        if (didPop) return; // Если экран все-таки закрылся, ничего не делаем
+        if (didPop) {
+          _saveDraft();
+          _savePosition();
+          return;
+        }
 
         if (_isExtraPanelOpen) {
           // Если панель открыта, закрываем её и возвращаем фокус/клавиатуру
@@ -405,6 +485,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             currentUserId: _currentUserId,
                             initialAroundId:
                                 _currentChat.member?.lastIdReadMessage ?? 0,
+                            initialPositionId: _initialPositionId,
                             inputReserve:
                                 _inputReserve +
                                 (_isExtraPanelOpen ? _extraPanelHeight : 0),
@@ -511,6 +592,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 _deletedAttachments.add(attachment);
                               }
                               _attachments.remove(attachment);
+                              _scheduleDraftSave();
                               WidgetsBinding.instance.addPostFrameCallback(
                                 (_) => _measureInput(),
                               );
@@ -533,6 +615,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               if (index != -1) {
                                 _attachments[index] = updatedAttachment;
                               }
+                              _scheduleDraftSave();
                             });
                             WidgetsBinding.instance.addPostFrameCallback(
                               (_) => _measureInput(),
@@ -629,6 +712,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _hasNeedSend.value = hasAttachments;
       }
       WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+      _scheduleDraftSave();
     }
   }
 
@@ -792,6 +876,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
+    _scheduleDraftSave();
   }
 
   void _onSendVoiceMessage(File file, double durationSeconds) {
@@ -865,6 +950,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _attachments.clear();
       _deletedAttachments.clear();
     });
+    _scheduleDraftSave();
   }
 
   void _cancelBanner() {
@@ -878,6 +964,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _answerMessage = null;
     });
     _textController.clear();
+    _scheduleDraftSave();
     _unfocusInput();
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
@@ -979,5 +1066,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _focusInput();
       _measureInput();
     });
+    _scheduleDraftSave();
   }
 }

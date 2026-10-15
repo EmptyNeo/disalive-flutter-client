@@ -2,6 +2,7 @@ import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/category_channel_repository_impl.dart';
 import 'package:disalive/data/repositories/channel_server_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
 import 'package:disalive/data/repositories/email_repository_impl.dart';
 import 'package:disalive/data/repositories/friends_repository_impl.dart';
@@ -76,6 +77,9 @@ final sl = GetIt.instance;
 Future<void> setupDependencies() async {
   SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => sharedPreferences);
+  sl.registerLazySingleton<LocalChatStateRepository>(
+    () => LocalChatStateRepository(sl<SharedPreferences>()),
+  );
 
   sl.registerLazySingleton<SettingsRepository>(
     () => SettingsRepositoryImpl(sl()),
