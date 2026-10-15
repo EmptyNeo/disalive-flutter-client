@@ -1,7 +1,9 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/presentation/features/profile/items/badge_item.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -46,6 +48,11 @@ class _MemberItemState extends State<MemberItem> {
       );
     }
 
+    final roleName = widget.member.role?.name?.trim() ?? '';
+    final roleEmoji = widget.member.role?.emoji?.trim() ?? '';
+    final hasRole = roleName.isNotEmpty || roleEmoji.isNotEmpty;
+    final badge = user.mainBadge;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Реагируем на начало касания (и обычного тапа, и долгого зажатия)
@@ -87,8 +94,9 @@ class _MemberItemState extends State<MemberItem> {
               status: widget.member.user?.status,
             ),
             const SizedBox(width: 12),
-            Expanded(
-              // Убрал лишний вложенный Row, так как там был только один элемент
+            Flexible(
+              flex: 3,
+              fit: FlexFit.loose,
               child: Text(
                 user.getDisplayName,
                 style: TextStyle(
@@ -100,6 +108,50 @@ class _MemberItemState extends State<MemberItem> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (hasRole) ...[
+              const SizedBox(width: 5),
+              Flexible(
+                flex: 2,
+                fit: FlexFit.loose,
+                child: Container(
+                  key: const ValueKey('member_role'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.actionGrey,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (roleName.isNotEmpty)
+                        Flexible(
+                          child: Text(
+                            roleName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.greyple,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      if (roleEmoji.isNotEmpty) ...[
+                        if (roleName.isNotEmpty) const SizedBox(width: 4),
+                        RoleEmoji(roleEmoji, size: 16),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (badge != null) ...[
+              const SizedBox(width: 5),
+              BadgeItem(badge: badge, size: 18),
+            ],
           ],
         ),
       ),

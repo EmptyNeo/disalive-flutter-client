@@ -129,7 +129,7 @@ class PersonalProfileScreen extends StatelessWidget {
                           right: 12,
                           child: GestureDetector(
                             onTap: () {
-                              CustomToast.show(
+                              CustomToast.open(
                                 context: context,
                                 icon: CupertinoIcons.clock,
                                 color: AppColors.blurple,
@@ -221,7 +221,7 @@ class PersonalProfileScreen extends StatelessWidget {
                                       Clipboard.setData(
                                         ClipboardData(text: '${user.username}'),
                                       );
-                                      CustomToast.show(
+                                      CustomToast.open(
                                         context: context,
                                         icon: CupertinoIcons.checkmark_alt,
                                         color: AppColors.green,

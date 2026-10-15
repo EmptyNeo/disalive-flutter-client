@@ -28,21 +28,31 @@ class ActionBottomSheet extends StatefulWidget {
     List<PreferredReaction>? preferredReactions,
     Function(PreferredReaction)? onReactionTap,
   }) {
-    PreferredReactionsBloc preferredReactionsBloc = context
-        .read<PreferredReactionsBloc>();
+    final preferredReactionsBloc = _tryReadBloc(context);
+
+    final sheet = ActionBottomSheet(
+      title: title,
+      actions: actions,
+      preferredReactions: preferredReactionsBloc != null
+          ? preferredReactions
+          : null,
+      onReactionTap: preferredReactionsBloc != null ? onReactionTap : null,
+    );
 
     return showCupertinoModalPopup(
       context: context,
-      builder: (context) => BlocProvider.value(
-        value: preferredReactionsBloc,
-        child: ActionBottomSheet(
-          title: title,
-          actions: actions,
-          preferredReactions: preferredReactions,
-          onReactionTap: onReactionTap,
-        ),
-      ),
+      builder: (_) => preferredReactionsBloc != null
+          ? BlocProvider.value(value: preferredReactionsBloc, child: sheet)
+          : sheet,
     );
+  }
+
+  static PreferredReactionsBloc? _tryReadBloc(BuildContext context) {
+    try {
+      return context.read<PreferredReactionsBloc>();
+    } on ProviderNotFoundException {
+      return null;
+    }
   }
 
   @override

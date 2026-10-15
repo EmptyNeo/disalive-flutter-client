@@ -1,9 +1,6 @@
 // presentation/widgets/custom_tooltip.dart
-import 'dart:ui';
-
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 
 enum TooltipPosition { top, bottom }
 
@@ -44,10 +41,16 @@ class CustomTooltip extends StatefulWidget {
 class _CustomTooltipState extends State<CustomTooltip>
     with SingleTickerProviderStateMixin {
   OverlayEntry? _entry;
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 150),
-  );
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+  }
 
   @override
   void dispose() {
@@ -94,9 +97,7 @@ class _CustomTooltipState extends State<CustomTooltip>
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _hideTooltip,
-              child: Container(
-                color: CupertinoColors.transparent,
-              ),
+              child: Container(color: CupertinoColors.transparent),
             ),
           ),
           Builder(

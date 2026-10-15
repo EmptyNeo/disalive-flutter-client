@@ -3,7 +3,6 @@ import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/widgets/emoji_widget.dart'; // Проверь путь к твоему EmojiWidget
 
 class EmojiTextParser {
-  /// Синхронный парсер для использования внутри TextEditingController
   static List<InlineSpan> parse(
     String text, {
     TextStyle? baseTextStyle,

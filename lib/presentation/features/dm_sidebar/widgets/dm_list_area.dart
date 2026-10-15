@@ -10,6 +10,7 @@ import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_item.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
+import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -38,7 +39,7 @@ class DmListArea extends StatelessWidget {
       return Center(
         child: Text(
           isSearchActive ? 'Ничего не найдено' : 'У вас пока нет чатов',
-          style: TextStyle(color: AppColors.white.withOpacity(0.3)),
+          style: TextStyle(color: AppColors.white.withValues(alpha: 0.3)),
         ),
       );
     }
@@ -153,6 +154,18 @@ class DmListArea extends StatelessWidget {
         ),
       ],
       if (chat.isGroup) ...[
+        if (chat.isOwner ||
+            (role?.hasPermission(ChatPermissions.manageRoles) ?? false))
+          ActionItem(
+            icon: CupertinoIcons.shield_lefthalf_fill,
+            label: 'Управление ролями',
+            onTap: () => RoleMembersScreen.open(
+              context,
+              entityId: chat.id,
+              entityType: EntityType.chat,
+              entityName: chat.name,
+            ),
+          ),
         if (role != null && role.hasPermission(ChatPermissions.manageChat)) ...[
           ActionItem(
             icon: CupertinoIcons.pencil,

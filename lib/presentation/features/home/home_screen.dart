@@ -1,9 +1,7 @@
-import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
-import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
@@ -14,6 +12,7 @@ import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
+import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
@@ -23,6 +22,7 @@ import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
+import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
@@ -32,6 +32,7 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/personal_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
+import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/settings/settings_screen.dart';
 import 'package:disalive/presentation/features/home/widgets/supportive/keep_alive_page.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
@@ -104,6 +105,10 @@ class _HomeScreenState extends State<HomeScreen> {
           create: (_) =>
               ChatBloc(sl<ChatRepository>(), sl<WsEventBus>())..add(GetChats()),
         ),
+        BlocProvider<ServersBloc>(
+          lazy: false,
+          create: (_) => sl<ServersBloc>()..add(const GetServers()),
+        ),
         BlocProvider<RequestsBloc>(
           create: (_) =>
               RequestsBloc(sl<RequestsRepository>(), sl<WsEventBus>())
@@ -117,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
             sl<WsEventBus>(),
           ),
         ),
+        BlocProvider<InvitesBloc>(create: (_) => sl<InvitesBloc>()),
         BlocProvider<MembersBloc>(
           create: (_) => MembersBloc(sl<MembersRepository>(), sl<WsEventBus>()),
         ),
@@ -133,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
           create: (_) => StickersPackBloc(
             sl<StickerPackRepository>(),
             sl<UserStickersPackRepository>(),
+            sl<StickersRepository>(),
           ),
         ),
         BlocProvider<PreferredReactionsBloc>(

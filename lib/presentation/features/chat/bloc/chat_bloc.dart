@@ -267,17 +267,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final message = event.message;
     final chatId = message.chatId ?? 0;
 
-    if (chatId == 0 || event.isSelf) return;
+    if (chatId == 0) return;
 
     final cachedChats = _chatRepository.getCached();
     final chatIndex = cachedChats.indexWhere((c) => c.id == chatId);
 
     if (chatIndex != -1) {
-      int newMessagesCount = cachedChats[chatIndex].newMessagesCount ?? 0;
-      cachedChats[chatIndex] = cachedChats[chatIndex].copyWith(
+      final chat = cachedChats[chatIndex];
+      cachedChats[chatIndex] = chat.copyWith(
         lastMessageTime: message.time,
         idLastMessage: message.id,
-        newMessagesCount: ++newMessagesCount,
+        newMessagesCount: chat.unreadCount + (event.isSelf ? 0 : 1),
       );
 
       // Сортируем чаты

@@ -111,7 +111,7 @@ class _TotpVerificationScreenState extends State<TotpVerificationScreen> {
         ),
       );
     } else {
-      CustomToast.show(context: context, message: 'Введите все 6 цифр');
+      CustomToast.open(context: context, message: 'Введите все 6 цифр');
     }
   }
 
@@ -120,7 +120,7 @@ class _TotpVerificationScreenState extends State<TotpVerificationScreen> {
     return BlocListener<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthFailure) {
-          CustomToast.show(context: context, message: state.error);
+          CustomToast.open(context: context, message: state.error);
           // Очищаем поля при ошибке
           for (var controller in _controllers) {
             controller.clear();

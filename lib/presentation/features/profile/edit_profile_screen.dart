@@ -139,7 +139,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       failure,
     ) {
       if (!mounted) return;
-      CustomToast.show(
+      CustomToast.open(
         context: context,
         icon: CupertinoIcons.clear,
         color: AppColors.errorRed,
@@ -725,7 +725,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _showToast(String message) {
-    CustomToast.show(
+    CustomToast.open(
       context: context,
       icon: CupertinoIcons.clear,
       message: message,

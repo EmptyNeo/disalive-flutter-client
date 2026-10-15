@@ -2,16 +2,13 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
-import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
-import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
-import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
-import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/members/member_item.dart';
-import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
+import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -20,22 +17,41 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 /// Виджет, отображающий заголовок секции и список участников чата/сервера.
 /// Является Sliver-виджетом и должен использоваться напрямую внутри CustomScrollView.
 class MembersList extends StatelessWidget {
-  final Chat chat;
+  final int entityId;
+  final EntityType entityType;
+  final String entityName;
+  final int? initialMemberCount;
+  final bool canManageMembers;
+  final bool canManageRoles;
 
-  const MembersList({super.key, required this.chat});
+  const MembersList({
+    super.key,
+    required this.entityId,
+    required this.entityType,
+    required this.entityName,
+    this.initialMemberCount,
+    this.canManageMembers = false,
+    this.canManageRoles = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<MembersBloc, MembersState>(
       builder: (context, state) {
-        int count = chat.memberCount ?? 0;
+        int count = initialMemberCount ?? 0;
         List<Member> members = [];
+        final loaded =
+            state is MembersLoaded &&
+                state.entityId == entityId &&
+                state.entityType == entityType
+            ? state
+            : null;
 
-        if (state is MembersLoaded) {
-          count = state.memberCount > 0
-              ? state.memberCount
-              : state.members.length;
-          members = state.members;
+        if (loaded != null) {
+          count = loaded.memberCount > 0
+              ? loaded.memberCount
+              : loaded.members.length;
+          members = loaded.members;
         }
 
         return SliverMainAxisGroup(
@@ -56,7 +72,9 @@ class MembersList extends StatelessWidget {
             ),
 
             // 🎯 Контент в зависимости от состояния (центрируется на весь оставшийся экран)
-            if (state is MembersLoading)
+            if (state is MembersLoading ||
+                state is MembersInitial ||
+                (state is MembersLoaded && loaded == null))
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(child: CupertinoActivityIndicator()),
@@ -77,21 +95,21 @@ class MembersList extends StatelessWidget {
                   ),
                 ),
               )
-            else if (state is MembersLoaded && members.isEmpty)
+            else if (loaded != null && members.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'В группе пока нет участников',
+                      'Пока нет участников',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.greyple),
                     ),
                   ),
                 ),
               )
-            else if (state is MembersLoaded)
+            else if (loaded != null)
               // Использование SliverList вместо ListView.builder убирает проблему с shrinkWrap
               SliverList.builder(
                 itemCount: members.length,
@@ -111,10 +129,7 @@ class MembersList extends StatelessWidget {
   }
 
   void removeMember(BuildContext context, Member member) async {
-    final entityKey = DeterminingContextService.getEntityKey();
-    if (entityKey == null) {
-      return;
-    }
+    final entityKey = EntityKey(entityId: entityId, entityType: entityType);
     final result =
         await showConfirmationDialog(
           context,
@@ -131,33 +146,29 @@ class MembersList extends StatelessWidget {
   void _showMemberActions(BuildContext context, Member member) {
     final isSelf = member.isSelf ?? false;
 
-    if (chat.role == null) {
-      return;
-    }
-
-    final hasManageMembers = chat.role?.hasPermission(
-      GeneralPermissions.manageMembers,
-    );
-    final hasManageRoles = chat.role?.hasPermission(
-      GeneralPermissions.manageRoles,
-    );
-
-    if (hasManageRoles == false && hasManageMembers == false) {
+    if (!canManageRoles && !canManageMembers) {
       return;
     }
 
     final actions = <ActionItem>[
-      if (hasManageRoles == true)
+      if (canManageRoles)
         ActionItem(
           icon: CupertinoIcons.shield_fill,
           label: 'Управление ролью',
-          onTap: () {},
+          onTap: () => RoleMembersScreen.open(
+            context,
+            entityId: entityId,
+            entityType: entityType,
+            entityName: entityName,
+          ),
         ),
 
-      if (!isSelf && hasManageMembers == true)
+      if (!isSelf && canManageMembers)
         ActionItem(
           icon: CupertinoIcons.person_crop_circle_badge_minus,
-          label: 'Выгнать из группы',
+          label: entityType == EntityType.server
+              ? 'Исключить с сервера'
+              : 'Выгнать из группы',
           isDestructive: true,
           onTap: () {
             removeMember(context, member);

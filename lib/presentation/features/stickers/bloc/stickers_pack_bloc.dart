@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:bloc/bloc.dart';
+import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/failures/failures.dart';
@@ -12,9 +15,13 @@ part 'stickers_pack_state.dart';
 class StickersPackBloc extends Bloc<StickerPackEvent, StickersPackState> {
   final StickerPackRepository _repository;
   final UserStickersPackRepository _userStickersPackRepository;
+  final StickersRepository _stickersRepository;
 
-  StickersPackBloc(this._repository, this._userStickersPackRepository)
-    : super(StickersPackInitial()) {
+  StickersPackBloc(
+    this._repository,
+    this._userStickersPackRepository,
+    this._stickersRepository,
+  ) : super(StickersPackInitial()) {
     on<LoadStickerPacks>(_onLoadStickerPacks);
     on<LoadStickerPackDetails>(_onLoadStickerPackDetails);
     on<ClearStickers>(_onClearStickers);
@@ -22,6 +29,8 @@ class StickersPackBloc extends Bloc<StickerPackEvent, StickersPackState> {
     on<UpdateStickerPack>(_onUpdateStickerPack);
     on<AddStickerPack>(_onAddStickerPack);
     on<RemoveStickerPack>(_onRemoveStickerPack);
+    on<AddStickerContent>(_onAddStickerContent);
+    on<RemoveStickerContent>(_onRemoveStickerContent);
   }
 
   Future<void> _onLoadStickerPacks(
@@ -239,6 +248,87 @@ class StickersPackBloc extends Bloc<StickerPackEvent, StickersPackState> {
 
         emit(current.copyWith(packs: updatedPacks));
       }
+    });
+  }
+
+  StickersPackLoaded _applyToPack(
+    StickersPackLoaded current,
+    int packId,
+    StickerPack Function(StickerPack) update,
+  ) {
+    final active = current.activePack;
+    return current.copyWith(
+      packs: current.packs.map((p) => p.id == packId ? update(p) : p).toList(),
+      activePack: active != null && active.id == packId ? update(active) : null,
+    );
+  }
+
+  Future<void> _onAddStickerContent(
+    AddStickerContent event,
+    Emitter<StickersPackState> emit,
+  ) async {
+    final start = state;
+    if (start is! StickersPackLoaded) return;
+
+    // Показываем плитку-заглушку и сбрасываем прошлую ошибку
+    emit(
+      start.bumpUploading(event.packId, 1).copyWith(clearActionFailure: true),
+    );
+
+    final result = await _stickersRepository.create(event.packId, event.file);
+
+    final current = state;
+    if (current is! StickersPackLoaded) return;
+    final settled = current.bumpUploading(event.packId, -1);
+
+    result.fold((failure) => emit(settled.copyWith(actionFailure: failure)), (
+      sticker,
+    ) {
+      if (sticker == null) {
+        emit(settled);
+        return;
+      }
+      emit(
+        _applyToPack(
+          settled,
+          event.packId,
+          (p) => p.copyWith(attachments: [...?p.attachments, sticker]),
+        ),
+      );
+    });
+  }
+
+  Future<void> _onRemoveStickerContent(
+    RemoveStickerContent event,
+    Emitter<StickersPackState> emit,
+  ) async {
+    final start = state;
+    if (start is! StickersPackLoaded) return;
+    emit(start.copyWith(clearActionFailure: true));
+
+    final result = await _stickersRepository.delete(
+      event.stickerId,
+      event.packId,
+    );
+
+    final current = state;
+    if (current is! StickersPackLoaded) return;
+
+    result.fold((failure) => emit(current.copyWith(actionFailure: failure)), (
+      success,
+    ) {
+      if (!success) return;
+      emit(
+        _applyToPack(
+          current,
+          event.packId,
+          (p) => p.copyWith(
+            attachments: (p.attachments ?? [])
+                .where((s) => s.id != event.stickerId)
+                .toList(),
+          ),
+        ),
+      );
     });
   }
 

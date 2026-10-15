@@ -59,12 +59,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
 
     if (email.isEmpty) {
-      CustomToast.show(context: context, message: 'Введите email');
+      CustomToast.open(context: context, message: 'Введите email');
       return;
     }
 
     if (password.isEmpty) {
-      CustomToast.show(context: context, message: 'Введите пароль');
+      CustomToast.open(context: context, message: 'Введите пароль');
       return;
     }
 
@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return BlocConsumer<AuthBloc, AuthState>(
       listener: (context, state) {
         if (state is AuthFailure) {
-          CustomToast.show(context: context, message: state.error);
+          CustomToast.open(context: context, message: state.error);
         } else if (state is AuthTotpRequired) {
           final email = _emailController.text.trim();
           final password = _passwordController.text.trim();

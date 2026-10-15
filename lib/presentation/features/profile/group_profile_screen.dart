@@ -133,7 +133,16 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
             ),
           ),
         ),
-        MembersList(chat: widget.chat),
+        MembersList(
+          entityId: widget.chat.id,
+          entityType: EntityType.chat,
+          entityName: widget.chat.name,
+          initialMemberCount: widget.chat.memberCount,
+          canManageMembers: manageMembers,
+          canManageRoles:
+              widget.chat.role?.hasPermission(ChatPermissions.manageRoles) ??
+              false,
+        ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],

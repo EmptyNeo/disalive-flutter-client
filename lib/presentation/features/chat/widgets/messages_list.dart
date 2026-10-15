@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:disalive/app/di/di.dart'; // 🎯 Для sl()
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
-import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/reaction_message.dart';
+import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
@@ -51,6 +51,8 @@ class MessagesList extends StatefulWidget {
   final Function(Message message) onEditMessage;
   final Function(Message message) onDeleteMessage;
   final Function(Message message) onAnswerMessage;
+  final Function(StickerContent sticker) onStickerTap;
+  final ValueChanged<String>? onInviteMention;
   final VoidCallback? onFocusInput;
   final VoidCallback? onUnfocusInput;
 
@@ -66,6 +68,8 @@ class MessagesList extends StatefulWidget {
     required this.onEditMessage,
     required this.onDeleteMessage,
     required this.onAnswerMessage,
+    required this.onStickerTap,
+    this.onInviteMention,
     this.onFocusInput,
     this.onUnfocusInput,
   });
@@ -75,6 +79,10 @@ class MessagesList extends StatefulWidget {
 }
 
 class MessagesListState extends State<MessagesList> {
+  EntityKey? _currentEntityKey() {
+    return DeterminingContextService.getEntityKey();
+  }
+
   // 🎯 1. НОВАЯ АРХИТЕКТУРА СКРОЛЛА
   late final ScrollController _scrollController = _BottomStartController(
     () => _bottomPadding,
@@ -204,14 +212,16 @@ class MessagesListState extends State<MessagesList> {
     if (newestId == null || newestId <= 0) return;
     final chatLastId = widget.chat.idLastMessage ?? 0;
     if (newestId >= chatLastId) return;
+    final entity = _currentEntityKey();
+    if (entity == null) return;
 
     _newerBatchPending = true;
 
     widget.messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         lastIdMessage: 0,
         newerThanId: newestId,
         limit: 25,
@@ -222,12 +232,14 @@ class MessagesListState extends State<MessagesList> {
   void _loadMore(List<Message> currentMessages) {
     final oldestId = currentMessages.last.id;
     if (oldestId == null || oldestId <= 0) return;
+    final entity = _currentEntityKey();
+    if (entity == null) return;
 
     widget.messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         lastIdMessage: oldestId,
         limit: 25,
       ),
@@ -277,11 +289,13 @@ class MessagesListState extends State<MessagesList> {
     }
 
     // 2. Fallback: делаем around-загрузку
+    final entity = _currentEntityKey();
+    if (entity == null) return;
     widget.messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         lastIdMessage: 0,
         aroundId: targetMessageId,
         limit: 25,
@@ -433,11 +447,13 @@ class MessagesListState extends State<MessagesList> {
 
   void _updateServerReadStatus(int newReadId) async {
     if (_isUpdatingRead || !mounted) return;
+    final entityKey = DeterminingContextService.getEntityKey();
+    if (entityKey == null) return;
     _isUpdatingRead = true;
     try {
       await sl<MembersRepository>().update(
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entityKey.entityId,
+        entityType: entityKey.entityType,
         lastIdReadMessage: newReadId,
         chatId: widget.chat.id,
       );
@@ -466,13 +482,15 @@ class MessagesListState extends State<MessagesList> {
         currentLatestId == widget.chat.idLastMessage || currentLatestId == 0;
 
     if (currentLatestId < chatLatestId && chatLatestId > 0 && !hasLastMessage) {
+      final entity = _currentEntityKey();
+      if (entity == null) return;
       _newerBatchPending = false;
 
       widget.messageBloc.add(
         GetMessages(
           chatId: widget.chat.id,
-          entityId: widget.chat.id,
-          entityType: EntityType.chat,
+          entityId: entity.entityId,
+          entityType: entity.entityType,
           lastIdMessage: 0,
           limit: 25,
         ),
@@ -534,9 +552,9 @@ class MessagesListState extends State<MessagesList> {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              const Icon(
+              Icon(
                 CupertinoIcons.chevron_down,
-                color: CupertinoColors.white,
+                color: AppColors.white,
                 size: 24,
               ),
               if (showBadge)
@@ -735,6 +753,8 @@ class MessagesListState extends State<MessagesList> {
                     }
                   },
                   onTapReaction: onToggleReaction,
+                  onStickerTap: widget.onStickerTap,
+                  onInviteMention: widget.onInviteMention,
                 ),
               ),
             );
@@ -865,7 +885,7 @@ class MessagesListState extends State<MessagesList> {
         final nameReaction = "[${emoji.categoryName}:${emoji.id}]";
 
         final chatId = widget.chat.id;
-        final entity = DeterminingContextService.getEntityKey();
+        final entity = _currentEntityKey();
         final entityId = entity?.entityId;
         final entityType = entity?.entityType;
         final messageId = message.id;
@@ -1000,7 +1020,7 @@ class MessagesListState extends State<MessagesList> {
                 .toList()
           : null,
       onReactionTap: (prefReaction) {
-        final entity = DeterminingContextService.getEntityKey();
+        final entity = _currentEntityKey();
         final nameReaction = prefReaction.nameReaction;
         if (entity?.entityId != null &&
             entity?.entityType != null &&
@@ -1079,7 +1099,7 @@ class MessagesListState extends State<MessagesList> {
 
   void onToggleReaction(Message message, ReactionMessage reaction) {
     final chatId = widget.chat.id;
-    final entity = DeterminingContextService.getEntityKey();
+    final entity = _currentEntityKey();
     final entityId = entity?.entityId;
     final entityType = entity?.entityType;
     final messageId = reaction.messageId;

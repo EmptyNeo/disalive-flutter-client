@@ -2,6 +2,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/presentation/utils/ui/pluralize.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart'; // 🎯 ДОБАВЛЕНО
 import 'package:flutter/cupertino.dart';
 
 /// Превью сообщения, на которое отвечают ("Ответ на сообщение") — цветная
@@ -91,9 +92,17 @@ class AnswerPreview extends StatelessWidget {
                     ),
                     if (previewText.isNotEmpty) ...[
                       const SizedBox(height: 1),
-                      Text(
-                        previewText,
-                        style: AppText.lowTextStyle.copyWith(color: textColor),
+                      // 🎯 ЗАМЕНА: Используем Text.rich и EmojiTextParser для поддержки эмодзи
+                      Text.rich(
+                        TextSpan(
+                          children: EmojiTextParser.parse(
+                            previewText,
+                            baseTextStyle: AppText.lowTextStyle.copyWith(
+                              color: textColor,
+                            ),
+                            emojiSize: 16, // 🎯 Чуть меньше, чтобы соответствовать lowTextStyle
+                          ),
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

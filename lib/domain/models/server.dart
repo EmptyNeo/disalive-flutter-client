@@ -1,4 +1,5 @@
 // lib/domain/models/server.dart
+import 'package:disalive/domain/enums/server_type.dart';
 import 'package:equatable/equatable.dart';
 
 class Server extends Equatable {
@@ -8,11 +9,12 @@ class Server extends Equatable {
   final String? pathAvatar;
   final int? canInvite;
   final int? private;
-  final String? category;
+  final ServerType? category;
   final int? fkMainChannel;
   final bool? isBlocked;
   final int? memberCount;
   final int? onlineMemberCount;
+  final int? newMessagesCount;
   final List<int>? channelChatIds;
   final int? mainChatId;
   final int? roleId;
@@ -32,6 +34,7 @@ class Server extends Equatable {
     this.isBlocked,
     this.memberCount,
     this.onlineMemberCount,
+    this.newMessagesCount,
     this.channelChatIds,
     this.mainChatId,
     this.roleId,
@@ -44,12 +47,16 @@ class Server extends Equatable {
     Map<String, bool>? permissions;
     if (map['permissions'] != null) {
       final perms = map['permissions'] as Map<String, dynamic>;
-      permissions = perms.map((key, value) => MapEntry(key, value == true || value == 1));
+      permissions = perms.map(
+        (key, value) => MapEntry(key, value == true || value == 1),
+      );
     }
 
     List<int>? channelChatIds;
     if (map['channelChatIds'] != null && map['channelChatIds'] is List) {
-      channelChatIds = (map['channelChatIds'] as List).map((e) => e as int).toList();
+      channelChatIds = (map['channelChatIds'] as List)
+          .map((e) => e as int)
+          .toList();
     }
 
     return Server(
@@ -59,11 +66,14 @@ class Server extends Equatable {
       pathAvatar: map['pathAvatar'],
       canInvite: map['canInvite'],
       private: map['private'],
-      category: map['category'],
+      category: map['category'] == null
+          ? null
+          : ServerType.fromString(map['category'] as String?),
       fkMainChannel: map['fkMainChannel'],
       isBlocked: map['isBlocked'],
       memberCount: map['memberCount'],
       onlineMemberCount: map['onlineMemberCount'],
+      newMessagesCount: map['newMessagesCount'],
       channelChatIds: channelChatIds,
       mainChatId: map['mainChatId'],
       roleId: map['roleId'],
@@ -81,11 +91,12 @@ class Server extends Equatable {
       if (pathAvatar != null) 'pathAvatar': pathAvatar,
       if (canInvite != null) 'canInvite': canInvite,
       if (private != null) 'private': private,
-      if (category != null) 'category': category,
+      if (category != null) 'category': category!.value,
       if (fkMainChannel != null) 'fkMainChannel': fkMainChannel,
       if (isBlocked != null) 'isBlocked': isBlocked,
       if (memberCount != null) 'memberCount': memberCount,
       if (onlineMemberCount != null) 'onlineMemberCount': onlineMemberCount,
+      if (newMessagesCount != null) 'newMessagesCount': newMessagesCount,
       if (channelChatIds != null) 'channelChatIds': channelChatIds,
       if (mainChatId != null) 'mainChatId': mainChatId,
       if (roleId != null) 'roleId': roleId,
@@ -102,11 +113,12 @@ class Server extends Equatable {
     String? pathAvatar,
     int? canInvite,
     int? private,
-    String? category,
+    ServerType? category,
     int? fkMainChannel,
     bool? isBlocked,
     int? memberCount,
     int? onlineMemberCount,
+    int? newMessagesCount,
     List<int>? channelChatIds,
     int? mainChatId,
     int? roleId,
@@ -126,6 +138,7 @@ class Server extends Equatable {
       isBlocked: isBlocked ?? this.isBlocked,
       memberCount: memberCount ?? this.memberCount,
       onlineMemberCount: onlineMemberCount ?? this.onlineMemberCount,
+      newMessagesCount: newMessagesCount ?? this.newMessagesCount,
       channelChatIds: channelChatIds ?? this.channelChatIds,
       mainChatId: mainChatId ?? this.mainChatId,
       roleId: roleId ?? this.roleId,
@@ -160,6 +173,7 @@ class Server extends Equatable {
     isBlocked,
     memberCount,
     onlineMemberCount,
+    newMessagesCount,
     channelChatIds,
     mainChatId,
     roleId,

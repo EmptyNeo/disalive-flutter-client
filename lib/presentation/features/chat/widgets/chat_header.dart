@@ -1,9 +1,7 @@
-import 'dart:ui';
-
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/utils/ui/util_text.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
@@ -75,14 +73,30 @@ class ChatHeader extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        BuildAvatar(
-                          url: chat.urlAvatar,
-                          wh: 26,
-                          size: 20,
-                          status: chat.user?.status,
-                          statusSize: 6,
-                          isBookmark: chat.isSoloChat ?? false,
-                        ),
+                        if (chat.type == ChatType.channel)
+                          Container(
+                            width: 26,
+                            height: 26,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.actionGrey,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              CupertinoIcons.number,
+                              size: 18,
+                              color: AppColors.white,
+                            ),
+                          )
+                        else
+                          BuildAvatar(
+                            url: chat.urlAvatar,
+                            wh: 26,
+                            size: 20,
+                            status: chat.user?.status,
+                            statusSize: 6,
+                            isBookmark: chat.isSoloChat ?? false,
+                          ),
                         const SizedBox(width: 12),
 
                         Expanded(
@@ -117,7 +131,6 @@ class ChatHeader extends StatelessWidget {
               ),
             ),
           ),
-
 
           if (chat.isSoloChat == false) ...[
             GlassIconButton(

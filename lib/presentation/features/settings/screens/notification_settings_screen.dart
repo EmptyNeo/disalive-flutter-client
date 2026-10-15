@@ -60,7 +60,7 @@ class _NotificationSettingsScreenState
 
         if (fcmToken == null || fcmToken.isEmpty) {
           if (mounted) {
-            CustomToast.show(
+            CustomToast.open(
               context: context,
               icon: CupertinoIcons.exclamationmark_triangle,
               color: AppColors.errorRed,
@@ -79,7 +79,7 @@ class _NotificationSettingsScreenState
       result.fold(
         (failure) {
           if (mounted) {
-            CustomToast.show(
+            CustomToast.open(
               context: context,
               icon: CupertinoIcons.exclamationmark_triangle,
               color: AppColors.errorRed,
@@ -102,7 +102,7 @@ class _NotificationSettingsScreenState
               profileBloc.add(UpdateCurrentUser(updatedUser));
             }
 
-            CustomToast.show(
+            CustomToast.open(
               context: context,
               icon: CupertinoIcons.checkmark_circle,
               color: AppColors.successGreen,
@@ -113,7 +113,7 @@ class _NotificationSettingsScreenState
       );
     } catch (e) {
       if (mounted) {
-        CustomToast.show(
+        CustomToast.open(
           context: context,
           icon: CupertinoIcons.exclamationmark_triangle,
           color: AppColors.errorRed,

@@ -1,6 +1,7 @@
 // lib/presentation/features/message/widgets/media_grid.dart
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/image_item.dart';
+import 'package:disalive/presentation/features/message/widgets/media/items/video_thumbnail_item.dart';
 import 'package:flutter/cupertino.dart';
 
 /// Раскладка группы фото в сообщении в стиле Telegram.
@@ -22,8 +23,8 @@ class ImagesGrid extends StatelessWidget {
     this.onTapImage,
   });
 
-  /// Только вложения-изображения (FileMessage.isImageFile). Остальные типы
-  /// вложений сюда передавать не нужно — для них своя отрисовка.
+  /// Вложения-изображения и видео (FileMessage.isImageFile / isVideoFile).
+  /// Порядок сохраняется: индекс в [onTapImage] — это индекс в этом списке.
   final List<FileMessage> images;
 
   /// Отступ между ячейками сетки.
@@ -197,17 +198,31 @@ class ImagesGrid extends StatelessWidget {
     double? height,
     BorderRadius radius = BorderRadius.zero,
   }) {
+    final key = ValueKey(file.id ?? file.objectKey ?? file.urlPath);
+    final onTap = onTapImage;
+
+    if (file.isVideoFile) {
+      return VideoThumbnailItem(
+        key: key,
+        videoSource: file.urlPath,
+        isNetwork: true,
+        thumbnailPath: file.thumbnailUrlPath,
+        width: width,
+        height: height,
+        radius: radius,
+        onTap: onTap == null ? null : () => onTap(index),
+      );
+    }
+
     final image = ImageItem(
-      key: ValueKey(file.id ?? file.objectKey ?? file.urlPath),
+      key: key,
       pathImage: file.urlPath,
       width: width,
       height: height,
       borderRadius: radius,
     );
 
-    final onTap = onTapImage;
     if (onTap == null) return image;
-
     return GestureDetector(onTap: () => onTap(index), child: image);
   }
 }

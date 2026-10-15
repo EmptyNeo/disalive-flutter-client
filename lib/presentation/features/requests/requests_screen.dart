@@ -54,7 +54,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
       errorMessage,
     ) {
       if (mounted) {
-        CustomToast.show(context: context, message: errorMessage);
+        CustomToast.open(context: context, message: errorMessage);
       }
     });
   }

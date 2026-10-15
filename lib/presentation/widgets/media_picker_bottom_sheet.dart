@@ -13,12 +13,14 @@ class MediaPickerBottomSheet extends StatefulWidget {
   final RequestType initialType;
   final bool onlyInitialType;
   final bool allowMultiple;
+  final bool convertToJpg;
 
   const MediaPickerBottomSheet({
     super.key,
     this.initialType = RequestType.image,
     this.onlyInitialType = false,
     this.allowMultiple = false,
+    this.convertToJpg = true,
   });
 
   static Future<List<File>?> open({
@@ -26,6 +28,7 @@ class MediaPickerBottomSheet extends StatefulWidget {
     RequestType type = RequestType.image,
     bool onlyInitialType = false,
     bool allowMultiple = false,
+    bool convertToJpg = true,
   }) {
     return showCupertinoModalPopup<List<File>?>(
       context: context,
@@ -33,6 +36,7 @@ class MediaPickerBottomSheet extends StatefulWidget {
         initialType: type,
         onlyInitialType: onlyInitialType,
         allowMultiple: allowMultiple,
+        convertToJpg: convertToJpg,
       ),
     );
   }
@@ -158,6 +162,28 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
     }
   }
 
+  Future<File> _prepareFile(File original) async {
+    if (!widget.convertToJpg) return original;
+
+    final lower = original.path.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return original;
+
+    try {
+      final targetPath = original.path.replaceAll(RegExp(r'\.[^.]+$'), '.jpg');
+      final compressed = await FlutterImageCompress.compressAndGetFile(
+        original.path,
+        targetPath,
+        quality: 85,
+        minWidth: 2048,
+        minHeight: 2048,
+      );
+      return compressed != null ? File(compressed.path) : original;
+    } catch (e) {
+      debugPrint("Ошибка конвертации изображения: $e");
+      return original;
+    }
+  }
+
   Future<void> _selectAsset(AssetEntity asset) async {
     if (widget.allowMultiple) {
       setState(() {
@@ -170,44 +196,8 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
     } else {
       final originalFile = await asset.file;
       if (originalFile == null) return;
-
-      final isJpg =
-          originalFile.path.toLowerCase().endsWith('.jpg') ||
-          originalFile.path.toLowerCase().endsWith('.jpeg');
-
-      File finalFile;
-      if (!isJpg) {
-        try {
-          // 🎯 Заменяем ЛЮБОЕ расширение в конце пути на .jpg
-          final targetPath = originalFile.path.replaceAll(
-            RegExp(r'\.[^.]+$'),
-            '.jpg',
-          );
-
-          final compressed = await FlutterImageCompress.compressAndGetFile(
-            originalFile.path,
-            targetPath,
-            quality: 85,
-            minWidth: 2048,
-            minHeight: 2048,
-          );
-
-          if (compressed != null && mounted) {
-            finalFile = File(compressed.path);
-          } else {
-            finalFile = originalFile; // Fallback, если сжатие не удалось
-          }
-        } catch (e) {
-          debugPrint("Ошибка конвертации изображения: $e");
-          finalFile = originalFile; // Fallback
-        }
-      } else {
-        finalFile = originalFile;
-      }
-
-      if (mounted) {
-        Navigator.of(context).pop([finalFile]);
-      }
+      final finalFile = await _prepareFile(originalFile);
+      if (mounted) Navigator.of(context).pop([finalFile]);
     }
   }
 
@@ -218,39 +208,7 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
     for (final asset in _selectedAssets) {
       final originalFile = await asset.file;
       if (originalFile == null) continue;
-
-      final isJpg =
-          originalFile.path.toLowerCase().endsWith('.jpg') ||
-          originalFile.path.toLowerCase().endsWith('.jpeg');
-
-      if (!isJpg) {
-        try {
-          // 🎯 Заменяем ЛЮБОЕ расширение в конце пути на .jpg
-          final targetPath = originalFile.path.replaceAll(
-            RegExp(r'\.[^.]+$'),
-            '.jpg',
-          );
-
-          final compressed = await FlutterImageCompress.compressAndGetFile(
-            originalFile.path,
-            targetPath,
-            quality: 85,
-            minWidth: 2048,
-            minHeight: 2048,
-          );
-
-          if (compressed != null) {
-            files.add(File(compressed.path));
-          } else {
-            files.add(originalFile);
-          }
-        } catch (e) {
-          debugPrint("Ошибка конвертации изображения: $e");
-          files.add(originalFile); // Fallback
-        }
-      } else {
-        files.add(originalFile);
-      }
+      files.add(await _prepareFile(originalFile));
     }
 
     if (files.isNotEmpty && mounted) {

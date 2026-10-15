@@ -77,7 +77,7 @@ class _AddMembersScreenState extends State<AddMembersScreen> {
 
     result.fold(
       (failure) {
-        CustomToast.show(context: context, message: failure.message);
+        CustomToast.open(context: context, message: failure.message);
       },
       (response) {
         Navigator.of(context).maybePop();

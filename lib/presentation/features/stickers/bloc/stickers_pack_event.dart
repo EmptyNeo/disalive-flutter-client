@@ -69,6 +69,26 @@ class RemoveStickerPack extends StickerPackEvent {
   List<Object?> get props => [packId];
 }
 
+class AddStickerContent extends StickerPackEvent {
+  final int packId;
+  final File file;
+
+  const AddStickerContent({required this.packId, required this.file});
+
+  @override
+  List<Object?> get props => [packId, file.path];
+}
+
+class RemoveStickerContent extends StickerPackEvent {
+  final int stickerId;
+  final int packId;
+
+  const RemoveStickerContent({required this.stickerId, required this.packId});
+
+  @override
+  List<Object?> get props => [stickerId, packId];
+}
+
 class ClearStickers extends StickerPackEvent {
   const ClearStickers();
 }

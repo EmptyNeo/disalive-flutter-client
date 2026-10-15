@@ -10,6 +10,8 @@ class FileMessage extends Equatable {
   final int? messageId;
   final int? packId;
   final String? pathFile;
+  final String? thumbnailUrl;
+  final String? thumbnailObjectKey;
   final String? originalName;
   final double? size;
   final String? unit;
@@ -25,6 +27,8 @@ class FileMessage extends Equatable {
     this.messageId,
     this.packId,
     this.pathFile,
+    this.thumbnailUrl,
+    this.thumbnailObjectKey,
     this.originalName,
     this.size,
     this.unit,
@@ -46,6 +50,8 @@ class FileMessage extends Equatable {
       messageId: map['fkMessage'],
       packId: DataParser.parseInt(map['idPack']),
       pathFile: map['pathFile'],
+      thumbnailUrl: map['thumbnailUrl'],
+      thumbnailObjectKey: map['thumbnailObjectKey'],
       originalName: originalName,
       size: (map['size'] as num?)?.toDouble(),
       unit: map['unit'],
@@ -66,6 +72,10 @@ class FileMessage extends Equatable {
       if (messageId != null) 'messageId': messageId,
       if (packId != null) 'idPack': packId,
       if (pathFile != null) 'pathFile': pathFile,
+      if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
+      // 🎯 ДОБАВЛЕНО
+      if (thumbnailObjectKey != null) 'thumbnailObjectKey': thumbnailObjectKey,
+      // 🎯 ДОБАВЛЕНО
       if (originalName != null) 'originalName': originalName,
       if (size != null) 'size': size,
       if (unit != null) 'unit': unit,
@@ -82,6 +92,8 @@ class FileMessage extends Equatable {
     int? messageId,
     int? packId,
     String? pathFile,
+    String? thumbnailUrl,
+    String? thumbnailObjectKey,
     String? originalName,
     double? size,
     String? unit,
@@ -97,6 +109,8 @@ class FileMessage extends Equatable {
       messageId: messageId ?? this.messageId,
       packId: packId ?? this.packId,
       pathFile: pathFile ?? this.pathFile,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      thumbnailObjectKey: thumbnailObjectKey ?? this.thumbnailObjectKey,
       originalName: originalName ?? this.originalName,
       size: size ?? this.size,
       unit: unit ?? this.unit,
@@ -117,6 +131,8 @@ class FileMessage extends Equatable {
     }
     return null;
   }
+
+  bool get hasThumbnail => thumbnailUrl != null && thumbnailUrl!.isNotEmpty;
 
   bool get isSpoilerFile => isSpoiler == 1;
 
@@ -147,12 +163,17 @@ class FileMessage extends Equatable {
 
   String get urlPath => Domain.transformUrl(pathFile);
 
+  String? get thumbnailUrlPath =>
+      thumbnailUrl != null ? Domain.transformUrl(thumbnailUrl) : null;
+
   @override
   List<Object?> get props => [
     id,
     messageId,
     packId,
     pathFile,
+    thumbnailUrl,
+    thumbnailObjectKey,
     originalName,
     size,
     unit,

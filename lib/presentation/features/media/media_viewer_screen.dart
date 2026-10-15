@@ -59,6 +59,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   late final PageController _pageController;
   final List<MediaPosition> _positions = [];
   late int _initialPageIndex;
+  late int _currentPage;
   bool _isPositionsBuilt = false;
 
   @override
@@ -69,6 +70,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         sl<MessageRepository>().getCached(widget.chat.id)?.messages ?? [];
 
     _initialPageIndex = _computeInitialIndex(messages);
+    _currentPage = _initialPageIndex;
     _pageController = PageController(initialPage: _initialPageIndex);
 
     if (messages.isNotEmpty) {
@@ -310,8 +312,12 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                     }
 
                     return MediaPage(
+                      key: ValueKey(
+                        '${position.messageId}_${position.attachmentIndex}',
+                      ),
                       attachment: attachments[position.attachmentIndex],
-                      onClose: _handleClose, // Передаем функцию закрытия внутрь
+                      isActive: index == _currentPage,
+                      onClose: _handleClose,
                     );
                   },
                 ),
@@ -384,7 +390,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     final newCurrentPage = currentPage + newOlderPositions.length;
 
     if (mounted) {
-      setState(() {});
+      setState(() {
+        _currentPage = newCurrentPage;
+      });
 
       // 5. ПРЫГАЕМ на новую позицию после обновления itemCount
       WidgetsBinding.instance.addPostFrameCallback((_) {

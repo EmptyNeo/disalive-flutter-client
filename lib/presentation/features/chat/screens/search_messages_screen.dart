@@ -6,25 +6,51 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
+import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
+import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
-import 'package:disalive/presentation/utils/ui/util_date.dart';
-import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart'; // Убедись, что путь верный
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class SearchMessagesScreen extends StatefulWidget {
   final Chat chat;
+  final Function(StickerContent sticker) onStickerTap;
+  final ValueChanged<String>? onInviteMention;
 
-  const SearchMessagesScreen({super.key, required this.chat});
+  const SearchMessagesScreen({
+    super.key,
+    required this.chat,
+    required this.onStickerTap,
+    this.onInviteMention,
+  });
 
   /// Открывает экран поиска и возвращает выбранное сообщение (или null, если пользователь закрыл экран).
-  static Future<Message?> open(BuildContext context, Chat chat) {
+  static Future<Message?> open(
+    BuildContext context,
+    Chat chat,
+    Function(StickerContent sticker) onStickerTap,
+    ValueChanged<String>? onInviteMention,
+  ) {
+    final invitesBloc = context.read<InvitesBloc>();
+    final serversBloc = context.read<ServersBloc>();
     return SwipeToDismissRoute.push<Message>(
       context,
-      (context) => SearchMessagesScreen(chat: chat),
+      (context) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: invitesBloc),
+          BlocProvider.value(value: serversBloc),
+        ],
+        child: SearchMessagesScreen(
+          chat: chat,
+          onStickerTap: onStickerTap,
+          onInviteMention: onInviteMention,
+        ),
+      ),
     );
   }
 
@@ -183,12 +209,10 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
         children: [
           // 🎯 Обертка для заголовка с фиксированной высотой
           Container(
-            height: 40, // Примерная высота CustomBackButton для ровного центрирования
+            height: 40,
+            // Примерная высота CustomBackButton для ровного центрирования
             alignment: Alignment.center,
-            child: Text(
-              'Поиск сообщений',
-              style: AppText.highTextStyle,
-            ),
+            child: Text('Поиск сообщений', style: AppText.highTextStyle),
           ),
 
           // 🎯 Явный отступ, чтобы поле поиска не прилипало к заголовку
@@ -219,7 +243,8 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
                   color: AppColors.greyple,
                 ),
                 style: AppText.mediumTextStyle.copyWith(color: AppColors.white),
-                decoration: null, // Убираем стандартную декорацию
+                decoration: null,
+                // Убираем стандартную декорацию
                 clearButtonMode: OverlayVisibilityMode.editing,
                 onChanged: _onQueryChanged,
               ),
@@ -288,7 +313,7 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
           child: Container(
             color: AppColors.transparent,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child:  MessageItem(
+            child: MessageItem(
               message: message,
               isMine: isMine,
               isRead: true,
@@ -299,6 +324,8 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
               // Время уже выведено в заголовке
               tailDirection: MessageTailDirection.none,
               hasMessageAbove: false,
+              onStickerTap: widget.onStickerTap,
+              onInviteMention: widget.onInviteMention,
             ),
           ),
         );

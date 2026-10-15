@@ -147,7 +147,7 @@ class DirectProfileContent extends StatelessWidget {
                                 Clipboard.setData(
                                   ClipboardData(text: '${user.username}'),
                                 );
-                                CustomToast.show(
+                                CustomToast.open(
                                   context: context,
                                   icon: CupertinoIcons.checkmark_alt,
                                   color: AppColors.green,

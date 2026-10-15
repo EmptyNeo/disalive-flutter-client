@@ -144,7 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 title: 'Язык',
                                 subtitle: 'В разработке',
                                 onTap: () {
-                                  CustomToast.show(
+                                  CustomToast.open(
                                     context: context,
                                     icon: CupertinoIcons.clock,
                                     color: AppColors.blurple,

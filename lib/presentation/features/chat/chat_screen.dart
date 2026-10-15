@@ -4,17 +4,18 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
-import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/responses/symbol_data.dart';
+import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/search_messages_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
@@ -23,10 +24,12 @@ import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
+import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
@@ -59,6 +62,8 @@ class ChatScreen extends StatefulWidget {
     StickersPackBloc stickerBloc = context.read<StickersPackBloc>();
     PreferredReactionsBloc preferredReactionsBloc = context
         .read<PreferredReactionsBloc>();
+    final invitesBloc = context.read<InvitesBloc>();
+    final serversBloc = context.read<ServersBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
 
     return SwipeToDismissRoute.push(
@@ -72,6 +77,8 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: gifBloc),
           BlocProvider.value(value: stickerBloc),
           BlocProvider.value(value: preferredReactionsBloc),
+          BlocProvider.value(value: invitesBloc),
+          BlocProvider.value(value: serversBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -271,6 +278,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final selectedMessage = await SearchMessagesScreen.open(
       context,
       _currentChat,
+      onTapSticker,
+      _sendInviteRequest,
     );
 
     if (selectedMessage != null && mounted) {
@@ -283,6 +292,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _loadInitial() {
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
     final originalLastIdRead = widget.chat.member?.lastIdReadMessage ?? 0;
     final lastReadId = math.max(
       0,
@@ -297,8 +308,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageBloc.add(
       GetMessages(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         lastIdMessage: 0,
         aroundId: initialAroundId,
         limit: 25,
@@ -403,6 +414,8 @@ class _ChatScreenState extends State<ChatScreen> {
                             onAnswerMessage: _onAnswerMessage,
                             onFocusInput: _focusInput,
                             onUnfocusInput: _unfocusInput,
+                            onStickerTap: onTapSticker,
+                            onInviteMention: _sendInviteRequest,
                           ),
                         ),
                       ),
@@ -437,33 +450,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                         '[${emoji.categoryName}:${emoji.id}]';
                                     _insertEmoji(fullEmojiId);
                                   },
-                                  onTapSticker: (sticker) {
-                                    final optimisticFileMessage = FileMessage(
-                                      id: -1,
-                                      messageId: null,
-                                      pathFile: sticker.urlPath,
-                                      originalName: 'sticker',
-                                      size: 0,
-                                      unit: 'B',
-                                      fileType: FileType.image,
-                                      contentType: FileContentType.sticker,
-                                      duration: 0,
-                                      isSpoiler: 0,
-                                    );
-
-                                    final symbolData = SymbolData(
-                                      filePath: sticker.urlPath,
-                                      typeFile: FileContentType.sticker,
-                                      packId: sticker.packId,
-                                    );
-
-                                    final message = Message(
-                                      attachments: [optimisticFileMessage],
-                                      symbolData: symbolData,
-                                    );
-
-                                    _onSendMessage(message);
-                                  },
+                                  onTapSticker: onTapSticker,
                                   onTapGif: (gif) {
                                     final optimisticFileMessage = FileMessage(
                                       id: -1,
@@ -572,6 +559,34 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void onTapSticker(StickerContent sticker) {
+    final optimisticFileMessage = FileMessage(
+      id: -1,
+      messageId: null,
+      pathFile: sticker.urlPath,
+      originalName: 'sticker',
+      size: 0,
+      unit: 'B',
+      fileType: FileType.image,
+      contentType: FileContentType.sticker,
+      duration: 0,
+      isSpoiler: 0,
+    );
+
+    final symbolData = SymbolData(
+      filePath: sticker.urlPath,
+      typeFile: FileContentType.sticker,
+      packId: sticker.packId,
+    );
+
+    final message = Message(
+      attachments: [optimisticFileMessage],
+      symbolData: symbolData,
+    );
+
+    _onSendMessage(message);
+  }
+
   void _focusInput() {
     _inputFocusNode.requestFocus();
   }
@@ -631,6 +646,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onSendMessage(Message message) {
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _messagesListKey.currentState?.handleScrollToBottom(animated: false);
     });
@@ -702,8 +719,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageBloc.add(
       CreateMessage(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         localGeneratedId: localGeneratedId,
         message: localMessage,
         symbolData: message.symbolData,
@@ -719,6 +736,28 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _messagesListKey.currentState?.scrollToBottom(animated: true);
     });
+  }
+
+  void _sendInviteRequest(String text) {
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
+    final localId = IdGenerator.generateId();
+    _messageBloc.add(
+      CreateMessage(
+        chatId: widget.chat.id,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
+        localGeneratedId: localId,
+        message: Message(
+          localGeneratedId: localId,
+          chatId: widget.chat.id,
+          userId: _currentUserId,
+          text: text,
+          time: DateTime.now().toUtc().toString(),
+          user: sl<UserRepository>().getCurrentUser(),
+        ),
+      ),
+    );
   }
 
   void _onEditMessage(Message message) {
@@ -756,6 +795,8 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onSendVoiceMessage(File file, double durationSeconds) {
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
     var localGeneratedId = IdGenerator.generateId();
     final bytes = file.lengthSync();
     final (sizeVal, sizeUnit) = UtilFile.getFileSizeAndUnit(bytes);
@@ -803,8 +844,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageBloc.add(
       CreateMessage(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         localGeneratedId: localGeneratedId,
         message: localMessage,
       ),
@@ -844,6 +885,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onApplyEdit(Message message) {
     if (_editingMessageId == null) return;
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
 
     final metaCurrentFiles = <MetaFileMessage>[];
     final metaNewFiles = <MetaFileMessage>[];
@@ -897,8 +940,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageBloc.add(
       UpdateMessage(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         message: updatedMessage,
       ),
     );
@@ -909,11 +952,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onDeleteMessage(Message message) {
+    final entity = DeterminingContextService.getEntityKey();
+    if (entity == null) return;
     _messageBloc.add(
       DeleteMessage(
         chatId: widget.chat.id,
-        entityId: widget.chat.id,
-        entityType: EntityType.chat,
+        entityId: entity.entityId,
+        entityType: entity.entityType,
         messageId: message.id,
         localGeneratedId: message.localGeneratedId,
       ),

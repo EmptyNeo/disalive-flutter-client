@@ -16,6 +16,22 @@ class StickerPack extends Equatable {
     required this.hasPack,
   });
 
+  StickerPack copyWith({
+    int? id,
+    String? name,
+    bool? isCreator,
+    List<StickerContent>? attachments,
+    bool? hasPack,
+  }) {
+    return StickerPack(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isCreator: isCreator ?? this.isCreator,
+      attachments: attachments ?? this.attachments,
+      hasPack: hasPack ?? this.hasPack,
+    );
+  }
+
   factory StickerPack.fromMap(Map<String, dynamic> map) {
     return StickerPack(
       id: map['idPack'],

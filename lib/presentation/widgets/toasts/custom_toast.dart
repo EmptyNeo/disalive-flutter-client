@@ -15,7 +15,7 @@ class CustomToast {
       GlobalKey<_ToastWidgetState>();
 
   /// Показывает toast-уведомление поверх текущего интерфейса.
-  static void show({
+  static void open({
     required BuildContext context,
     Color? color = AppColors.errorRed,
     IconData? icon = CupertinoIcons.exclamationmark_circle_fill,

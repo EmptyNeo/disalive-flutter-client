@@ -20,6 +20,12 @@ class StickersPackLoaded extends StickersPackState {
   final StickerPack? activePack;
   final bool isLoadingActivePack;
 
+  /// packId -> сколько стикеров сейчас загружается
+  final Map<int, int> uploadingByPack;
+
+  /// Ошибка последнего действия со стикером (не затирает список паков)
+  final Failure? actionFailure;
+
   const StickersPackLoaded({
     required this.packs,
     required this.skip,
@@ -27,7 +33,22 @@ class StickersPackLoaded extends StickersPackState {
     required this.hasReachedMax,
     this.activePack,
     this.isLoadingActivePack = false,
+    this.uploadingByPack = const {},
+    this.actionFailure,
   });
+
+  int uploadingIn(int packId) => uploadingByPack[packId] ?? 0;
+
+  StickersPackLoaded bumpUploading(int packId, int delta) {
+    final map = Map<int, int>.from(uploadingByPack);
+    final next = (map[packId] ?? 0) + delta;
+    if (next <= 0) {
+      map.remove(packId);
+    } else {
+      map[packId] = next;
+    }
+    return copyWith(uploadingByPack: map);
+  }
 
   StickersPackLoaded copyWith({
     List<StickerPack>? packs,
@@ -36,6 +57,9 @@ class StickersPackLoaded extends StickersPackState {
     bool? hasReachedMax,
     StickerPack? activePack,
     bool? isLoadingActivePack,
+    Map<int, int>? uploadingByPack,
+    Failure? actionFailure,
+    bool clearActionFailure = false,
   }) {
     return StickersPackLoaded(
       packs: packs ?? this.packs,
@@ -44,6 +68,10 @@ class StickersPackLoaded extends StickersPackState {
       hasReachedMax: hasReachedMax ?? this.hasReachedMax,
       activePack: activePack ?? this.activePack,
       isLoadingActivePack: isLoadingActivePack ?? this.isLoadingActivePack,
+      uploadingByPack: uploadingByPack ?? this.uploadingByPack,
+      actionFailure: clearActionFailure
+          ? null
+          : (actionFailure ?? this.actionFailure),
     );
   }
 
@@ -55,6 +83,8 @@ class StickersPackLoaded extends StickersPackState {
     hasReachedMax,
     activePack,
     isLoadingActivePack,
+    uploadingByPack,
+    actionFailure,
   ];
 }
 

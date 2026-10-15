@@ -4,7 +4,10 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/reaction_message.dart';
+import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/presentation/features/message/widgets/answer_preview.dart';
+import 'package:disalive/presentation/features/message/widgets/invite_message_card.dart';
+import 'package:disalive/presentation/features/message/widgets/invite_message_meta.dart';
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
@@ -30,10 +33,12 @@ class MessageItem extends StatelessWidget {
   final ActionType? isLoading;
   final bool hasError;
   final bool isHighlighted;
+  final Function(StickerContent sticker) onStickerTap;
 
   final void Function(int? messageId)? onNavigateToMessage;
   final void Function(int attachmentIndex)? onTapImage;
   final void Function(Message message, ReactionMessage reaction)? onTapReaction;
+  final ValueChanged<String>? onInviteMention;
 
   bool get hasLoading => isLoading != null;
 
@@ -56,6 +61,8 @@ class MessageItem extends StatelessWidget {
     this.onTapImage,
     this.onNavigateToMessage,
     this.onTapReaction,
+    this.onInviteMention,
+    required this.onStickerTap,
   });
 
   @override
@@ -65,8 +72,10 @@ class MessageItem extends StatelessWidget {
         ? message.forwardMessage!
         : message;
 
-    final hasLinkPreview = contentMessage.linkPreview != null;
     final hasInviteData = contentMessage.inviteData != null;
+    final inviteCode = inviteCodeFromText(contentMessage.text);
+    final hasInviteCard = hasInviteData && inviteCode != null;
+    final hasLinkPreview = contentMessage.linkPreview != null && !hasInviteData;
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
@@ -279,7 +288,12 @@ class MessageItem extends StatelessWidget {
                         link: contentMessage.linkPreview!,
                         isMine: isMine,
                       ),
-                    if (hasInviteData) _stubLine('Приглашение'),
+                    if (hasInviteCard)
+                      InviteMessageCard(
+                        invite: contentMessage.inviteData!,
+                        code: inviteCode,
+                        onMention: onInviteMention,
+                      ),
 
                     MediasGrid(
                       message: contentMessage,
@@ -288,6 +302,7 @@ class MessageItem extends StatelessWidget {
                           (contentMessage.text ?? '').isNotEmpty ||
                           hasAnswer ||
                           hasForward,
+                      onStickerTap: onStickerTap,
                       onTapImage: onTapImage,
                       showTime: showTime,
                       isRead: isRead,
@@ -457,18 +472,5 @@ class MessageItem extends StatelessWidget {
       textDirection: TextDirection.ltr,
     )..layout();
     return painter.width;
-  }
-
-  Widget _stubLine(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        '[в разработке] $label',
-        style: AppText.lowTextStyle.copyWith(
-          color: AppColors.greyple,
-          fontStyle: FontStyle.italic,
-        ),
-      ),
-    );
   }
 }

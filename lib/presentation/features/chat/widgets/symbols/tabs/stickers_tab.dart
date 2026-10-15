@@ -31,42 +31,35 @@ class _StickersTabState extends State<StickersTab> {
         key!.currentContext!,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
-        alignment: 0.0, // Прокрутить к началу секции (заголовку)
+        alignment: 0.0,
       );
     }
   }
 
-  // 🎯 НОВЫЙ МЕТОД: Показ меню действий при долгом нажатии
   void _showPackActions(BuildContext context, StickerPack pack) {
     final List<ActionItem> actions = [
-      // 1. Просмотр набора (Заглушка)
       ActionItem(
         label: 'Просмотреть набор',
         icon: CupertinoIcons.eye,
         onTap: () {
-          Navigator.pop(context); // Закрываем меню действий
           StickerPackViewBottomSheet.open(
             context,
             pack: pack,
-            onStickerTap: widget.onTap, // 🎯 Прокидываем функцию отправки стикера!
+            onStickerTap: widget.onTap,
           );
         },
       ),
-
-      // 2. Удалить из доступных (Заглушка)
       ActionItem(
         label: 'Удалить из доступных',
         icon: CupertinoIcons.trash,
         color: AppColors.errorRed,
         isDestructive: true,
         onTap: () {
-          // TODO: Реализовать запрос к API для удаления пака из списка доступных пользователя
-          debugPrint('Удаление из доступных: ${pack.name} (ID: ${pack.id})');
+          context.read<StickersPackBloc>().add(RemoveStickerPack(pack.id));
         },
       ),
     ];
 
-    // 3. Редактировать (Только для создателя)
     if (pack.isCreator) {
       actions.add(
         ActionItem(
@@ -79,11 +72,7 @@ class _StickersTabState extends State<StickersTab> {
       );
     }
 
-    ActionBottomSheet.show(
-      context,
-      title: pack.name, // Передаем название набора как заголовок шторки
-      actions: actions,
-    );
+    ActionBottomSheet.show(context, title: pack.name, actions: actions);
   }
 
   @override
@@ -95,41 +84,71 @@ class _StickersTabState extends State<StickersTab> {
         }
 
         if (state is StickersPackLoaded) {
-          // 🎯 ФОРМИРУЕМ СПИСОК СЛИВЕРОВ ДИНАМИЧЕСКИ
+          // 🎯 1. ФИЛЬТРАЦИЯ: Оставляем только паки, которые пользователь добавил (hasPack == true)
+          final filteredPacks = state.packs
+              .where((pack) => pack.hasPack)
+              .toList();
+
+          // 🎯 2. Если добавленных паков нет, показываем красивую заглушку
+          if (filteredPacks.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(CupertinoIcons.star, size: 48, color: AppColors.greyple),
+                  const SizedBox(height: 16),
+                  Text(
+                    'У вас пока нет наборов стикеров',
+                    style: TextStyle(color: AppColors.greyple, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Нажмите +, чтобы добавить новый',
+                    style: TextStyle(color: AppColors.greyple, fontSize: 14),
+                  ),
+                ],
+              ),
+            );
+          }
+
           final List<Widget> slivers = [];
 
-          for (int i = 0; i < state.packs.length; i++) {
-            final pack = state.packs[i];
+          for (int i = 0; i < filteredPacks.length; i++) {
+            final pack = filteredPacks[i];
             final sectionKey = _packKeys.putIfAbsent(
               pack.id,
               () => GlobalKey(),
             );
 
-            // 🎯 SliverMainAxisGroup группирует заголовок и грид в один логический блок,
-            // на который можно повесить GlobalKey для прокрутки.
             slivers.add(
               SliverMainAxisGroup(
                 key: sectionKey,
                 slivers: [
-                  // 1. Заголовок пака
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 8,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      // нажатие по всей строке, а не только по тексту
+                      onTap: () => StickerPackViewBottomSheet.open(
+                        context,
+                        pack: pack,
+                        onStickerTap: widget.onTap,
                       ),
-                      child: Text(
-                        pack.name,
-                        style: AppText.lowTextStyle.copyWith(
-                          color: AppColors.greyple,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 8,
+                        ),
+                        child: Text(
+                          pack.name,
+                          style: AppText.lowTextStyle.copyWith(
+                            color: AppColors.greyple,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
                         ),
                       ),
                     ),
                   ),
-
-                  // 2. Истинно ленивый грид стикеров (без shrinkWrap!)
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     sliver: SliverGrid(
@@ -149,8 +168,6 @@ class _StickersTabState extends State<StickersTab> {
                       }, childCount: pack.attachments?.length ?? 0),
                     ),
                   ),
-
-                  // 3. Отступ между паками
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
                 ],
               ),
@@ -159,24 +176,23 @@ class _StickersTabState extends State<StickersTab> {
 
           return Column(
             children: [
-              // 🎯 ОСНОВНОЙ ЛЕНИВЫЙ СПИСОК
               Expanded(
                 child: CustomScrollView(
                   controller: _scrollController,
                   slivers: slivers,
                 ),
               ),
-
               const CustomDivider(),
 
-              // 🎯 УЛЬТРА-КОМПАКТНАЯ ГОРИЗОНТАЛЬНАЯ ПАНЕЛЬ
+              // 🎯 4. НИЖНЯЯ ПАНЕЛЬ ТОЖЕ ИСПОЛЬЗУЕТ filteredPacks
               Container(
                 height: 44,
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  itemCount: state.packs.length + 1,
+                  // Количество = отфильтрованные паки + 1 кнопка добавления
+                  itemCount: filteredPacks.length + 1,
                   itemBuilder: (context, index) {
                     if (index == 0) {
                       return GestureDetector(
@@ -202,7 +218,8 @@ class _StickersTabState extends State<StickersTab> {
                       );
                     }
 
-                    final pack = state.packs[index - 1];
+                    // 🎯 Берем пак из отфильтрованного списка (сдвиг индекса на 1 из-за кнопки "+")
+                    final pack = filteredPacks[index - 1];
                     final firstSticker =
                         (pack.attachments != null &&
                             pack.attachments!.isNotEmpty)
@@ -214,10 +231,7 @@ class _StickersTabState extends State<StickersTab> {
                       onLongPress: () => _showPackActions(context, pack),
                       child: Container(
                         width: 36,
-                        margin: EdgeInsets.only(
-                          left: index == 0 ? 0 : 2,
-                          right: 2,
-                        ),
+                        margin: const EdgeInsets.only(left: 2, right: 2),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
                           color: AppColors.white.withValues(alpha: 0.06),

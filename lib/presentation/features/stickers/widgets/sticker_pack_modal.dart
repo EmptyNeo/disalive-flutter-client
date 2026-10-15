@@ -49,11 +49,11 @@ class _StickerPackModalState extends State<StickerPackModal> {
   void _handleSubmit() {
     final name = _controller.text.trim();
     if (name.isEmpty) {
-      CustomToast.show(context: context, message: 'Введите название набора');
+      CustomToast.open(context: context, message: 'Введите название набора');
       return;
     }
     if (name.length > 50) {
-      CustomToast.show(context: context, message: 'Максимум 50 символов');
+      CustomToast.open(context: context, message: 'Максимум 50 символов');
       return;
     }
 
@@ -76,7 +76,7 @@ class _StickerPackModalState extends State<StickerPackModal> {
       listener: (context, state) {
         if (state is StickersPackError) {
           setState(() => _isProcessing = false);
-          CustomToast.show(context: context, message: state.failure.message);
+          CustomToast.open(context: context, message: state.failure.message);
         } else if (state is StickersPackLoaded) {
           Navigator.of(context).pop();
         }

@@ -61,7 +61,7 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
 
     result.fold(
       (failure) {
-        CustomToast.show(context: context, message: failure.message);
+        CustomToast.open(context: context, message: failure.message);
       },
       (response) {
         Navigator.of(context).maybePop();

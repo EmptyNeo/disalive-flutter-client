@@ -5,11 +5,13 @@ import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/sticker_item.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart'; // поправьте путь
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class StickerPackViewBottomSheet extends StatelessWidget {
+  /// Начальное состояние пака. Актуальное берётся из блока.
   final StickerPack pack;
   final Function(StickerContent) onStickerTap;
 
@@ -37,7 +39,52 @@ class StickerPackViewBottomSheet extends StatelessWidget {
     );
   }
 
-  void _showPackOptions(BuildContext context) {
+  // ───────────────────────── Действия ─────────────────────────
+
+  Future<void> _addStickers(BuildContext context, StickerPack pack) async {
+    final bloc = context.read<StickersPackBloc>();
+
+    final files = await MediaPickerBottomSheet.open(
+      context: context,
+      onlyInitialType: true, // только фото, без переключателя типов
+      allowMultiple: true,
+      convertToJpg: false, // не ломаем прозрачность PNG/WebP
+    );
+
+    if (files == null || files.isEmpty || bloc.isClosed) return;
+
+    for (final file in files) {
+      bloc.add(AddStickerContent(packId: pack.id, file: file));
+    }
+  }
+
+  void _showStickerActions(
+    BuildContext context,
+    StickerPack pack,
+    StickerContent sticker,
+  ) {
+    HapticFeedback.mediumImpact();
+
+    ActionBottomSheet.show(
+      context,
+      title: 'Стикер',
+      actions: [
+        ActionItem(
+          label: 'Удалить стикер',
+          icon: CupertinoIcons.trash,
+          color: AppColors.errorRed,
+          isDestructive: true,
+          onTap: () {
+            context.read<StickersPackBloc>().add(
+              RemoveStickerContent(stickerId: sticker.id, packId: pack.id),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showPackOptions(BuildContext context, StickerPack pack) {
     final actions = [
       ActionItem(
         label: 'Поделиться',
@@ -58,7 +105,6 @@ class StickerPackViewBottomSheet extends StatelessWidget {
             ),
           );
           Navigator.pop(context);
-          // Можно добавить тост "Ссылка скопирована"
         },
       ),
     ];
@@ -66,11 +112,51 @@ class StickerPackViewBottomSheet extends StatelessWidget {
     ActionBottomSheet.show(context, title: pack.name, actions: actions);
   }
 
+  // ───────────────────────── UI ─────────────────────────
+
   @override
   Widget build(BuildContext context) {
-    // Вычисляем количество элементов: стикеры + (1 если создатель)
-    final stickerCount = pack.attachments?.length ?? 0;
-    final totalGridItems = pack.isCreator ? stickerCount + 1 : stickerCount;
+    return BlocConsumer<StickersPackBloc, StickersPackState>(
+      listenWhen: (prev, curr) =>
+          curr is StickersPackLoaded &&
+          curr.actionFailure != null &&
+          !(prev is StickersPackLoaded &&
+              prev.actionFailure == curr.actionFailure),
+      listener: (context, state) {
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (dialogContext) => CupertinoAlertDialog(
+            title: const Text('Не удалось выполнить действие'),
+            content: const Text('Проверьте подключение и попробуйте ещё раз.'),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      },
+      builder: (context, state) {
+        var live = pack;
+        var uploading = 0;
+        if (state is StickersPackLoaded) {
+          live = state.packs.firstWhere(
+            (p) => p.id == pack.id,
+            orElse: () => pack,
+          );
+          uploading = state.uploadingIn(pack.id);
+        }
+        return _buildSheet(context, live, uploading);
+      },
+    );
+  }
+
+  Widget _buildSheet(BuildContext context, StickerPack pack, int uploading) {
+    final stickers = pack.attachments ?? const <StickerContent>[];
+    final offset = pack.isCreator ? 1 : 0; // кнопка «+» занимает первую ячейку
+    final totalGridItems = offset + stickers.length + uploading;
+    final showHint = pack.isCreator && stickers.isNotEmpty;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -107,15 +193,14 @@ class StickerPackViewBottomSheet extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 🎯 Граббер
                   const Padding(
                     padding: EdgeInsets.only(top: 10, bottom: 8),
                     child: Center(child: _GrabberHandle()),
                   ),
 
-                  // 🎯 Заголовок с тремя точками
+                  // Заголовок с тремя точками
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
+                    padding: EdgeInsets.fromLTRB(20, 0, 12, showHint ? 4 : 16),
                     child: Row(
                       children: [
                         Expanded(
@@ -133,7 +218,7 @@ class StickerPackViewBottomSheet extends StatelessWidget {
                         CupertinoButton(
                           padding: EdgeInsets.zero,
                           minSize: 32,
-                          onPressed: () => _showPackOptions(context),
+                          onPressed: () => _showPackOptions(context, pack),
                           child: Icon(
                             CupertinoIcons.ellipsis,
                             color: AppColors.greyple,
@@ -144,9 +229,26 @@ class StickerPackViewBottomSheet extends StatelessWidget {
                     ),
                   ),
 
-                  // 🎯 Сетка стикеров
-                  Expanded(
+                  // Подсказка про удаление (только создателю)
+                  if (showHint)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Удерживайте стикер, чтобы удалить',
+                          style: AppText.lowTextStyle.copyWith(
+                            color: AppColors.greyple,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Сетка стикеров
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: CustomScrollView(
+                      shrinkWrap: true,
                       physics: const BouncingScrollPhysics(),
                       slivers: [
                         SliverPadding(
@@ -162,52 +264,42 @@ class StickerPackViewBottomSheet extends StatelessWidget {
                               context,
                               index,
                             ) {
-                              // 🎯 Если создатель и это первый элемент - рисуем кнопку "+"
+                              // «+» — первая ячейка у создателя
                               if (pack.isCreator && index == 0) {
-                                return GestureDetector(
-                                  onTap: () {
-                                    // TODO: Действие при нажатии на "+"
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: AppColors.blurple.withOpacity(
-                                        0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.blurple.withOpacity(
-                                          0.3,
-                                        ),
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: Icon(
-                                        CupertinoIcons.add,
-                                        color: AppColors.blurple,
-                                        size: 28,
-                                      ),
-                                    ),
-                                  ),
+                                return _AddStickerTile(
+                                  onTap: () => _addStickers(context, pack),
                                 );
                               }
 
-                              // 🎯 Иначе рисуем стикер
-                              final stickerIndex = pack.isCreator
-                                  ? index - 1
-                                  : index;
-                              final sticker = pack.attachments?[stickerIndex];
+                              final i = index - offset;
 
-                              if (sticker == null) {
-                                return const SizedBox.shrink();
+                              // Заглушки для загружающихся стикеров
+                              if (i >= stickers.length) {
+                                return const _UploadingTile();
                               }
 
-                              return StickerItem(
+                              final sticker = stickers[i];
+                              final item = StickerItem(
                                 sticker: sticker,
-                                maxSize: 80, // Размер как в основном списке
+                                maxSize: 80,
                                 onTap: () {
-                                  Navigator.pop(context); // Закрываем шторку
-                                  onStickerTap(sticker); // Отправляем стикер
+                                  Navigator.pop(context);
+                                  onStickerTap(sticker);
                                 },
+                              );
+
+                              return KeyedSubtree(
+                                key: ValueKey('sticker_${sticker.id}'),
+                                child: pack.isCreator
+                                    ? GestureDetector(
+                                        onLongPress: () => _showStickerActions(
+                                          context,
+                                          pack,
+                                          sticker,
+                                        ),
+                                        child: item,
+                                      )
+                                    : item,
                               );
                             }, childCount: totalGridItems),
                           ),
@@ -217,7 +309,7 @@ class StickerPackViewBottomSheet extends StatelessWidget {
                     ),
                   ),
 
-                  // 🎯 Футер с кнопкой Добавить/Удалить
+                  // Футер с кнопкой Добавить/Удалить набор
                   Container(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: CupertinoButton.filled(
@@ -254,6 +346,45 @@ class StickerPackViewBottomSheet extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AddStickerTile extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AddStickerTile({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.blurple.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.blurple.withValues(alpha: 0.3)),
+        ),
+        child: const Center(
+          child: Icon(CupertinoIcons.add, color: AppColors.blurple, size: 28),
+        ),
+      ),
+    );
+  }
+}
+
+class _UploadingTile extends StatelessWidget {
+  const _UploadingTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
+      ),
+      child: const Center(child: CupertinoActivityIndicator()),
     );
   }
 }

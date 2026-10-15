@@ -43,6 +43,11 @@ class StickerPackRepositoryImpl extends StickerPackRepository {
     int skip,
     int take,
   ) async {
+    StickerPack? stickerPack = _packs.where((p) => p.id == packId).firstOrNull;
+    if (stickerPack != null) {
+      return Right(stickerPack);
+    }
+
     final result = await _httpClient.postFormData<StickerPack?>(
       endpoint: 'stickerPack/getById.php',
       data: {"packId": packId, "skip": skip, "take": take},

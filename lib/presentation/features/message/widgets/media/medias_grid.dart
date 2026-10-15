@@ -1,12 +1,17 @@
 // lib/presentation/features/message/widgets/media/medias_grid.dart
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/sticker_content.dart';
+import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
 import 'package:disalive/presentation/features/message/widgets/media/grids/audios_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/media/grids/files_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/media/grids/images_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/sticker_item.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
+import 'package:disalive/presentation/features/stickers/widgets/sticker_pack_view_bottom_sheet.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 
 class MediasGrid extends StatelessWidget {
@@ -14,6 +19,7 @@ class MediasGrid extends StatelessWidget {
   final bool isMine;
   final bool hasContentAbove;
   final void Function(int attachmentIndex)? onTapImage;
+  final Function(StickerContent sticker) onStickerTap;
 
   final bool showTime;
   final bool isRead;
@@ -25,6 +31,7 @@ class MediasGrid extends StatelessWidget {
     required this.message,
     required this.isMine,
     required this.hasContentAbove,
+    required this.onStickerTap,
     this.onTapImage,
     this.showTime = true,
     this.isRead = false,
@@ -37,14 +44,47 @@ class MediasGrid extends StatelessWidget {
   static bool _isImage(FileMessage f) =>
       f.isImageFile && f.hasValidPath && f.isSticker == false;
 
+  static bool _isVideo(FileMessage f) =>
+      f.isVideoFile && f.hasValidPath && f.isSticker == false;
+
   static bool _isAudio(FileMessage f) => f.isAudioFile && f.hasValidPath;
 
   static bool _isOther(FileMessage f) =>
-      f.isDefaultFile && !f.isImageFile && !f.isAudioFile && f.hasValidPath;
+      f.isDefaultFile &&
+      !f.isImageFile &&
+      !f.isAudioFile &&
+      !f.isVideoFile &&
+      f.hasValidPath;
 
   static bool hasOnlyImage(Message message) {
     final attachments = message.attachments ?? const [];
-    return attachments.any((f) => _isImage(f) || _isSticker(f));
+    return attachments.any((f) => _isImage(f) || _isSticker(f) || _isVideo(f));
+  }
+
+  void openStickerPack(BuildContext context, FileMessage fileMessage) async {
+    final result = await sl<StickerPackRepository>().getById(
+      fileMessage.packId ?? 0,
+      0,
+      25,
+    );
+    result.fold(
+      (failure) {
+        CustomToast.open(
+          context: context,
+          message: "Не удалось получить набор стикеров",
+        );
+      },
+      (stickerPack) {
+        final resultPack = stickerPack;
+        if (resultPack != null) {
+          StickerPackViewBottomSheet.open(
+            context,
+            pack: resultPack,
+            onStickerTap: onStickerTap,
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -52,7 +92,9 @@ class MediasGrid extends StatelessWidget {
     final attachments = message.attachments ?? const [];
 
     final stickers = attachments.where(_isSticker).toList();
-    final images = attachments.where(_isImage).toList();
+    final images = attachments
+        .where((f) => _isImage(f) || _isVideo(f))
+        .toList();
     final audios = attachments.where(_isAudio).toList();
     final files = attachments.where(_isOther).toList();
 
@@ -74,6 +116,9 @@ class MediasGrid extends StatelessWidget {
           if (hasContentAbove) const SizedBox(height: 4),
           StickerItem(
             file: stickers.first,
+            onTap: () {
+              openStickerPack(context, stickers.first);
+            },
           ),
           if (images.isNotEmpty || audios.isNotEmpty || files.isNotEmpty)
             const SizedBox(height: 6),
