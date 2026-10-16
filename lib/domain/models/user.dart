@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/badge.dart';
 import 'package:disalive/domain/models/badge_user.dart';
+import 'package:disalive/domain/models/friend_request.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/user_status.dart';
@@ -30,7 +31,7 @@ class UserModel extends Equatable {
   final String? complaintsBlockedUntil;
   final bool? isMyFriend;
   final int? personalChatId;
-  final Map<String, dynamic>? friendRequest;
+  final FriendRequest? friendRequest;
   final String? lastVisit;
   final bool? followLastVisit;
   final bool? allowComments;
@@ -120,8 +121,10 @@ class UserModel extends Equatable {
       complaintsBlockedUntil: map['complaintsBlockedUntil'],
       isMyFriend: DataParser.parseBool(map['isMyFriend']),
       personalChatId: DataParser.parseInt(map['personalChatId']),
-      friendRequest: map['friendRequest'] is Map<String, dynamic>
-          ? map['friendRequest']
+      friendRequest: map['friendRequest'] is Map
+          ? FriendRequest.fromMap(
+              Map<String, dynamic>.from(map['friendRequest']),
+            )
           : null,
       lastVisit: map['lastVisit'],
       followLastVisit: DataParser.parseBool(map['followLastVisit']),
@@ -175,7 +178,7 @@ class UserModel extends Equatable {
         'complaintsBlockedUntil': complaintsBlockedUntil,
       if (isMyFriend != null) 'isMyFriend': isMyFriend,
       if (personalChatId != null) 'personalChatId': personalChatId,
-      if (friendRequest != null) 'friendRequest': friendRequest,
+      if (friendRequest != null) 'friendRequest': friendRequest!.toMap(),
       if (lastVisit != null) 'lastVisit': lastVisit,
       if (followLastVisit != null)
         'followLastVisit': followLastVisit ?? false ? 1 : 0,
@@ -224,7 +227,7 @@ class UserModel extends Equatable {
     String? complaintsBlockedUntil,
     bool? isMyFriend,
     int? personalChatId,
-    Map<String, dynamic>? friendRequest,
+    FriendRequest? friendRequest,
     String? lastVisit,
     bool? followLastVisit,
     bool? allowComments,
@@ -323,6 +326,7 @@ class UserModel extends Equatable {
     status,
     isMyFriend,
     personalChatId,
+    friendRequest,
     mainBadge,
     badges,
     canSendMeRequest,

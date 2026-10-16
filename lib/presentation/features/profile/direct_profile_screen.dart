@@ -1,6 +1,7 @@
 // presentation/features/profile/direct_profile_screen.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/direct_profile_content.dart';
 import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
@@ -11,11 +12,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class DirectProfileScreen extends StatefulWidget {
   final Chat chat;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
+  final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
 
   const DirectProfileScreen({
     super.key,
     required this.chat,
     this.onMediaCategoryTap,
+    this.onGroupTap,
   });
 
   @override
@@ -81,6 +84,7 @@ class DirectProfileScreenState extends State<DirectProfileScreen> {
                             isSoloChat: widget.chat.isSoloChat ?? false,
                             chatId: _chat.id,
                             onMediaCategoryTap: widget.onMediaCategoryTap,
+                            onGroupTap: widget.onGroupTap,
                           ),
                           const CustomBackButton(),
                         ],

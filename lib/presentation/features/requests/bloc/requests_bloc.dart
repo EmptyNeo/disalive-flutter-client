@@ -116,6 +116,10 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
         _errorStreamController.add(failure.message);
       },
       (success) {
+        if (!success) {
+          _errorStreamController.add('Не удалось отправить заявку');
+          return;
+        }
         List<FriendRequest> requests = _friendsRepository.getCached();
         emit(RequestsLoaded(requests));
       },
@@ -133,6 +137,10 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
         _errorStreamController.add(failure.message);
       },
       (success) {
+        if (!success) {
+          _errorStreamController.add('Не удалось отменить заявку');
+          return;
+        }
         List<FriendRequest> requests = _friendsRepository.getCached();
         emit(RequestsLoaded(requests));
       },
@@ -150,6 +158,10 @@ class RequestsBloc extends Bloc<RequestsEvent, RequestsState> {
         _errorStreamController.add(failure.message);
       },
       (success) {
+        if (!success) {
+          _errorStreamController.add('Не удалось принять заявку');
+          return;
+        }
         List<FriendRequest> requests = _friendsRepository.getCached();
         emit(RequestsLoaded(requests));
       },

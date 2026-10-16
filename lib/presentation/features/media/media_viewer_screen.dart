@@ -3,6 +3,7 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/ui/media_close_mode.dart';
 import 'package:disalive/domain/enums/ui/media_step_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
@@ -51,8 +52,75 @@ class MediaViewerScreen extends StatefulWidget {
     );
   }
 
+  static Future<void> openFiles(
+    BuildContext context, {
+    required List<FileMessage> files,
+    required int initialIndex,
+    required Rect sourceRect,
+  }) => MediaViewerRoute.open<void>(
+    context,
+    sourceRect: sourceRect,
+    builder: (context, animation, setCloseMode) =>
+        _FilteredMediaViewer(files: files, initialIndex: initialIndex),
+  );
+
   @override
   State<MediaViewerScreen> createState() => _MediaViewerScreenState();
+}
+
+class _FilteredMediaViewer extends StatefulWidget {
+  const _FilteredMediaViewer({required this.files, required this.initialIndex});
+
+  final List<FileMessage> files;
+  final int initialIndex;
+
+  @override
+  State<_FilteredMediaViewer> createState() => _FilteredMediaViewerState();
+}
+
+class _FilteredMediaViewerState extends State<_FilteredMediaViewer> {
+  late final PageController _controller;
+  late int _index;
+
+  @override
+  void initState() {
+    super.initState();
+    _index = widget.initialIndex;
+    _controller = PageController(initialPage: _index);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoPageScaffold(
+    backgroundColor: CupertinoColors.transparent,
+    child: Stack(
+      children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: widget.files.length,
+          onPageChanged: (index) => setState(() => _index = index),
+          itemBuilder: (context, index) => MediaPage(
+            attachment: widget.files[index],
+            isActive: _index == index,
+            onClose: () => Navigator.of(context).pop(),
+          ),
+        ),
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 18,
+          right: 22,
+          child: GlassIconButton(
+            icon: CupertinoIcons.xmark,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _MediaViewerScreenState extends State<MediaViewerScreen> {

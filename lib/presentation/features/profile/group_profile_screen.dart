@@ -1,6 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/presentation/features/chat/screens/add_members_screen.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
@@ -16,11 +17,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class GroupProfileScreen extends StatefulWidget {
   final Chat chat;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
+  final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
 
   const GroupProfileScreen({
     super.key,
     required this.chat,
     this.onMediaCategoryTap,
+    this.onGroupTap,
   });
 
   @override
@@ -145,6 +148,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
             child: MediaStatsSection(
               chatId: widget.chat.id,
               onCategoryTap: widget.onMediaCategoryTap,
+              onGroupTap: widget.onGroupTap,
             ),
           ),
         ),

@@ -1,5 +1,6 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/presentation/features/profile/items/badge_item.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_avatar.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_badges_section.dart'; // 🎯 НОВЫЙ ИМПОРТ
@@ -18,6 +19,8 @@ class DirectProfileContent extends StatelessWidget {
   final bool isSoloChat;
   final int? chatId;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
+  final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+  final Widget? actions;
 
   const DirectProfileContent({
     super.key,
@@ -25,6 +28,8 @@ class DirectProfileContent extends StatelessWidget {
     required this.isSoloChat,
     this.chatId,
     this.onMediaCategoryTap,
+    this.onGroupTap,
+    this.actions,
   });
 
   @override
@@ -167,6 +172,13 @@ class DirectProfileContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (actions != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: actions!,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   if (chatId != null) ...[
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -174,6 +186,7 @@ class DirectProfileContent extends StatelessWidget {
                         chatId: chatId!,
                         showMutualChats: true,
                         onCategoryTap: onMediaCategoryTap,
+                        onGroupTap: onGroupTap,
                       ),
                     ),
                     const SizedBox(height: 16),

@@ -8,6 +8,7 @@ import 'package:disalive/presentation/features/profile/widgets/profile_avatar.da
 import 'package:disalive/presentation/features/profile/widgets/profile_badges_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_banner.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_info_section.dart';
+import 'package:disalive/presentation/features/profile/widgets/profile_qr_sheet.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_thoughts_bubble.dart';
 import 'package:disalive/presentation/utils/ui/color_service.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
@@ -128,14 +129,7 @@ class PersonalProfileScreen extends StatelessWidget {
                           top: 12,
                           right: 12,
                           child: GestureDetector(
-                            onTap: () {
-                              CustomToast.open(
-                                context: context,
-                                icon: CupertinoIcons.clock,
-                                color: AppColors.blurple,
-                                message: 'QR-код (в разработке)',
-                              );
-                            },
+                            onTap: () => ProfileQrSheet.show(context, user),
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(

@@ -62,7 +62,7 @@ class RequestsRepositoryImpl extends RequestsRepository {
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        bool success = json['success'] == true;
+        final success = json is Map ? json['success'] != false : json != false;
         if (success) {
           _requests.removeWhere((r) => r.user?.username == username);
         }
@@ -81,7 +81,7 @@ class RequestsRepositoryImpl extends RequestsRepository {
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
-        bool success = json['success'] == true;
+        final success = json is Map ? json['success'] != false : json != false;
         if (success) {
           _requests.removeWhere((r) => r.user?.username == username);
         }

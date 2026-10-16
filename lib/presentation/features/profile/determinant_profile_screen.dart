@@ -2,6 +2,9 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/media_filter_item.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
@@ -36,6 +39,21 @@ class DeterminantProfileScreen {
     }
     final mediaStatsBloc = context.read<MediaStatsBloc>()
       ..add(const LoadMediaStats(force: true));
+    void openGroup(MediaFilterMutualGroup group) {
+      if (!context.mounted) return;
+      final cached = sl<ChatRepository>().getCached();
+      final chat =
+          cached.where((item) => item.id == group.idChat).firstOrNull ??
+          Chat(
+            id: group.idChat,
+            name: group.name,
+            pathImage: group.pathImage,
+            memberCount: group.memberCount,
+            type: ChatType.group,
+          );
+      ChatScreen.open(context, chat, false);
+    }
+
     if (chat.isSoloChat ?? false) {
       return SwipeToDismissRoute.push(
         context,
@@ -60,6 +78,7 @@ class DeterminantProfileScreen {
           child: DirectProfileScreen(
             chat: chat,
             onMediaCategoryTap: onMediaCategoryTap,
+            onGroupTap: openGroup,
           ),
         ),
       );
@@ -76,6 +95,7 @@ class DeterminantProfileScreen {
           child: GroupProfileScreen(
             chat: chat,
             onMediaCategoryTap: onMediaCategoryTap,
+            onGroupTap: openGroup,
           ),
         ),
       );

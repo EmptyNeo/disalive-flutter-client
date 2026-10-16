@@ -1,6 +1,13 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/app/di/di.dart';
+import 'package:disalive/domain/enums/media_filter_category.dart';
+import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/domain/models/media_stats.dart';
+import 'package:disalive/domain/repositories/media_filter_repository.dart';
+import 'package:disalive/presentation/features/media_filters/bloc/media_filters_bloc.dart';
+import 'package:disalive/presentation/features/media_filters/media_filter_screen.dart';
 import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
+import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -12,11 +19,37 @@ class MediaStatsSection extends StatelessWidget {
     required this.chatId,
     this.showMutualChats = false,
     this.onCategoryTap,
+    this.onGroupTap,
   });
 
   final int chatId;
   final bool showMutualChats;
   final ValueChanged<MediaStatsCategory>? onCategoryTap;
+  final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+
+  void _openCategory(BuildContext context, MediaStatsCategory category) {
+    onCategoryTap?.call(category);
+    final filterCategory = switch (category) {
+      MediaStatsCategory.photos => MediaFilterCategory.photos,
+      MediaStatsCategory.videos => MediaFilterCategory.videos,
+      MediaStatsCategory.files => MediaFilterCategory.files,
+      MediaStatsCategory.audio => MediaFilterCategory.audio,
+      MediaStatsCategory.links => MediaFilterCategory.links,
+      MediaStatsCategory.mutualChats => MediaFilterCategory.mutualChats,
+    };
+    SwipeToDismissRoute.push(
+      context,
+      (_) => BlocProvider(
+        create: (_) =>
+            MediaFiltersBloc(sl<MediaFilterRepository>())
+              ..add(LoadMediaFilter(chatId: chatId, category: filterCategory)),
+        child: MediaFilterScreen(
+          category: filterCategory,
+          onGroupTap: onGroupTap,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,9 +140,7 @@ class MediaStatsSection extends StatelessWidget {
                     icon: items[index].icon,
                     title: items[index].title,
                     count: items[index].count,
-                    onTap: onCategoryTap == null
-                        ? null
-                        : () => onCategoryTap!(items[index].category),
+                    onTap: () => _openCategory(context, items[index].category),
                   ),
                 ],
               ],
