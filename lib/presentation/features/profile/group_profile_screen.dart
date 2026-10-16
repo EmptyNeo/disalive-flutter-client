@@ -7,6 +7,7 @@ import 'package:disalive/presentation/features/home/screens/edit_group_screen.da
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/members/widgets/members_list.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_vertical_action_tile.dart';
+import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -14,8 +15,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 class GroupProfileScreen extends StatefulWidget {
   final Chat chat;
+  final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
 
-  const GroupProfileScreen({super.key, required this.chat});
+  const GroupProfileScreen({
+    super.key,
+    required this.chat,
+    this.onMediaCategoryTap,
+  });
 
   @override
   State<GroupProfileScreen> createState() => _GroupProfileScreenState();
@@ -130,6 +136,15 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                   ),
                 ],
               ],
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: MediaStatsSection(
+              chatId: widget.chat.id,
+              onCategoryTap: widget.onMediaCategoryTap,
             ),
           ),
         ),

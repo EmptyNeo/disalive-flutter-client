@@ -3,14 +3,20 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/direct_profile_content.dart';
+import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class DirectProfileScreen extends StatefulWidget {
   final Chat chat;
+  final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
 
-  const DirectProfileScreen({super.key, required this.chat});
+  const DirectProfileScreen({
+    super.key,
+    required this.chat,
+    this.onMediaCategoryTap,
+  });
 
   @override
   State<StatefulWidget> createState() => DirectProfileScreenState();
@@ -73,6 +79,8 @@ class DirectProfileScreenState extends State<DirectProfileScreen> {
                           DirectProfileContent(
                             user: _chat.user!,
                             isSoloChat: widget.chat.isSoloChat ?? false,
+                            chatId: _chat.id,
+                            onMediaCategoryTap: widget.onMediaCategoryTap,
                           ),
                           const CustomBackButton(),
                         ],

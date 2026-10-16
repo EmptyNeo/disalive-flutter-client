@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:bloc/bloc.dart';
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/action_session_type.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
-import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/models/session.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
@@ -21,6 +22,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   final SessionRepository _sessionRepository;
   final SecureStorageService _secureStorage;
   final WsEventBus _eventBus;
+  final LocalChatStateRepository _localChatStateRepository;
 
   StreamSubscription? _deleteSubscription;
 
@@ -31,6 +33,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     this._sessionRepository,
     this._secureStorage,
     this._eventBus,
+    this._localChatStateRepository,
   ) : super(SessionInitial()) {
     on<LoadSessions>(_onLoadSessions);
     on<DeleteSession>(_onDeleteSession);
@@ -110,7 +113,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
 
     final currentSessionId = await _sessionRepository.getCurrentSessionId();
     if (currentSessionId == null) {
-      await _secureStorage.clearAll();
+      await _clearLocalSession();
       emit(SessionLoggedOut());
       return;
     }
@@ -125,7 +128,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     if (failure != null) {
       emit(SessionFailure(failure));
     } else {
-      await _secureStorage.clearAll();
+      await _clearLocalSession();
       emit(SessionLoggedOut());
     }
   }
@@ -136,10 +139,26 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
   ) async {
     if (emit.isDone) return;
 
-    await _secureStorage.clearAll();
+    await _clearLocalSession();
 
     if (!emit.isDone) {
       emit(SessionLoggedOut());
+    }
+  }
+
+  Future<void> _clearLocalSession() async {
+    try {
+      await _localChatStateRepository.clearDraftsForUser(
+        _userRepository.getCurrentUser()?.id,
+      );
+    } catch (error, stackTrace) {
+      developer.log(
+        'Failed to clear local chat drafts on logout',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      await _secureStorage.clearAll();
     }
   }
 

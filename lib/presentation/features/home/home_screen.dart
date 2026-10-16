@@ -1,11 +1,13 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/media_stats_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
@@ -28,6 +30,7 @@ import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
 import 'package:disalive/presentation/features/login.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
+import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/personal_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
@@ -70,6 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     HomeScreen.scopeContext = null;
+    if (sl.isRegistered<MediaStatsRepository>()) {
+      sl<MediaStatsRepository>().clear();
+    }
     _pageController.dispose();
     super.dispose();
   }
@@ -123,6 +129,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         BlocProvider<InvitesBloc>(create: (_) => sl<InvitesBloc>()),
+        BlocProvider<MediaStatsBloc>(
+          lazy: false,
+          create: (_) => sl<MediaStatsBloc>()..add(const LoadMediaStats()),
+        ),
         BlocProvider<MembersBloc>(
           create: (_) => MembersBloc(sl<MembersRepository>(), sl<WsEventBus>()),
         ),
@@ -132,6 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
             sl<SessionRepository>(),
             sl<SecureStorageService>(),
             sl<WsEventBus>(),
+            sl<LocalChatStateRepository>(),
           ),
         ),
         BlocProvider<GifBloc>(create: (_) => GifBloc(sl<GifsRepository>())),

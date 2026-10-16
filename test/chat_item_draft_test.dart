@@ -16,6 +16,26 @@ class _NoUserRepository implements UserRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _SaveDraftOnDispose extends StatefulWidget {
+  const _SaveDraftOnDispose(this.storage);
+
+  final LocalChatStateRepository storage;
+
+  @override
+  State<_SaveDraftOnDispose> createState() => _SaveDraftOnDisposeState();
+}
+
+class _SaveDraftOnDisposeState extends State<_SaveDraftOnDispose> {
+  @override
+  void dispose() {
+    widget.storage.saveDraft(null, 20, const ChatDraft(text: 'Набрано'));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -50,4 +70,51 @@ void main() {
       expect(find.text('Черновик: Текст'), findsNothing);
     });
   }
+
+  testWidgets(
+    'draft notification during route teardown does not rebuild a locked tree',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final storage = LocalChatStateRepository(prefs);
+      await sl.reset();
+      sl.registerSingleton<LocalChatStateRepository>(storage);
+      sl.registerSingleton<UserRepository>(_NoUserRepository());
+      addTearDown(sl.reset);
+
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      await tester.pumpWidget(
+        CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const ChatItem(
+                    chat: Chat(id: 20, name: 'Чат', isPersonal: true),
+                    isReconnect: false,
+                    onLongPress: null,
+                  ),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: visible,
+                    builder: (context, show, _) => show
+                        ? _SaveDraftOnDispose(storage)
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      visible.value = false;
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Черновик: Набрано'), findsOneWidget);
+    },
+  );
 }

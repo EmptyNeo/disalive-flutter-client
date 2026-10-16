@@ -5,6 +5,7 @@ import 'package:disalive/presentation/features/profile/widgets/profile_avatar.da
 import 'package:disalive/presentation/features/profile/widgets/profile_badges_section.dart'; // 🎯 НОВЫЙ ИМПОРТ
 import 'package:disalive/presentation/features/profile/widgets/profile_banner.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_info_section.dart';
+import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_thoughts_bubble.dart';
 import 'package:disalive/presentation/utils/ui/color_service.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
@@ -15,11 +16,15 @@ import 'package:flutter/services.dart';
 class DirectProfileContent extends StatelessWidget {
   final UserModel user;
   final bool isSoloChat;
+  final int? chatId;
+  final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
 
   const DirectProfileContent({
     super.key,
     required this.user,
     required this.isSoloChat,
+    this.chatId,
+    this.onMediaCategoryTap,
   });
 
   @override
@@ -162,6 +167,17 @@ class DirectProfileContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (chatId != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: MediaStatsSection(
+                        chatId: chatId!,
+                        showMutualChats: true,
+                        onCategoryTap: onMediaCategoryTap,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Column(

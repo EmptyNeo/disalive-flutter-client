@@ -9,6 +9,7 @@ import 'package:disalive/data/repositories/friends_repository_impl.dart';
 import 'package:disalive/data/repositories/gifs_repository_impl.dart';
 import 'package:disalive/data/repositories/invite_repository_impl.dart';
 import 'package:disalive/data/repositories/members_repository_impl.dart';
+import 'package:disalive/data/repositories/media_stats_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/permission_repository_impl.dart';
 import 'package:disalive/data/repositories/preferred_reactions_repository_impl.dart';
@@ -33,6 +34,7 @@ import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/invite_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/media_stats_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
@@ -59,6 +61,7 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
+import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
@@ -110,6 +113,9 @@ Future<void> setupDependencies() async {
     () => CategoryChannelRepositoryImpl(),
   );
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
+  sl.registerLazySingleton<MediaStatsRepository>(
+    () => MediaStatsRepositoryImpl(),
+  );
   sl.registerLazySingleton<MessageRepository>(() => MessageRepositoryImpl());
   sl.registerLazySingleton<PermissionRepository>(
     () => PermissionRepositoryImpl(),
@@ -146,6 +152,9 @@ Future<void> setupDependencies() async {
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));
   sl.registerFactory<MembersBloc>(() => MembersBloc(sl(), sl()));
   sl.registerFactory<InvitesBloc>(() => InvitesBloc(sl<InviteRepository>()));
+  sl.registerFactory<MediaStatsBloc>(
+    () => MediaStatsBloc(sl<MediaStatsRepository>()),
+  );
   sl.registerFactoryParam<RoleMembersBloc, int, EntityType>(
     (entityId, entityType) => RoleMembersBloc(
       sl<RoleMemberRepository>(),
@@ -157,7 +166,9 @@ Future<void> setupDependencies() async {
   sl.registerFactory(
     () => ServersBloc(sl<ServerRepository>(), sl<WsEventBus>()),
   );
-  sl.registerFactory<SessionBloc>(() => SessionBloc(sl(), sl(), sl(), sl()));
+  sl.registerFactory<SessionBloc>(
+    () => SessionBloc(sl(), sl(), sl(), sl(), sl()),
+  );
   sl.registerFactory<RegisterBloc>(() => RegisterBloc(sl(), sl()));
   sl.registerFactory<VerifyCodeBloc>(() => VerifyCodeBloc(sl(), sl()));
   sl.registerFactory<ResetPasswordBloc>(() => ResetPasswordBloc(sl(), sl()));

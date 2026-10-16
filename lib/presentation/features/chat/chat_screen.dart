@@ -28,6 +28,7 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
+import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
@@ -65,6 +66,7 @@ class ChatScreen extends StatefulWidget {
     PreferredReactionsBloc preferredReactionsBloc = context
         .read<PreferredReactionsBloc>();
     final invitesBloc = context.read<InvitesBloc>();
+    final mediaStatsBloc = context.read<MediaStatsBloc>();
     final serversBloc = context.read<ServersBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
 
@@ -80,6 +82,7 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: stickerBloc),
           BlocProvider.value(value: preferredReactionsBloc),
           BlocProvider.value(value: invitesBloc),
+          BlocProvider.value(value: mediaStatsBloc),
           BlocProvider.value(value: serversBloc),
         ],
         child: ChatScreen(chat: chat),
@@ -102,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int? _editingMessageId;
   Message? _answerMessage;
   bool isReconnect = false;
+  late final int? _draftUserId;
   Timer? _draftTimer;
   bool _restoringDraft = false;
   int? _initialPositionId;
@@ -127,6 +131,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _draftUserId = _currentUserId;
+    sl<LocalChatStateRepository>().allowDraftsForUser(_draftUserId);
     _currentChat = widget.chat;
     _textController = EmojiTextEditingController();
     _textController.addListener(_onTextChanged);
@@ -135,7 +141,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _chatBloc = context.read<ChatBloc>();
     _restoreDraft();
     _initialPositionId = sl<LocalChatStateRepository>()
-        .getFirstVisibleMessageId(_currentUserId, widget.chat.id);
+        .getFirstVisibleMessageId(_draftUserId, widget.chat.id);
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
     context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
@@ -161,7 +167,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _restoreDraft() {
     final draft = sl<LocalChatStateRepository>().getDraft(
-      _currentUserId,
+      _draftUserId,
       widget.chat.id,
     );
     if (draft == null) return;
@@ -189,7 +195,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _saveDraft() {
     _draftTimer?.cancel();
     sl<LocalChatStateRepository>().saveDraft(
-      _currentUserId,
+      _draftUserId,
       widget.chat.id,
       ChatDraft(
         text: _textController.text,
@@ -214,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final id = _messagesListKey.currentState?.firstVisibleMessageId();
     if (id != null) {
       sl<LocalChatStateRepository>().saveFirstVisibleMessageId(
-        _currentUserId,
+        _draftUserId,
         widget.chat.id,
         id,
       );

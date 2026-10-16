@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -112,11 +113,14 @@ class LocalChatStateRepository {
   final Map<String, Future<void>> _pending = {};
   final Map<String, ChatDraft?> _latest = {};
   final Map<String, int> _positions = {};
+  final Set<int> _clearedUsers = {};
+  bool _notificationPending = false;
 
   String _key(int? userId, int chatId, String kind) =>
       'chat_${userId ?? 0}_${chatId}_$kind';
 
   ChatDraft? getDraft(int? userId, int chatId) {
+    if (_clearedUsers.contains(userId ?? 0)) return null;
     final key = _key(userId, chatId, 'draft');
     if (_latest.containsKey(key)) return _latest[key];
     final raw = _preferences.getString(key);
@@ -158,9 +162,10 @@ class LocalChatStateRepository {
   }
 
   Future<void> saveDraft(int? userId, int chatId, ChatDraft draft) {
+    if (_clearedUsers.contains(userId ?? 0)) return Future<void>.value();
     final key = _key(userId, chatId, 'draft');
     _latest[key] = draft.isEmpty ? null : draft;
-    revision.value++;
+    _notifyDraftChanged();
     final previous = _pending[key] ?? Future<void>.value();
     final next = previous.catchError((Object _) {}).then((_) async {
       if (draft.isEmpty) {
@@ -173,6 +178,46 @@ class LocalChatStateRepository {
     });
     _pending[key] = next;
     return next;
+  }
+
+  Future<void> clearDraftsForUser(int? userId) async {
+    final id = userId ?? 0;
+    final prefix = 'chat_${id}_';
+    _clearedUsers.add(id);
+
+    await Future.wait([
+      for (final entry in _pending.entries)
+        if (entry.key.startsWith(prefix) && entry.key.endsWith('_draft'))
+          entry.value.catchError((Object _) {}),
+    ]);
+
+    final keys = {
+      ..._preferences.getKeys(),
+      ..._latest.keys,
+    }.where((key) => key.startsWith(prefix) && key.endsWith('_draft'));
+    for (final key in keys) {
+      await _preferences.remove(key);
+      _latest.remove(key);
+      _pending.remove(key);
+    }
+
+    final root = await _directoryProvider();
+    final folder = Directory(p.join(root.path, 'chat_drafts', '$id'));
+    if (await folder.exists()) await folder.delete(recursive: true);
+    _notifyDraftChanged();
+  }
+
+  void allowDraftsForUser(int? userId) {
+    _clearedUsers.remove(userId ?? 0);
+  }
+
+  void _notifyDraftChanged() {
+    if (_notificationPending) return;
+    _notificationPending = true;
+    scheduleMicrotask(() {
+      _notificationPending = false;
+      revision.value++;
+    });
   }
 
   Future<ChatDraft> _copyFiles(int? userId, int chatId, ChatDraft draft) async {
