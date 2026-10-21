@@ -129,7 +129,9 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void dispose() {
     _overlayTimer?.cancel();
-    CallPipOverlay.setScreenVisible(false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CallPipOverlay.setScreenVisible(false);
+    });
     unawaited(_restoreSystemUi());
     CallScreen.exitRevision.value++;
     super.dispose();

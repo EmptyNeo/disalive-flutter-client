@@ -25,6 +25,7 @@ import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/domain/services/system_insets_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
@@ -80,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discoveryGridView = false;
   bool _incomingCallDialogOpen = false;
   bool _checkedForUpdates = false;
+  double _lastBottomSystemInset = 0;
 
   Future<void> _checkForUpdates() async {
     if (_checkedForUpdates || !Platform.isAndroid) return;
@@ -143,7 +145,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onCallScreenExited() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
+      unawaited(_refreshBottomInsetAfterCall());
+    });
+  }
+
+  Future<void> _refreshBottomInsetAfterCall() async {
+    final nativeInset = await SystemInsetsService.navigationBarBottom();
+    if (!mounted) return;
+    setState(() {
+      if (nativeInset != null && nativeInset > _lastBottomSystemInset) {
+        _lastBottomSystemInset = nativeInset;
+      }
     });
   }
 
@@ -325,12 +337,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Это заставит весь этот блок перерисоваться мгновенно при смене темы
                   return BlocBuilder<ThemeCubit, ThemeState>(
                     builder: (context, themeState) {
-                      final bottomSafeArea = MediaQuery.of(
+                      final bottomSystemInset = MediaQuery.viewPaddingOf(
                         context,
-                      ).padding.bottom;
-                      final menuBottomMargin = bottomSafeArea > 0
-                          ? bottomSafeArea
-                          : 16.0;
+                      ).bottom;
+                      // The first frame after an immersive call can still
+                      // report zero even though the navigation bar is visible.
+                      if (bottomSystemInset > _lastBottomSystemInset) {
+                        _lastBottomSystemInset = bottomSystemInset;
+                      }
+                      final menuBottomMargin = _lastBottomSystemInset + 16.0;
 
                       return CupertinoPageScaffold(
                         backgroundColor: AppColors.mainBackground,

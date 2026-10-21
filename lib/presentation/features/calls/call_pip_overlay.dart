@@ -49,6 +49,7 @@ class CallPipOverlay {
   }
 
   static void setScreenVisible(bool visible) {
+    if (_screenVisible == visible) return;
     _screenVisible = visible;
     _sync();
   }

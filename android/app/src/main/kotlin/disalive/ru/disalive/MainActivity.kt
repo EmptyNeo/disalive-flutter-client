@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.util.Rational
+import android.view.WindowInsets
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -39,6 +40,13 @@ class MainActivity : FlutterActivity() {
                             result.error("INSTALL_SETTINGS", error.message, null)
                         }
                     }
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.disalive/system_insets")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "navigationBarBottom" -> result.success(navigationBarBottomInset())
                     else -> result.notImplemented()
                 }
             }
@@ -83,6 +91,26 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    private fun navigationBarBottomInset(): Double {
+        val insets = window.decorView.rootWindowInsets
+        val reportedPixels = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets?.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars())?.bottom ?: 0
+        } else {
+            @Suppress("DEPRECATION")
+            insets?.stableInsetBottom ?: 0
+        }
+        val pixels = if (
+            reportedPixels > 0 ||
+            resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT
+        ) {
+            reportedPixels
+        } else {
+            val id = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+            if (id != 0) resources.getDimensionPixelSize(id) else 0
+        }
+        return pixels / resources.displayMetrics.density.toDouble()
     }
 
     private fun isPipSupported(): Boolean =
