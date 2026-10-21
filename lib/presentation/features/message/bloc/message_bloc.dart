@@ -33,7 +33,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
   StreamSubscription? _reactionCreateSubscription;
   StreamSubscription? _reactionDeleteSubscription;
+  StreamSubscription? _historyCreateSubscription;
+  StreamSubscription? _historyUpdateSubscription;
   final Map<int, List<List<Message>>> _messagesDuringLoad = {};
+  final Map<int, List<List<HistoryAction>>> _actionsDuringLoad = {};
+  int? _activeChatId;
+  int? _activeEntityId;
+  EntityType? _activeEntityType;
 
   final String tableName = 'Message';
   final String reactionTableName = 'ReactionsMessage';
@@ -50,6 +56,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     on<UpdateMessage>(_onUpdateMessage);
     on<ToggleReaction>(_onToggleReaction);
     on<UpdateReactionFromWs>(_onUpdateReactionFromWs);
+    on<UpsertHistoryAction>(_onUpsertHistoryAction);
   }
 
   void setupListeners() {
@@ -84,6 +91,74 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       action: ActionType.delete,
       onData: (event) => _dispatchReactionEvent(event, isCreate: false),
     );
+
+    _historyCreateSubscription = _eventBus.subscribe(
+      table: 'HistoryActions',
+      action: ActionType.create,
+      onData: _onWsHistoryAction,
+    );
+    _historyUpdateSubscription = _eventBus.subscribe(
+      table: 'HistoryActions',
+      action: ActionType.update,
+      onData: _onWsHistoryAction,
+    );
+  }
+
+  void _onWsHistoryAction(WsEvent event) {
+    final raw = event.data['action'];
+    if (raw is! Map) return;
+    final data = Map<String, dynamic>.from(raw);
+    final entityId = DataParser.parseInt(
+      data['entityId'] ?? event.data['entityId'],
+    );
+    final entityType = EntityType.fromString(
+      (data['entityType'] ?? event.data['entityType'])?.toString(),
+    );
+    final chatId = _activeChatId;
+    if (chatId == null ||
+        entityId != _activeEntityId ||
+        entityType != _activeEntityType) {
+      return;
+    }
+    data['id'] = DataParser.parseInt(data['id']);
+    if (data['id'] == null) return;
+    data['entityId'] = entityId;
+    data['lastIdMessage'] = DataParser.parseInt(data['lastIdMessage']);
+    data['startTimestamp'] = DataParser.parseInt(data['startTimestamp']);
+    add(
+      UpsertHistoryAction(chatId: chatId, action: HistoryAction.fromMap(data)),
+    );
+  }
+
+  void _onUpsertHistoryAction(
+    UpsertHistoryAction event,
+    Emitter<MessageState> emit,
+  ) {
+    for (final pending
+        in _actionsDuringLoad[event.chatId] ?? const <List<HistoryAction>>[]) {
+      pending.add(event.action);
+    }
+    final cached = _messageRepository.getCached(event.chatId);
+    final merged = _mergeActions(cached?.actions ?? const [], [event.action]);
+    _messageRepository.cacheActions(event.chatId, merged);
+    if (_activeChatId == event.chatId && state is MessageLoaded) {
+      final loaded = state as MessageLoaded;
+      emit(
+        loaded.copyWith(actions: _mergeActions(loaded.actions, [event.action])),
+      );
+    }
+  }
+
+  List<HistoryAction> _mergeActions(
+    List<HistoryAction> existing,
+    List<HistoryAction> incoming,
+  ) {
+    final byId = <int, HistoryAction>{};
+    for (final action in [...existing, ...incoming]) {
+      if (action.id != null) byId[action.id!] = action;
+    }
+    return byId.values.toList()
+      ..sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
   }
 
   void _onWsCreateEvent(WsEvent event) {
@@ -164,6 +239,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     GetMessages event,
     Emitter<MessageState> emit,
   ) async {
+    _activeChatId = event.chatId;
+    _activeEntityId = event.entityId;
+    _activeEntityType = event.entityType;
     final bool isInitialLoad =
         event.lastIdMessage == 0 &&
         event.aroundId == null &&
@@ -197,7 +275,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       }
 
       final pendingMessages = <Message>[];
+      final pendingActions = <HistoryAction>[];
+      final cachedActions =
+          _messageRepository.getCached(event.chatId)?.actions ??
+          const <HistoryAction>[];
       (_messagesDuringLoad[event.chatId] ??= []).add(pendingMessages);
+      (_actionsDuringLoad[event.chatId] ??= []).add(pendingActions);
       final result = await _messageRepository.get(
         event.chatId,
         event.entityId,
@@ -212,6 +295,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       activeLoads?.remove(pendingMessages);
       if (activeLoads?.isEmpty ?? false) {
         _messagesDuringLoad.remove(event.chatId);
+      }
+      final activeActionLoads = _actionsDuringLoad[event.chatId];
+      activeActionLoads?.remove(pendingActions);
+      if (activeActionLoads?.isEmpty ?? false) {
+        _actionsDuringLoad.remove(event.chatId);
       }
 
       result.fold(
@@ -247,10 +335,16 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             ),
           );
 
+          final actions = _mergeActions(
+            _mergeActions(cachedActions, response.actions),
+            pendingActions,
+          );
+          _messageRepository.cacheActions(event.chatId, actions);
+
           emit(
             MessageLoaded(
               messages: finalMessages,
-              actions: response.actions,
+              actions: actions,
               hasMoreMessages: isAroundLoad
                   ? true
                   : (response.messages.length >= event.limit),
@@ -353,6 +447,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
           if (currentState is! MessageLoaded) {
             _messageRepository.cacheMessages(event.chatId, serverMessages);
+            _messageRepository.cacheActions(event.chatId, response.actions);
             emit(
               MessageLoaded(
                 messages: serverMessages,
@@ -369,10 +464,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           }
 
           if (serverMessages.isEmpty) {
+            final actions = _mergeActions(
+              currentState.actions,
+              response.actions,
+            );
+            _messageRepository.cacheActions(event.chatId, actions);
             emit(
               MessageLoaded(
                 messages: currentState.messages,
-                actions: currentState.actions,
+                actions: actions,
                 isLoadingMore: false,
                 isLoadingNewer: false,
                 hasMoreMessages: isOlderLoad
@@ -394,11 +494,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           final addedCount =
               uniqueMessages.length - currentState.messages.length;
           _messageRepository.cacheMessages(event.chatId, uniqueMessages);
+          final actions = _mergeActions(currentState.actions, response.actions);
+          _messageRepository.cacheActions(event.chatId, actions);
 
           emit(
             MessageLoaded(
               messages: uniqueMessages,
-              actions: currentState.actions,
+              actions: actions,
               isLoadingMore: false,
               isLoadingNewer: false,
               hasMoreMessages: isNewerLoad
@@ -931,6 +1033,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   Future<void> close() {
     closeSubs();
     _messagesDuringLoad.clear();
+    _actionsDuringLoad.clear();
     _messageRepository.clearAllCache();
     return super.close();
   }
@@ -941,5 +1044,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     _deleteSubscription?.cancel();
     _reactionCreateSubscription?.cancel();
     _reactionDeleteSubscription?.cancel();
+    _historyCreateSubscription?.cancel();
+    _historyUpdateSubscription?.cancel();
   }
 }

@@ -3,10 +3,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:disalive/app/di/di.dart';
-import 'package:disalive/domain/my_router.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/services/crop_to_circle.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
+import 'package:disalive/presentation/features/calls/call_screen.dart';
 import 'package:disalive/presentation/features/home/home_screen.dart';
 import 'package:disalive/presentation/features/requests/requests_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -19,7 +21,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln
     show Message;
-import 'package:disalive/main.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -35,7 +36,6 @@ class PushNotificationService {
 
   PushNotificationService._internal();
 
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
@@ -244,6 +244,35 @@ class PushNotificationService {
     final type = message.data['type'];
 
     switch (type) {
+      case 'new_call':
+        final int? chatId = int.tryParse('${message.data['chatId']}');
+        if (chatId == null) return;
+
+        final homeContext = await _waitForHomeContext();
+        if (homeContext == null) {
+          debugPrint('❌ HomeScreen не готов, не могу открыть звонок');
+          return;
+        }
+
+        final result = await sl<ChatRepository>().get();
+        if (!homeContext.mounted) return;
+
+        result.fold((err) => debugPrint('Чат звонка не найден: $err'), (chats) {
+          final chat = chats.where((c) => c.id == chatId).firstOrNull;
+          if (chat == null) {
+            debugPrint('Чат звонка $chatId не найден в списке');
+            return;
+          }
+          CallScreen.open(
+            homeContext,
+            chatId: chatId,
+            entityKey: EntityKey(entityId: chatId, entityType: EntityType.chat),
+            title: chat.name,
+            lastIdMessage: chat.idLastMessage,
+          );
+        });
+        break;
+
       case 'new_message':
         final int? chatId = int.tryParse('${message.data['chatId']}');
         if (chatId == null) return;

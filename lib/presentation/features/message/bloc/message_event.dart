@@ -4,6 +4,13 @@ part of 'message_bloc.dart';
 @immutable
 abstract class MessageEvent {}
 
+class UpsertHistoryAction extends MessageEvent {
+  final int chatId;
+  final HistoryAction action;
+
+  UpsertHistoryAction({required this.chatId, required this.action});
+}
+
 class GetMessages extends MessageEvent {
   final int chatId;
   final int entityId;

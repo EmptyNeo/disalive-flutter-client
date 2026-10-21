@@ -4,6 +4,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/history_action.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
 
 abstract class MessageRepository {
@@ -47,6 +48,8 @@ abstract class MessageRepository {
   MessagesResponse? getCached(int chatId);
 
   void cacheMessages(int chatId, List<Message> messages);
+
+  void cacheActions(int chatId, List<HistoryAction> actions);
 
   void clearCache(int chatId);
 

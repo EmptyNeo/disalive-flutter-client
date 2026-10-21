@@ -8,6 +8,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/history_action.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
@@ -187,6 +188,14 @@ class MessageRepositoryImpl implements MessageRepository {
     } else {
       _messages[chatId] = MessagesResponse(messages: messages, actions: []);
     }
+  }
+
+  @override
+  void cacheActions(int chatId, List<HistoryAction> actions) {
+    final existing = _messages[chatId];
+    _messages[chatId] =
+        existing?.copyWith(actions: actions) ??
+        MessagesResponse(messages: const [], actions: actions);
   }
 
   @override

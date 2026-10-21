@@ -5,6 +5,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/history_action.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/reaction_message.dart';
@@ -16,6 +17,7 @@ import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
+import 'package:disalive/presentation/features/history_actions/history_action_item.dart';
 import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
@@ -731,7 +733,26 @@ class MessagesListState extends State<MessagesList> {
           }
 
           final messages = state is MessageLoaded ? state.messages : [];
+          final actions = state is MessageLoaded ? state.actions : const [];
           if (messages.isEmpty) {
+            if (actions.isNotEmpty) {
+              final sortedActions = [...actions]
+                ..sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
+              return ListView.builder(
+                controller: _scrollController,
+                physics: _physics,
+                reverse: true,
+                padding: EdgeInsets.only(
+                  bottom: _bottomPadding,
+                  top: widget.headerReserve + 8,
+                ),
+                itemCount: sortedActions.length,
+                itemBuilder: (_, index) => HistoryActionItem(
+                  key: ValueKey('history-${sortedActions[index].id}'),
+                  action: sortedActions[index],
+                ),
+              );
+            }
             return Padding(
               padding: reservePadding,
               child: Center(
@@ -785,6 +806,20 @@ class MessagesListState extends State<MessagesList> {
               ? state.isLoadingNewer
               : false;
           final anchorIndex = _resolveAnchorIndex(messages);
+          final actionsByMessageIndex = <int, List<HistoryAction>>{};
+          for (final action in actions) {
+            final lastId = action.lastIdMessage ?? 0;
+            final index = messages.indexWhere((m) => (m.id ?? 0) <= lastId);
+            if (index < 0 && state is MessageLoaded && state.hasMoreMessages) {
+              continue;
+            }
+            (actionsByMessageIndex[index < 0 ? messages.length - 1 : index] ??=
+                    [])
+                .add(action);
+          }
+          for (final entries in actionsByMessageIndex.values) {
+            entries.sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
+          }
 
           // 🎯 Локальная функция для построения элемента (чтобы не дублировать код)
           Widget buildMessage(int index) {
@@ -872,7 +907,22 @@ class MessagesListState extends State<MessagesList> {
                 ],
               );
             }
-            return finalWidget;
+            final attachedActions = actionsByMessageIndex[index];
+            if (attachedActions == null || attachedActions.isEmpty) {
+              return finalWidget;
+            }
+            return Column(
+              key: ValueKey(messageId),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                finalWidget,
+                for (final action in attachedActions)
+                  HistoryActionItem(
+                    key: ValueKey('history-${action.id}'),
+                    action: action,
+                  ),
+              ],
+            );
           }
 
           int? globalIndexOf(Key key) {
