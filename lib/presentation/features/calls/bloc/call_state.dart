@@ -6,6 +6,34 @@ enum CallStatus { idle, connecting, connected, leaving, left, failed }
 /// соответствующие опубликованные LiveKit источники.
 enum CallTrackType { audio, camera, screenshare }
 
+class IncomingCall extends Equatable {
+  const IncomingCall({
+    required this.chatId,
+    required this.displayName,
+    this.username,
+    this.pathImage,
+    this.isNsfw = false,
+    this.streamType = 'audio',
+  });
+
+  final int chatId;
+  final String displayName;
+  final String? username;
+  final String? pathImage;
+  final bool isNsfw;
+  final String streamType;
+
+  @override
+  List<Object?> get props => [
+    chatId,
+    displayName,
+    username,
+    pathImage,
+    isNsfw,
+    streamType,
+  ];
+}
+
 class CallState extends Equatable {
   const CallState({
     this.status = CallStatus.idle,
@@ -21,6 +49,7 @@ class CallState extends Equatable {
     this.locallyMutedParticipants = const {},
     this.headsetStates = const {},
     this.error,
+    this.incomingCall,
     this.revision = 0,
   });
   final CallStatus status;
@@ -36,6 +65,7 @@ class CallState extends Equatable {
   final Set<String> locallyMutedParticipants;
   final Map<String, bool> headsetStates;
   final String? error;
+  final IncomingCall? incomingCall;
   final int revision;
 
   CallState copyWith({
@@ -52,6 +82,8 @@ class CallState extends Equatable {
     Set<String>? locallyMutedParticipants,
     Map<String, bool>? headsetStates,
     String? error,
+    IncomingCall? incomingCall,
+    bool clearIncomingCall = false,
     int? revision,
   }) => CallState(
     status: status ?? this.status,
@@ -68,6 +100,7 @@ class CallState extends Equatable {
         locallyMutedParticipants ?? this.locallyMutedParticipants,
     headsetStates: headsetStates ?? this.headsetStates,
     error: error,
+    incomingCall: clearIncomingCall ? null : incomingCall ?? this.incomingCall,
     revision: revision ?? this.revision,
   );
 
@@ -86,6 +119,7 @@ class CallState extends Equatable {
     locallyMutedParticipants,
     headsetStates,
     error,
+    incomingCall,
     revision,
   ];
 }

@@ -176,7 +176,18 @@ class ChatServerRepositoryImpl extends ChatServerRepository {
   void _processMessage(Map<String, dynamic> data) {
     final table = data['table'] as String?;
     final actionStr = data['nameAction'] as String?;
-    final isSelf = (data['isSelf'] ?? false) as bool;
+    final isSelf = data['isSelf'] == true || data['isSelf'] == 1;
+    if (actionStr == 'Call') {
+      _eventBus.dispatch(
+        WsEvent(
+          table: 'Call',
+          action: ActionType.create,
+          data: data,
+          isSelf: isSelf,
+        ),
+      );
+      return;
+    }
     final action = ActionType.fromString(actionStr);
 
     if (table == null || action == null) return;

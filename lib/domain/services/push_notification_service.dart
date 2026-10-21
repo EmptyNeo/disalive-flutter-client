@@ -269,6 +269,7 @@ class PushNotificationService {
             entityKey: EntityKey(entityId: chatId, entityType: EntityType.chat),
             title: chat.name,
             lastIdMessage: chat.idLastMessage,
+            announceCall: false,
           );
         });
         break;

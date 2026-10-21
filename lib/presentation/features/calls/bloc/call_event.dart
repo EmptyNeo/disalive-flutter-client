@@ -12,13 +12,30 @@ class JoinCall extends CallEvent {
     required this.entityKey,
     required this.title,
     this.lastIdMessage,
+    this.announceCall = true,
   });
   final int chatId;
   final EntityKey entityKey;
   final String title;
   final int? lastIdMessage;
+  final bool announceCall;
   @override
-  List<Object?> get props => [chatId, entityKey, title, lastIdMessage];
+  List<Object?> get props => [
+    chatId,
+    entityKey,
+    title,
+    lastIdMessage,
+    announceCall,
+  ];
+}
+
+class DismissIncomingCall extends CallEvent {
+  const DismissIncomingCall();
+}
+
+class _IncomingCallSignal extends CallEvent {
+  const _IncomingCallSignal(this.call);
+  final IncomingCall call;
 }
 
 class LeaveCall extends CallEvent {

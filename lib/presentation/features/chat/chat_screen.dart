@@ -146,6 +146,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _openCall() async {
     final chat = _currentChat;
+    final announceCall = !_callParticipantsBloc.state.hasParticipants(chat.id);
     final serverId = chat.type == ChatType.channel
         ? sl<ServerRepository>().selectedServerId
         : null;
@@ -162,6 +163,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         entityKey: entityKey,
         title: chat.name,
         lastIdMessage: chat.idLastMessage,
+        announceCall: announceCall,
       );
     } finally {
       if (mounted) {

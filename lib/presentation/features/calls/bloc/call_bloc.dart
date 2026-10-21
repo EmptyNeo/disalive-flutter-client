@@ -5,10 +5,21 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/data/network/domain.dart';
+import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/user_status.dart';
+import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/chat_server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/calls/pip_service.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:livekit_client/livekit_client.dart' as lk;
@@ -19,7 +30,13 @@ part 'call_state.dart';
 
 /// Управляет одной активной комнатой в области HomeScreen.
 class CallBloc extends Bloc<CallEvent, CallState> {
-  CallBloc(this._repository) : super(const CallState()) {
+  CallBloc(
+    this._repository,
+    this._chatServerRepository,
+    this._eventBus,
+    this._chatRepository,
+    this._userRepository,
+  ) : super(const CallState()) {
     on<JoinCall>(_onJoin);
     on<LeaveCall>(_onLeave);
     on<ToggleCallMicrophone>(_onMicrophone);
@@ -32,15 +49,99 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     on<_RoomChanged>(_onRoomChanged);
     on<_CallDataReceived>(_onDataReceived);
     on<_RoomDisconnected>(_onDisconnected);
+    on<_IncomingCallSignal>(_onIncomingCall);
+    on<DismissIncomingCall>((event, emit) {
+      emit(state.copyWith(clearIncomingCall: true));
+    });
   }
 
   static const liveKitUrl = 'wss://livekit.disalive.ru:4443';
   final CallsRepository _repository;
+  final ChatServerRepository _chatServerRepository;
+  final WsEventBus _eventBus;
+  final ChatRepository _chatRepository;
+  final UserRepository _userRepository;
+  StreamSubscription<WsEvent>? _callSubscription;
   lk.Room? _room;
   lk.EventsListener<lk.RoomEvent>? _listener;
   final Set<AudioPlayer> _soundPlayers = {};
   int _generation = 0;
   bool _backgroundEnabled = false;
+
+  void setupListeners() {
+    _callSubscription?.cancel();
+    _callSubscription = _eventBus.subscribe(
+      table: 'Call',
+      action: ActionType.create,
+      onData: (event) {
+        if (event.isSelf || isClosed) return;
+        final chatId = int.tryParse('${event.data['targetChatId']}');
+        if (chatId == null) return;
+        add(
+          _IncomingCallSignal(
+            IncomingCall(
+              chatId: chatId,
+              displayName: (event.data['displayName'] ?? 'Входящий звонок')
+                  .toString(),
+              username: event.data['username']?.toString(),
+              pathImage: event.data['pathImage']?.toString(),
+              isNsfw: event.data['isNsfw'] == true || event.data['isNsfw'] == 1,
+              streamType: event.data['streamType']?.toString() ?? 'audio',
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _onIncomingCall(_IncomingCallSignal event, Emitter<CallState> emit) {
+    if (_userRepository.getCurrentUser()?.status == UserStatus.dnd ||
+        state.incomingCall != null ||
+        state.status == CallStatus.connecting ||
+        state.status == CallStatus.connected) {
+      return;
+    }
+    emit(state.copyWith(incomingCall: event.call));
+  }
+
+  Future<void> _announceOutgoingCall(int chatId, int generation) async {
+    if (!_chatServerRepository.isConnected) return;
+    Chat? chat = _chatRepository
+        .getCached()
+        .where((item) => item.id == chatId)
+        .firstOrNull;
+    final currentChat = _chatRepository.getCurrentChat();
+    if (chat == null && currentChat?.id == chatId) chat = currentChat;
+    if (chat == null) {
+      final result = await _chatRepository.get();
+      chat = result.fold(
+        (_) => null,
+        (chats) => chats.where((item) => item.id == chatId).firstOrNull,
+      );
+    }
+    if (chat == null || chat.isSolo || chat.type == ChatType.channel) {
+      return;
+    }
+    final user = _userRepository.getCurrentUser();
+    if (user == null) return;
+    if (isClosed ||
+        generation != _generation ||
+        state.status != CallStatus.connected ||
+        state.chatId != chatId ||
+        !_chatServerRepository.isConnected) {
+      return;
+    }
+    final personal = chat.isPersonalChat || chat.type == ChatType.personal;
+    _chatServerRepository.send({
+      'nameAction': 'Call',
+      'targetChatId': chatId,
+      'pathImage': personal ? user.pathImage ?? '' : chat.pathImage ?? '',
+      'username': user.username ?? '',
+      'displayName': personal ? user.displayName ?? '' : chat.name,
+      'isNsfw': personal ? user.isNsfw ?? false : false,
+      'streamType': 'audio',
+    });
+  }
 
   Future<void> _onJoin(JoinCall event, Emitter<CallState> emit) async {
     if (state.status == CallStatus.connecting ||
@@ -55,6 +156,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
         entityKey: event.entityKey,
         title: event.title,
         error: null,
+        clearIncomingCall: true,
       ),
     );
     final result = await _repository.getToken(
@@ -152,6 +254,16 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       );
       await _publishDeviceState('headset', true);
       await _publishDeviceState('microphone', micGranted);
+      if (event.announceCall && event.entityKey.entityType == EntityType.chat) {
+        unawaited(
+          _announceOutgoingCall(event.chatId, generation).catchError((
+            Object error,
+            StackTrace stackTrace,
+          ) {
+            debugPrint('Не удалось отправить сигнал звонка: $error');
+          }),
+        );
+      }
     } catch (error) {
       await _releaseRoom();
       if (!isClosed && generation == _generation) {
@@ -498,6 +610,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   @override
   Future<void> close() async {
     ++_generation;
+    await _callSubscription?.cancel();
     await _releaseRoom();
     await super.close();
   }

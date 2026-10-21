@@ -37,6 +37,7 @@ class CallScreen extends StatefulWidget {
     required String title,
     int? lastIdMessage,
     CallBloc? callBloc,
+    bool announceCall = true,
   }) {
     final navigator = Navigator.of(context);
     final bloc = callBloc ?? context.read<CallBloc>();
@@ -70,6 +71,7 @@ class CallScreen extends StatefulWidget {
           entityKey: entityKey,
           title: title,
           lastIdMessage: lastIdMessage,
+          announceCall: announceCall,
         ),
       );
     }

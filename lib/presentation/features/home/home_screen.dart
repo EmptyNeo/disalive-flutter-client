@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
@@ -24,6 +28,8 @@ import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
+import 'package:disalive/presentation/features/calls/call_screen.dart';
+import 'package:disalive/presentation/features/calls/incoming_call_dialog.dart';
 import 'package:disalive/presentation/features/calls/call_pip_overlay.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
@@ -68,6 +74,37 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isReconnect = false;
   bool _isDiscoveringServers = false;
   bool _discoveryGridView = false;
+  bool _incomingCallDialogOpen = false;
+
+  Future<void> _showIncomingCall(
+    BuildContext context,
+    IncomingCall call,
+  ) async {
+    if (_incomingCallDialogOpen) return;
+    _incomingCallDialogOpen = true;
+    final accepted = await showIncomingCallDialog(context, call);
+    _incomingCallDialogOpen = false;
+    if (!mounted || !context.mounted) return;
+    context.read<CallBloc>().add(const DismissIncomingCall());
+    if (!accepted) return;
+    final chat = sl<ChatRepository>()
+        .getCached()
+        .where((item) => item.id == call.chatId)
+        .firstOrNull;
+    unawaited(
+      CallScreen.open(
+        context,
+        chatId: call.chatId,
+        entityKey: EntityKey(
+          entityId: call.chatId,
+          entityType: EntityType.chat,
+        ),
+        title: chat?.name ?? call.displayName,
+        lastIdMessage: chat?.idLastMessage,
+        announceCall: false,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -102,7 +139,13 @@ class _HomeScreenState extends State<HomeScreen> {
       providers: [
         BlocProvider<CallBloc>(
           lazy: false,
-          create: (_) => CallBloc(sl<CallsRepository>()),
+          create: (_) => CallBloc(
+            sl<CallsRepository>(),
+            sl<ChatServerRepository>(),
+            sl<WsEventBus>(),
+            sl<ChatRepository>(),
+            sl<UserRepository>(),
+          ),
         ),
         BlocProvider<ChatServerBloc>(
           lazy: false,
@@ -184,6 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
 
                   if (state is ChatServerConnected) {
+                    context.read<CallBloc>().setupListeners();
                     context.read<ChatBloc>().setupListeners();
                     context.read<MessageBloc>().setupListeners();
                     context.read<MembersBloc>().setupListeners();
@@ -199,6 +243,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       personalUnredCount = state.unreadCount;
                     });
                   }
+                },
+              ),
+              BlocListener<CallBloc, CallState>(
+                listenWhen: (previous, current) =>
+                    previous.incomingCall != current.incomingCall &&
+                    current.incomingCall != null,
+                listener: (context, state) {
+                  unawaited(_showIncomingCall(context, state.incomingCall!));
                 },
               ),
               BlocListener<ProfileBloc, ProfileState>(
