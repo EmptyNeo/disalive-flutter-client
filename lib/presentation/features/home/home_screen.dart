@@ -138,10 +138,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
+    CallScreen.exitRevision.addListener(_onCallScreenExited);
+  }
+
+  void _onCallScreenExited() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    CallScreen.exitRevision.removeListener(_onCallScreenExited);
     HomeScreen.scopeContext = null;
     CallPipOverlay.dispose();
     if (sl.isRegistered<MediaStatsRepository>()) {

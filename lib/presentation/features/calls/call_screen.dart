@@ -17,6 +17,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:livekit_client/livekit_client.dart' as lk;
 
 class CallScreen extends StatefulWidget {
+  static final ValueNotifier<int> exitRevision = ValueNotifier<int>(0);
+
   const CallScreen({
     super.key,
     required this.chatId,
@@ -95,20 +97,26 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen> {
+  static int _systemUiEpoch = 0;
+
   String? _focusedTileId;
   String? _fullscreenTileId;
   final Map<String, GlobalKey> _tileKeys = {};
   final GlobalKey _controlsKey = GlobalKey();
   double _controlsHeight = 112;
   bool _exiting = false;
+  bool _closingScreen = false;
   bool _allowPop = false;
   bool _overlaysVisible = true;
   bool _offeredPipSettings = false;
   Timer? _overlayTimer;
+  late final int _ownSystemUiEpoch;
+  Future<void>? _restoreSystemUiFuture;
 
   @override
   void initState() {
     super.initState();
+    _ownSystemUiEpoch = ++_systemUiEpoch;
     _focusedTileId = CallPipOverlay.selectedTileId;
     _scheduleOverlayHide();
     if (Platform.isIOS) {
@@ -122,8 +130,45 @@ class _CallScreenState extends State<CallScreen> {
   void dispose() {
     _overlayTimer?.cancel();
     CallPipOverlay.setScreenVisible(false);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    unawaited(_restoreSystemUi());
+    CallScreen.exitRevision.value++;
     super.dispose();
+  }
+
+  Future<void> _restoreSystemUi() =>
+      _restoreSystemUiFuture ??= _doRestoreSystemUi();
+
+  Future<void> _doRestoreSystemUi() async {
+    try {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    } on PlatformException catch (error) {
+      debugPrint('Failed to restore system UI after call: $error');
+    }
+    if (Platform.isAndroid) {
+      // Android may ignore a system bar change made shortly after another one.
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 1100), () async {
+          if (_systemUiEpoch == _ownSystemUiEpoch) {
+            try {
+              await SystemChrome.restoreSystemUIOverlays();
+            } on PlatformException catch (error) {
+              debugPrint('Failed to reapply system UI after call: $error');
+            }
+          }
+        }),
+      );
+    }
+  }
+
+  Future<void> _closeScreen() async {
+    if (_closingScreen || !mounted) return;
+    _closingScreen = true;
+    await _restoreSystemUi();
+    if (!mounted) return;
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).pop();
+    });
   }
 
   void _scheduleOverlayHide() {
@@ -166,13 +211,10 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _minimize() {
-    if (_exiting || _allowPop) return;
+    if (_exiting || _closingScreen) return;
     CallPipOverlay.select(_fullscreenTileId ?? _focusedTileId);
     CallPipOverlay.setScreenVisible(false);
-    setState(() => _allowPop = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) Navigator.of(context).pop();
-    });
+    unawaited(_closeScreen());
   }
 
   @override
@@ -189,10 +231,7 @@ class _CallScreenState extends State<CallScreen> {
           unawaited(_offerPipSettings());
         }
         if (state.status == CallStatus.left && mounted) {
-          setState(() => _allowPop = true);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) Navigator.of(context).pop();
-          });
+          unawaited(_closeScreen());
         }
       },
       child: CupertinoPageScaffold(
