@@ -189,7 +189,13 @@ class _AppUpdateSheetState extends State<_AppUpdateSheet> {
                   child: CupertinoButton(
                     color: AppColors.blurple,
                     onPressed: _downloading ? null : _install,
-                    child: const Text('Скачать и установить'),
+                    child: Text(
+                      'Скачать и установить',
+                      style: TextStyle(
+                        color: AppColors.onBlurple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
