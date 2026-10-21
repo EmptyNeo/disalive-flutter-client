@@ -7,17 +7,62 @@ class CallToken {
     required this.token,
     required this.userId,
     required this.chatId,
+    required this.iceServers,
   });
 
   final String token;
   final int userId;
   final int chatId;
+  final List<CallIceServer> iceServers;
 
-  factory CallToken.fromMap(Map<String, dynamic> map) => CallToken(
-    token: map['token'] as String,
-    userId: DataParser.parseInt(map['userId'])!,
-    chatId: DataParser.parseInt(map['chatId'])!,
-  );
+  factory CallToken.fromMap(Map<String, dynamic> map) {
+    final rawIceServers = map['iceServers'];
+    if (rawIceServers is! List || rawIceServers.isEmpty) {
+      throw const FormatException('TURN configuration is missing');
+    }
+    return CallToken(
+      token: map['token'] as String,
+      userId: DataParser.parseInt(map['userId'])!,
+      chatId: DataParser.parseInt(map['chatId'])!,
+      iceServers: rawIceServers
+          .map(
+            (server) => CallIceServer.fromMap(server as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+}
+
+class CallIceServer {
+  const CallIceServer({
+    required this.urls,
+    required this.username,
+    required this.credential,
+  });
+
+  final List<String> urls;
+  final String username;
+  final String credential;
+
+  factory CallIceServer.fromMap(Map<String, dynamic> map) {
+    final rawUrls = map['urls'];
+    final username = map['username'];
+    final credential = map['credential'];
+    if (rawUrls is! List ||
+        rawUrls.isEmpty ||
+        !rawUrls.every((url) => url is String && url.isNotEmpty) ||
+        username is! String ||
+        username.isEmpty ||
+        credential is! String ||
+        credential.isEmpty) {
+      throw const FormatException('Invalid TURN configuration');
+    }
+    return CallIceServer(
+      urls: List<String>.from(rawUrls),
+      username: username,
+      credential: credential,
+    );
+  }
 }
 
 class CallBan {

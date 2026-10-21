@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:disalive/data/repositories/calls_repository_impl.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/call_data.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
@@ -18,6 +19,13 @@ void main() {
   const chat = EntityKey(entityId: 12, entityType: EntityType.chat);
   const server = EntityKey(entityId: 3, entityType: EntityType.server);
 
+  test('call token rejects a response without temporary TURN credentials', () {
+    expect(
+      () => CallToken.fromMap({'token': 'jwt', 'userId': 8, 'chatId': 12}),
+      throwsFormatException,
+    );
+  });
+
   test('getToken posts entity context and parses LiveKit token', () async {
     late http.Request request;
     final client = HttpClientService(
@@ -26,7 +34,18 @@ void main() {
         return http.Response(
           jsonEncode({
             'success': true,
-            'data': {'token': 'jwt', 'userId': 8, 'chatId': '12'},
+            'data': {
+              'token': 'jwt',
+              'userId': 8,
+              'chatId': '12',
+              'iceServers': [
+                {
+                  'urls': ['turn:disalive.ru:3478', 'turns:disalive.ru:5349'],
+                  'username': '1790000000:8',
+                  'credential': 'temporary-credential',
+                },
+              ],
+            },
           }),
           200,
         );
@@ -49,6 +68,9 @@ void main() {
     expect(token.token, 'jwt');
     expect(token.userId, 8);
     expect(token.chatId, 12);
+    expect(token.iceServers.single.username, '1790000000:8');
+    expect(token.iceServers.single.credential, 'temporary-credential');
+    expect(token.iceServers.single.urls, hasLength(2));
   });
 
   test('participants supports all server rooms and parses tracks', () async {

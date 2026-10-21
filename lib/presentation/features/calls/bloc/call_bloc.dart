@@ -112,15 +112,17 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       await room.connect(
         liveKitUrl,
         token.token,
-        connectOptions: const lk.ConnectOptions(
+        connectOptions: lk.ConnectOptions(
           rtcConfiguration: lk.RTCConfiguration(
-            iceServers: [
-              lk.RTCIceServer(
-                urls: ['turn:disalive.ru:3478', 'turns:disalive.ru:5349'],
-                username: 'username2',
-                credential: 'password2',
-              ),
-            ],
+            iceServers: token.iceServers
+                .map(
+                  (server) => lk.RTCIceServer(
+                    urls: server.urls,
+                    username: server.username,
+                    credential: server.credential,
+                  ),
+                )
+                .toList(),
           ),
         ),
       );
