@@ -839,7 +839,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
     // Применяем изменения в кэш
     cached.messages[msgIndex] = originalMsg.copyWith(
-      reactions: newReactions.isEmpty ? null : newReactions,
+      reactions: newReactions,
+      clearReactions: newReactions.isEmpty,
     );
     _messageRepository.cacheMessages(event.chatId, cached.messages);
 
@@ -1009,7 +1010,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
     // Обновляем кэш
     cached.messages[msgIndex] = msg.copyWith(
-      reactions: newReactions.isEmpty ? null : newReactions,
+      reactions: newReactions,
+      clearReactions: newReactions.isEmpty,
     );
     _messageRepository.cacheMessages(event.chatId, cached.messages);
 

@@ -55,7 +55,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
     });
   }
 
-  static const liveKitUrl = 'wss://livekit.disalive.ru:4443';
+  static const liveKitUrl = 'wss://livekit.disalive.ru';
   final CallsRepository _repository;
   final ChatServerRepository _chatServerRepository;
   final WsEventBus _eventBus;

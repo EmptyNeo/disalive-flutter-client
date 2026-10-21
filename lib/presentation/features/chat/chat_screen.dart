@@ -11,6 +11,7 @@ import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/member.dart';
@@ -20,12 +21,14 @@ import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat/channel_send_access.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
 import 'package:disalive/presentation/features/calls/call_screen.dart';
@@ -175,8 +178,42 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   late Chat _currentChat;
+  int? _channelServerId;
+  ChannelServer? _channel;
+  int? _channelRoleId;
+  bool _channelRoleFromMemberEvent = false;
   StreamSubscription? _channelReadSubscription;
   StreamSubscription? _channelMessageSubscription;
+  StreamSubscription? _channelAccessSubscription;
+
+  bool get _canSendMessages =>
+      _currentChat.type != ChatType.channel ||
+      canSendToChannel(
+        channel: _channel,
+        server: _channelServerId == null
+            ? null
+            : sl<ServerRepository>().getByIdCached(_channelServerId!),
+        userId: _currentUserId,
+        roleId: _channelRoleId,
+      );
+
+  Future<void> _refreshChannelAccess() async {
+    final serverId = _channelServerId;
+    if (serverId == null) return;
+    final result = await sl<ChannelServerRepository>().get(serverId);
+    if (!mounted || _channelServerId != serverId) return;
+    result.fold((_) {}, (channels) {
+      final matching = channels.where((item) => item.chatId == _currentChat.id);
+      setState(() => _channel = matching.isEmpty ? null : matching.first);
+      _hideRestrictedInput();
+    });
+  }
+
+  void _hideRestrictedInput() {
+    if (_canSendMessages) return;
+    _inputFocusNode.unfocus();
+    if (_isExtraPanelOpen) setState(() => _isExtraPanelOpen = false);
+  }
 
   bool _hasUnread(Chat chat) {
     if (chat.type == ChatType.channel) {
@@ -196,6 +233,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _draftUserId = _currentUserId;
     sl<LocalChatStateRepository>().allowDraftsForUser(_draftUserId);
     _currentChat = widget.chat;
+    if (_currentChat.type == ChatType.channel) {
+      _channelServerId = sl<ServerRepository>().selectedServerId;
+      _channelRoleId = sl<ServerRepository>().selectedServer?.roleId;
+      final cached = _channelServerId == null
+          ? <ChannelServer>[]
+          : sl<ChannelServerRepository>().getCached(_channelServerId!);
+      for (final channel in cached) {
+        if (channel.chatId == _currentChat.id) {
+          _channel = channel;
+          break;
+        }
+      }
+      unawaited(_refreshChannelAccess());
+    }
     _textController = EmojiTextEditingController();
     _textController.addListener(_onTextChanged);
 
@@ -234,10 +285,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _listenToChannelEvents() {
     final bus = sl<WsEventBus>();
+    _channelAccessSubscription = bus.subscribeToTable(
+      table: 'ChannelsServer',
+      onData: (event) {
+        final raw = event.data['channel'];
+        final channelData = raw is Map ? raw : const <String, dynamic>{};
+        final channelId = DataParser.parseInt(
+          channelData['id'] ?? event.data['channelId'],
+        );
+        final chatId = DataParser.parseInt(channelData['chatId']);
+        if (channelId == _channel?.id || chatId == _currentChat.id) {
+          unawaited(_refreshChannelAccess());
+        }
+      },
+    );
     _channelReadSubscription = bus.subscribe(
       table: 'ChatMembers',
       action: ActionType.update,
       onData: (event) {
+        if (event.data['entityType'] == 'server' &&
+            DataParser.parseInt(event.data['entityId']) == _channelServerId &&
+            (DataParser.parseBool(event.data['isSelf']) ?? event.isSelf)) {
+          final rawSelf = event.data['member'];
+          if (rawSelf is Map && rawSelf.containsKey('fkRole')) {
+            final nextRoleId = DataParser.parseInt(rawSelf['fkRole']);
+            _channelRoleFromMemberEvent = true;
+            if (nextRoleId != _channelRoleId && mounted) {
+              setState(() => _channelRoleId = nextRoleId);
+              _hideRestrictedInput();
+            }
+          }
+        }
         if (event.data['entityType'] != 'server' ||
             !(DataParser.parseBool(event.data['isSelf']) ?? event.isSelf) ||
             DataParser.parseInt(event.data['chatId']) != _currentChat.id) {
@@ -404,6 +482,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _toggleExtraPanel({bool requestFocus = true}) {
+    if (!_canSendMessages) return;
     setState(() {
       _isExtraPanelOpen = !_isExtraPanelOpen;
     });
@@ -559,6 +638,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _callParticipantsBloc.close();
     _channelReadSubscription?.cancel();
     _channelMessageSubscription?.cancel();
+    _channelAccessSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
     _savePosition();
@@ -593,6 +673,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       child: MultiBlocListener(
         listeners: [
+          BlocListener<ServersBloc, ServersState>(
+            listener: (context, state) {
+              if (_channelServerId == null || state is! ServersLoaded) return;
+              final matching = state.servers.where(
+                (server) => server.id == _channelServerId,
+              );
+              if (matching.isEmpty) return;
+              setState(() {
+                if (!_channelRoleFromMemberEvent) {
+                  _channelRoleId = matching.first.roleId;
+                }
+              });
+              _hideRestrictedInput();
+            },
+          ),
           BlocListener<ChatBloc, ChatState>(
             listener: (context, state) {
               if (state is ChatLoaded) {
@@ -680,6 +775,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   onEditMessage: _onEditMessage,
                                   onDeleteMessage: _onDeleteMessage,
                                   onAnswerMessage: _onAnswerMessage,
+                                  canReply: _canSendMessages,
                                   onFocusInput: _focusInput,
                                   onUnfocusInput: _unfocusInput,
                                   onStickerTap: onTapSticker,
@@ -820,6 +916,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           onApplyEdit: _onApplyEdit,
                           inputFocusNode: _inputFocusNode,
                           isReconnect: isReconnect,
+                          canSendMessages: _canSendMessages,
                           attachments: _attachments,
                           onPickAttachment: _pickAttachments,
                           onRemoveAttachment: (attachment) {
@@ -908,6 +1005,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _focusInput() {
+    if (!_canSendMessages) return;
     _inputFocusNode.requestFocus();
   }
 
@@ -967,6 +1065,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onSendMessage(Message message) {
+    if (!_canSendMessages) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1060,6 +1159,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _sendInviteRequest(String text) {
+    if (!_canSendMessages) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
     final localId = IdGenerator.generateId();
@@ -1117,6 +1217,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onSendVoiceMessage(File file, double durationSeconds) {
+    if (!_canSendMessages) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
     var localGeneratedId = IdGenerator.generateId();
@@ -1208,6 +1309,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onApplyEdit(Message message) {
+    if (!_canSendMessages) return;
     if (_editingMessageId == null) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
@@ -1290,6 +1392,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onAnswerMessage(Message message) {
+    if (!_canSendMessages) return;
     if (_isExtraPanelOpen) {
       _toggleExtraPanel();
     }

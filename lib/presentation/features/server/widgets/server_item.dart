@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 
 class ServerItem extends StatelessWidget {
   final IconData icon;
+  final Widget? actionIcon;
   final String? name;
   final String? pathAvatar;
   final bool isActive;
@@ -18,6 +19,7 @@ class ServerItem extends StatelessWidget {
   const ServerItem({
     super.key,
     required this.icon,
+    this.actionIcon,
     required this.isActive,
     required this.unreadCount,
     this.name,
@@ -96,6 +98,7 @@ class ServerItem extends StatelessWidget {
   }
 
   Widget _buildFallback() {
+    if (actionIcon != null) return actionIcon!;
     final trimmedName = name?.trim();
     if (trimmedName != null && trimmedName.isNotEmpty) {
       return Text(

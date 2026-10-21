@@ -15,6 +15,7 @@ const double _kFloatingPanelMargin = 8;
 class ChatInputArea extends StatefulWidget {
   final Chat chat;
   final bool isReconnect;
+  final bool canSendMessages;
   final FocusNode inputFocusNode;
   final GlobalKey inputKey;
   final bool hasEdit;
@@ -38,6 +39,7 @@ class ChatInputArea extends StatefulWidget {
     super.key,
     required this.chat,
     required this.isReconnect,
+    this.canSendMessages = true,
     required this.inputKey,
     required this.textController,
     required this.hasEdit,
@@ -143,7 +145,9 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   @override
   Widget build(BuildContext context) {
     final bool isInputAllowed =
-        !widget.chat.isAnyBlocked && !widget.isReconnect;
+        !widget.chat.isAnyBlocked &&
+        !widget.isReconnect &&
+        widget.canSendMessages;
 
     return Padding(
       key: widget.inputKey,
@@ -201,29 +205,42 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                         color: AppColors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                    child: CupertinoTextField(
-                      controller: widget.textController,
-                      focusNode: widget.inputFocusNode,
-                      readOnly: !isInputAllowed,
-                      minLines: 1,
-                      maxLines: 5,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      placeholder: isInputAllowed
-                          ? 'Сообщение...'
-                          : getRestrictionMessage(),
-                      placeholderStyle: AppText.mediumTextStyle.copyWith(
-                        color: AppColors.greyple,
-                      ),
-                      style: AppText.mediumTextStyle.copyWith(
-                        color: widget.chat.isAnyBlocked
-                            ? AppColors.white.withValues(alpha: 0.7)
-                            : AppColors.white,
-                      ),
-                      decoration: null,
-                    ),
+                    child: !widget.canSendMessages && !widget.isReconnect
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              'У вас недостаточно прав, чтобы отправлять сообщения на этом канале',
+                              style: AppText.mediumTextStyle.copyWith(
+                                color: AppColors.greyple,
+                              ),
+                            ),
+                          )
+                        : CupertinoTextField(
+                            controller: widget.textController,
+                            focusNode: widget.inputFocusNode,
+                            readOnly: !isInputAllowed,
+                            minLines: 1,
+                            maxLines: 5,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            placeholder: isInputAllowed
+                                ? 'Сообщение...'
+                                : getRestrictionMessage(),
+                            placeholderStyle: AppText.mediumTextStyle.copyWith(
+                              color: AppColors.greyple,
+                            ),
+                            style: AppText.mediumTextStyle.copyWith(
+                              color: widget.chat.isAnyBlocked
+                                  ? AppColors.white.withValues(alpha: 0.7)
+                                  : AppColors.white,
+                            ),
+                            decoration: null,
+                          ),
                   ),
                 ),
               ),

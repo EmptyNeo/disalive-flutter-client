@@ -61,6 +61,7 @@ class MessagesList extends StatefulWidget {
   final Function(Message message) onEditMessage;
   final Function(Message message) onDeleteMessage;
   final Function(Message message) onAnswerMessage;
+  final bool canReply;
   final Function(StickerContent sticker) onStickerTap;
   final ValueChanged<String>? onInviteMention;
   final VoidCallback? onFocusInput;
@@ -80,6 +81,7 @@ class MessagesList extends StatefulWidget {
     required this.onEditMessage,
     required this.onDeleteMessage,
     required this.onAnswerMessage,
+    this.canReply = true,
     required this.onStickerTap,
     this.onInviteMention,
     this.onFocusInput,
@@ -872,6 +874,7 @@ class MessagesListState extends State<MessagesList> {
 
             final messageWidget = SwipeToReplyMessage(
               key: ValueKey(messageId),
+              enabled: widget.canReply,
               onReply: () => widget.onAnswerMessage(message),
               child: RepaintBoundary(
                 key: key,
@@ -1136,14 +1139,15 @@ class MessagesListState extends State<MessagesList> {
           _showReactionSheet(message);
         },
       ),
-      ActionItem(
-        icon: CupertinoIcons.arrow_turn_up_left,
-        label: 'Ответить',
-        onTap: () {
-          widget.onAnswerMessage(message);
-          widget.onFocusInput?.call();
-        },
-      ),
+      if (widget.canReply)
+        ActionItem(
+          icon: CupertinoIcons.arrow_turn_up_left,
+          label: 'Ответить',
+          onTap: () {
+            widget.onAnswerMessage(message);
+            widget.onFocusInput?.call();
+          },
+        ),
       if (message.text?.isNotEmpty == true)
         ActionItem(
           icon: CupertinoIcons.square_fill_on_square_fill,

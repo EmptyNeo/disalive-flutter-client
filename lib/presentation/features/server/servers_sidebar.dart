@@ -4,6 +4,8 @@ import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/widgets/server_item.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ServersSidebar extends StatelessWidget {
   final int personalUnreadCount;
@@ -32,83 +34,110 @@ class ServersSidebar extends StatelessWidget {
       color: AppColors.mainBackground,
       child: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            ServerItem(
-              key: const ValueKey('dm_server_item'),
-              icon: CupertinoIcons.chat_bubble_fill,
-              isActive: selectedServerId == null && !isDiscovering,
-              isSpecial: true,
-              isAction: true,
-              unreadCount: personalUnreadCount,
-              onTap: onSelectDm,
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Container(
-                height: 2,
-                color: CupertinoColors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            ServerItem(
-              icon: CupertinoIcons.add,
-              isActive: false,
-              isAction: true,
-              unreadCount: 0,
-              onTap: onCreateServer,
-            ),
-            const SizedBox(height: 12),
-            ServerItem(
-              key: const ValueKey('discover_servers_item'),
-              icon: CupertinoIcons.compass_fill,
-              isActive: isDiscovering,
-              isAction: true,
-              unreadCount: 0,
-              onTap: onDiscoverServers,
-            ),
-            Expanded(
-              child: BlocBuilder<ServersBloc, ServersState>(
-                builder: (context, state) {
-                  if (state is ServersLoading || state is ServersInitial) {
-                    return const Center(child: CupertinoActivityIndicator());
-                  }
-                  if (state is ServersFailure) {
-                    return Center(
-                      child: CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () =>
-                            context.read<ServersBloc>().add(const GetServers()),
-                        child: const Icon(CupertinoIcons.refresh),
+        child: BlocBuilder<ServersBloc, ServersState>(
+          builder: (context, state) => CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    ServerItem(
+                      key: const ValueKey('dm_server_item'),
+                      icon: CupertinoIcons.chat_bubble_fill,
+                      isActive: selectedServerId == null && !isDiscovering,
+                      isSpecial: true,
+                      isAction: true,
+                      unreadCount: personalUnreadCount,
+                      onTap: onSelectDm,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                    );
-                  }
-                  if (state is ServersLoaded) {
-                    return ListView.builder(
-                      padding: const EdgeInsets.only(top: 8, bottom: 100),
-                      itemCount: state.servers.length,
-                      itemBuilder: (context, index) {
-                        final server = state.servers[index];
-                        return Padding(
-                          key: ValueKey(server.id),
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: ServerItem(
-                            icon: CupertinoIcons.group_solid,
-                            name: server.name,
-                            pathAvatar: server.pathAvatar,
-                            isActive: selectedServerId == server.id,
-                            unreadCount: server.newMessagesCount ?? 0,
-                            onTap: () => onSelectServer?.call(server),
-                          ),
-                        );
-                      },
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
+                      child: Container(
+                        height: 2,
+                        color: CupertinoColors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    ServerItem(
+                      icon: CupertinoIcons.add,
+                      isActive: false,
+                      isAction: true,
+                      unreadCount: 0,
+                      onTap: onCreateServer,
+                    ),
+                    const SizedBox(height: 12),
+                    ServerItem(
+                      key: const ValueKey('discover_servers_item'),
+                      icon: CupertinoIcons.compass_fill,
+                      isActive: isDiscovering,
+                      isAction: true,
+                      unreadCount: 0,
+                      onTap: onDiscoverServers,
+                    ),
+                    const SizedBox(height: 12),
+                    ServerItem(
+                      key: const ValueKey('boosty_item'),
+                      icon: CupertinoIcons.heart_fill,
+                      actionIcon: SvgPicture.asset(
+                        'assets/icons/boosty.svg',
+                        width: 28,
+                        height: 28,
+                      ),
+                      name: 'Поддержать Disalive на Boosty',
+                      isActive: false,
+                      isAction: true,
+                      unreadCount: 0,
+                      onTap: () => launchUrl(
+                        Uri.parse('https://boosty.to/disalive'),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (state is ServersLoading || state is ServersInitial)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CupertinoActivityIndicator()),
+                )
+              else if (state is ServersFailure)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () =>
+                          context.read<ServersBloc>().add(const GetServers()),
+                      child: const Icon(CupertinoIcons.refresh),
+                    ),
+                  ),
+                )
+              else if (state is ServersLoaded)
+                SliverPadding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 100),
+                  sliver: SliverList.builder(
+                    itemCount: state.servers.length,
+                    itemBuilder: (context, index) {
+                      final server = state.servers[index];
+                      return Padding(
+                        key: ValueKey(server.id),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ServerItem(
+                          icon: CupertinoIcons.group_solid,
+                          name: server.name,
+                          pathAvatar: server.pathAvatar,
+                          isActive: selectedServerId == server.id,
+                          unreadCount: server.newMessagesCount ?? 0,
+                          onTap: () => onSelectServer?.call(server),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

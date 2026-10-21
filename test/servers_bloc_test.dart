@@ -359,8 +359,26 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(ServerItem), findsNWidgets(4));
+    expect(find.byType(ServerItem), findsNWidgets(5));
     expect(find.byKey(const ValueKey('discover_servers_item')), findsOneWidget);
+    expect(find.byKey(const ValueKey('boosty_item')), findsOneWidget);
+    final sidebarScroll = find.byType(CustomScrollView);
+    expect(
+      find.ancestor(
+        of: find.byKey(const ValueKey('boosty_item')),
+        matching: sidebarScroll,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.ancestor(
+        of: find.byWidgetPredicate(
+          (widget) => widget is ServerItem && widget.name == 'Original',
+        ),
+        matching: sidebarScroll,
+      ),
+      findsOneWidget,
+    );
     expect(find.text('O'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
 

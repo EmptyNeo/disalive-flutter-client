@@ -23,11 +23,13 @@ import 'package:flutter/services.dart';
 class SwipeToReplyMessage extends StatefulWidget {
   final Widget child;
   final VoidCallback onReply;
+  final bool enabled;
 
   const SwipeToReplyMessage({
     super.key,
     required this.child,
     required this.onReply,
+    this.enabled = true,
   });
 
   @override
@@ -153,7 +155,7 @@ class _SwipeToReplyMessageState extends State<SwipeToReplyMessage>
     final shouldReply = _armed;
     _armed = false;
     _animateBack();
-    if (shouldReply) {
+    if (shouldReply && widget.enabled) {
       widget.onReply();
     }
   }
@@ -168,6 +170,7 @@ class _SwipeToReplyMessageState extends State<SwipeToReplyMessage>
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
     final progress = (_dragExtent.abs() / _triggerDrag).clamp(0.0, 1.0);
 
     return Listener(
