@@ -34,58 +34,70 @@ class HistoryActionItem extends StatelessWidget {
         ? (action.startTimeFormatted ?? '')
         : '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}';
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-      child: Row(
-        children: [
-          Icon(icon, size: 17, color: color),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  _userSpan(context, action.initiatorUser, action.userId),
-                  TextSpan(
-                    text: switch (type) {
-                      EntityActionType.called => ' начал звонок',
-                      EntityActionType.joined =>
-                        isChat
-                            ? ' присоединился к группе'
-                            : ' присоединился к серверу',
-                      EntityActionType.cameout =>
-                        isChat ? ' вышел из группы' : ' вышел с сервера',
-                      EntityActionType.lefted => ' выгнал ',
-                      EntityActionType.excluded => ' исключил ',
-                      EntityActionType.added => ' добавил ',
-                      null => ' выполнил действие',
-                    },
-                  ),
-                  if (type == EntityActionType.lefted ||
-                      type == EntityActionType.excluded ||
-                      type == EntityActionType.added) ...[
-                    _userSpan(
-                      context,
-                      action.interactionUser,
-                      action.interactionUserId,
-                    ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.actionGrey,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    _userSpan(context, action.initiatorUser, action.userId),
                     TextSpan(
-                      text: type == EntityActionType.added
-                          ? (isChat ? ' в группу' : ' на сервер')
-                          : (isChat ? ' из группы' : ' с сервера'),
+                      text: switch (type) {
+                        EntityActionType.called => ' начал звонок',
+                        EntityActionType.joined =>
+                          isChat
+                              ? ' присоединился к группе'
+                              : ' присоединился к серверу',
+                        EntityActionType.cameout =>
+                          isChat ? ' вышел из группы' : ' вышел с сервера',
+                        EntityActionType.lefted => ' выгнал ',
+                        EntityActionType.excluded => ' исключил ',
+                        EntityActionType.added => ' добавил ',
+                        null => ' выполнил действие',
+                      },
                     ),
+                    if (type == EntityActionType.called &&
+                        action.durationFormatted != null)
+                      TextSpan(
+                        text: ', который продлился ${action.durationFormatted}',
+                      ),
+                    if (type == EntityActionType.lefted ||
+                        type == EntityActionType.excluded ||
+                        type == EntityActionType.added) ...[
+                      _userSpan(
+                        context,
+                        action.interactionUser,
+                        action.interactionUserId,
+                      ),
+                      TextSpan(
+                        text: type == EntityActionType.added
+                            ? (isChat ? ' в группу' : ' на сервер')
+                            : (isChat ? ' из группы' : ' с сервера'),
+                      ),
+                    ],
                   ],
-                ],
+                ),
+                style: AppText.lowTextStyle.copyWith(color: AppColors.greyple),
               ),
-              style: AppText.lowTextStyle.copyWith(color: AppColors.greyple),
             ),
-          ),
-          if (time.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text(
-              time,
-              style: AppText.lowTextStyle.copyWith(color: AppColors.greyple),
-            ),
+            if (time.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                time,
+                style: AppText.lowTextStyle.copyWith(color: AppColors.greyple),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

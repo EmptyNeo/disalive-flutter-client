@@ -55,7 +55,7 @@ class _StickerPackMessageCardState extends State<StickerPackMessageCard> {
   @override
   Widget build(BuildContext context) => CupertinoButton(
     key: ValueKey('sticker_pack_card_${widget.packId}'),
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
     onPressed: _loading ? null : _openPack,
     child: Container(
       constraints: const BoxConstraints(minWidth: 190),

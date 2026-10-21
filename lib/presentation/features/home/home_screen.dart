@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
@@ -8,6 +9,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/app_update_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
@@ -35,6 +37,7 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
+import 'package:disalive/presentation/features/updates/app_update_sheet.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
 import 'package:disalive/presentation/features/login.dart';
@@ -53,6 +56,7 @@ import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 // 🎯 1. ДОБАВЛЯЕМ ИМПОРТЫ ТЕМЫ
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
@@ -75,6 +79,30 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isDiscoveringServers = false;
   bool _discoveryGridView = false;
   bool _incomingCallDialogOpen = false;
+  bool _checkedForUpdates = false;
+
+  Future<void> _checkForUpdates() async {
+    if (_checkedForUpdates || !Platform.isAndroid) return;
+    _checkedForUpdates = true;
+    try {
+      final package = await PackageInfo.fromPlatform();
+      final currentVersion = package.version.split('.').length >= 4
+          ? package.version
+          : '${package.version}.${package.buildNumber}';
+      final result = await sl<AppUpdateRepository>().checkAndroid(currentVersion);
+      if (!mounted) return;
+      result.fold(
+        (_) {},
+        (update) {
+          if (update.isUpdateAvailable && update.downloadUrl.isNotEmpty) {
+            unawaited(showAppUpdateSheet(context, update));
+          }
+        },
+      );
+    } catch (_) {
+      // A failed background check must not interrupt the home screen.
+    }
+  }
 
   Future<void> _showIncomingCall(
     BuildContext context,
@@ -282,6 +310,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 if (state is ProfileLoaded) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) unawaited(_checkForUpdates());
+                  });
                   // 🎯 2. ОБЕРТЫВАЕМ UI В BlocBuilder<ThemeCubit>
                   // Это заставит весь этот блок перерисоваться мгновенно при смене темы
                   return BlocBuilder<ThemeCubit, ThemeState>(

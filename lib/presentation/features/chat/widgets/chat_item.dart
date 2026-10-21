@@ -213,7 +213,7 @@ class _ChatItemState extends State<ChatItem> {
                             unreadCount > 99 ? '99+' : unreadCount.toString(),
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: AppColors.white,
+                              color: AppColors.onBlurple,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),

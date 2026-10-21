@@ -35,6 +35,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 const double _kLoadMoreThreshold = 100;
 
+String? _historyActionDayLabel(HistoryAction action) {
+  final timestamp = action.startTimestamp;
+  if (timestamp != null) {
+    final utcDate = DateTime.fromMillisecondsSinceEpoch(
+      timestamp * 1000,
+      isUtc: true,
+    );
+    return UtilDate.formatDayTime(utcDate.toIso8601String(), true);
+  }
+  return UtilDate.formatDayTime(action.startDate, true);
+}
+
 class MessagesList extends StatefulWidget {
   final MessageBloc messageBloc;
   final ChatBloc chatBloc;
@@ -747,10 +759,24 @@ class MessagesListState extends State<MessagesList> {
                   top: widget.headerReserve + 8,
                 ),
                 itemCount: sortedActions.length,
-                itemBuilder: (_, index) => HistoryActionItem(
-                  key: ValueKey('history-${sortedActions[index].id}'),
-                  action: sortedActions[index],
-                ),
+                itemBuilder: (_, index) {
+                  final action = sortedActions[index];
+                  final dayLabel = _historyActionDayLabel(action);
+                  final olderDayLabel = index + 1 < sortedActions.length
+                      ? _historyActionDayLabel(sortedActions[index + 1])
+                      : null;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (dayLabel != null && dayLabel != olderDayLabel)
+                        DaySeparator(label: dayLabel),
+                      HistoryActionItem(
+                        key: ValueKey('history-${action.id}'),
+                        action: action,
+                      ),
+                    ],
+                  );
+                },
               );
             }
             return Padding(
@@ -886,23 +912,23 @@ class MessagesListState extends State<MessagesList> {
             );
 
             final dayLabel = UtilDate.formatDayTime(message.time, true);
-            final olderDayLabel = olderMessage != null
-                ? UtilDate.formatDayTime(olderMessage.time, true)
-                : null;
+            final olderActions = actionsByMessageIndex[index + 1];
+            final olderDayLabel =
+                olderActions != null && olderActions.isNotEmpty
+                ? _historyActionDayLabel(olderActions.last) ??
+                      UtilDate.formatDayTime(olderMessage?.time, true)
+                : UtilDate.formatDayTime(olderMessage?.time, true);
             final isFirstOfDay = dayLabel != olderDayLabel;
 
             Widget finalWidget = messageWidget;
-            if (showSeparator) {
-              finalWidget = Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [NewMessagesSeparator(), messageWidget],
-              );
-            } else if (dayLabel != null && isFirstOfDay) {
+            if (showSeparator || (dayLabel != null && isFirstOfDay)) {
               finalWidget = Column(
                 key: ValueKey(messageId),
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  DaySeparator(label: dayLabel),
+                  if (dayLabel != null && isFirstOfDay)
+                    DaySeparator(label: dayLabel),
+                  if (showSeparator) NewMessagesSeparator(),
                   messageWidget,
                 ],
               );
@@ -911,17 +937,25 @@ class MessagesListState extends State<MessagesList> {
             if (attachedActions == null || attachedActions.isEmpty) {
               return finalWidget;
             }
+            var previousDayLabel = dayLabel;
+            final actionWidgets = <Widget>[];
+            for (final action in attachedActions) {
+              final actionDay = _historyActionDayLabel(action);
+              if (actionDay != null && actionDay != previousDayLabel) {
+                actionWidgets.add(DaySeparator(label: actionDay));
+              }
+              actionWidgets.add(
+                HistoryActionItem(
+                  key: ValueKey('history-${action.id}'),
+                  action: action,
+                ),
+              );
+              previousDayLabel = actionDay ?? previousDayLabel;
+            }
             return Column(
               key: ValueKey(messageId),
               mainAxisSize: MainAxisSize.min,
-              children: [
-                finalWidget,
-                for (final action in attachedActions)
-                  HistoryActionItem(
-                    key: ValueKey('history-${action.id}'),
-                    action: action,
-                  ),
-              ],
+              children: [finalWidget, ...actionWidgets],
             );
           }
 

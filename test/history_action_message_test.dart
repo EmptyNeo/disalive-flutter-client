@@ -1,9 +1,11 @@
 import 'package:dartz/dartz.dart';
 import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/enums/entity_action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/history_action.dart';
+import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
 import 'package:disalive/domain/models/user.dart';
@@ -13,6 +15,9 @@ import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/history_actions/history_action_item.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat/widgets/messages_list.dart';
+import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,6 +84,9 @@ class _Messages implements MessageRepository {
 }
 
 class _Chats implements ChatRepository {
+  @override
+  void clear() {}
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -163,5 +171,68 @@ void main() {
     expect(find.textContaining('Алиса'), findsOneWidget);
     expect(find.textContaining('Боб'), findsOneWidget);
     expect(find.text('12:45'), findsOneWidget);
+  });
+
+  testWidgets('history action on another day has its own separator', (
+    tester,
+  ) async {
+    final repo = _Messages();
+    repo.pages
+      ..clear()
+      ..add(
+        const MessagesResponse(
+          messages: [Message(id: 10, chatId: 1, time: '2026-01-01 10:00:00')],
+          actions: [
+            HistoryAction(
+              id: 1,
+              entityType: EntityType.chat,
+              entityActionType: EntityActionType.called,
+              lastIdMessage: 10,
+              startDate: '2026-01-02 10:00:00',
+            ),
+          ],
+        ),
+      );
+    final bus = WsEventBus();
+    final chats = _Chats();
+    final messageBloc = MessageBloc(repo, _Reactions(), chats, bus);
+    final chatBloc = ChatBloc(chats, bus);
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: MessagesList(
+            messageBloc: messageBloc,
+            chatBloc: chatBloc,
+            chat: const Chat(id: 1, name: 'Чат', type: ChatType.personal),
+            currentUserId: 1,
+            initialAroundId: null,
+            inputReserve: 0,
+            headerReserve: 0,
+            onSendMessage: (_) {},
+            onEditMessage: (_) {},
+            onDeleteMessage: (_) {},
+            onAnswerMessage: (_) {},
+            onStickerTap: (_) {},
+          ),
+        ),
+      ),
+    );
+    messageBloc.add(
+      GetMessages(
+        chatId: 1,
+        entityId: 1,
+        entityType: EntityType.chat,
+        lastIdMessage: 0,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(DaySeparator), findsNWidgets(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await messageBloc.close();
+      await chatBloc.close();
+      bus.dispose();
+    });
   });
 }

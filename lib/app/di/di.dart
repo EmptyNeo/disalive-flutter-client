@@ -1,4 +1,5 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
+import 'package:disalive/data/repositories/app_update_repository_impl.dart';
 import 'package:disalive/data/repositories/category_channel_repository_impl.dart';
 import 'package:disalive/data/repositories/calls_repository_impl.dart';
 import 'package:disalive/data/repositories/channel_server_repository_impl.dart';
@@ -27,6 +28,7 @@ import 'package:disalive/data/repositories/user_repository_impl.dart';
 import 'package:disalive/data/repositories/user_stickers_pack_repository_impl.dart';
 import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
+import 'package:disalive/domain/repositories/app_update_repository.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
@@ -107,6 +109,7 @@ Future<void> setupDependencies() async {
     () => ChatServerRepositoryImpl(sl(), sl()),
   );
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl());
+  sl.registerLazySingleton<AppUpdateRepository>(() => AppUpdateRepositoryImpl());
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ServerRepository>(() => ServerRepositoryImpl());

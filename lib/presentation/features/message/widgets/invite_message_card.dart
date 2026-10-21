@@ -107,7 +107,7 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
   Widget build(BuildContext context) {
     final invalidReason = _invalidReason;
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.mainBackground,

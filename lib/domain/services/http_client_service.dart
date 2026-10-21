@@ -136,6 +136,7 @@ class HttpClientService {
   Future<Either<Failure, T>> get<T>({
     required String endpoint,
     Map<String, dynamic>? queryParams,
+    Map<String, String>? headers,
     required T Function(dynamic json) fromJson,
     ApiType apiType = ApiType.v1,
     bool requireAuth = true,
@@ -143,7 +144,7 @@ class HttpClientService {
     VoidCallback? onUnauthorized,
   }) async {
     try {
-      final Map<String, dynamic> params = queryParams ?? {};
+      final Map<String, dynamic> params = {...?queryParams};
 
       if (requireAuth) {
         final keySession = await _secureStorage.getKeySession();
@@ -162,7 +163,7 @@ class HttpClientService {
         '$baseUrl$endpoint',
       ).replace(queryParameters: stringQueryParams);
 
-      final response = await _client.get(uri);
+      final response = await _client.get(uri, headers: headers);
 
       return _handleResponse<T>(
         response: response,

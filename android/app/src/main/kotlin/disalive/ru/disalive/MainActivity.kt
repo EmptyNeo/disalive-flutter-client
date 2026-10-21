@@ -20,6 +20,28 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.disalive/update")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canInstallPackages" -> result.success(
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+                            packageManager.canRequestPackageInstalls()
+                    )
+                    "openInstallSettings" -> {
+                        try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                    data = Uri.parse("package:$packageName")
+                                })
+                            }
+                            result.success(null)
+                        } catch (error: Exception) {
+                            result.error("INSTALL_SETTINGS", error.message, null)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.disalive/pip")
         pipChannel?.setMethodCallHandler { call, result ->
             when (call.method) {

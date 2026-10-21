@@ -84,25 +84,21 @@ Future<bool> showIncomingCallDialog(
                           ],
                           const SizedBox(height: 24),
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              Expanded(
-                                child: _CallButton(
-                                  icon: CupertinoIcons.phone_down_fill,
-                                  label: 'Отклонить',
-                                  color: AppColors.errorRed,
-                                  onTap: () =>
-                                      Navigator.of(dialogContext).pop(false),
-                                ),
+                              _CallButton(
+                                icon: CupertinoIcons.phone_down_fill,
+                                label: 'Отклонить',
+                                color: AppColors.errorRed,
+                                onTap: () =>
+                                    Navigator.of(dialogContext).pop(false),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _CallButton(
-                                  icon: CupertinoIcons.phone_fill,
-                                  label: 'Ответить',
-                                  color: AppColors.green,
-                                  onTap: () =>
-                                      Navigator.of(dialogContext).pop(true),
-                                ),
+                              _CallButton(
+                                icon: CupertinoIcons.phone_fill,
+                                label: 'Ответить',
+                                color: AppColors.green,
+                                onTap: () =>
+                                    Navigator.of(dialogContext).pop(true),
                               ),
                             ],
                           ),
@@ -135,27 +131,20 @@ class _CallButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => CupertinoButton(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    color: color,
-    borderRadius: BorderRadius.circular(14),
-    onPressed: onTap,
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 18, color: CupertinoColors.white),
-        const SizedBox(width: 7),
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppText.mediumTextStyle.copyWith(
-              color: CupertinoColors.white,
-            ),
-          ),
-        ),
-      ],
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    child: CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      onPressed: onTap,
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 28, color: CupertinoColors.white),
+      ),
     ),
   );
 }
