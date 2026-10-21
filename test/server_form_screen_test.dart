@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/server_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
@@ -13,6 +16,20 @@ import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _Roles implements RoleMemberRepository {
+  @override
+  Future<Either<Failure, List<RoleMember>>> get(
+    int entityId,
+    EntityType entityType,
+  ) async => const Right([
+    RoleMember(id: 3, name: 'Участник', emoji: '⭐'),
+    RoleMember(id: 7, name: 'Модератор'),
+  ]);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class _Servers implements ServerRepository {
   List<Server> cached = [];
@@ -29,6 +46,8 @@ class _Servers implements ServerRepository {
   int? savedCanInvite;
   int? savedPrivate;
   ServerType? savedCategory;
+  int? savedMainRoleId;
+  bool savedClearMainRole = false;
 
   @override
   Future<Either<Failure, Server>> create(
@@ -59,9 +78,13 @@ class _Servers implements ServerRepository {
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,
+    int? fkMainRole,
+    bool isSetNullMainRole = false,
     File? avatar,
   }) async {
     _save(id, name, canInvite, isPrivate, category);
+    savedMainRoleId = fkMainRole;
+    savedClearMainRole = isSetNullMainRole;
     return Right(
       Server(
         id: id,
@@ -88,7 +111,11 @@ class _Servers implements ServerRepository {
   }
 
   @override
-  Future<Either<Failure, List<Server>>> get() async => Right(cached);
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  }) async => Right(cached);
   @override
   List<Server> getCached() => cached;
   @override
@@ -112,6 +139,7 @@ Future<({ServersBloc bloc, WsEventBus bus, _Servers repository})> _pump(
   final bus = WsEventBus();
   final bloc = ServersBloc(repository, bus);
   sl.registerSingleton<ServerRepository>(repository);
+  sl.registerSingleton<RoleMemberRepository>(_Roles());
   await tester.pumpWidget(
     BlocProvider.value(
       value: bloc,
@@ -203,6 +231,8 @@ void main() {
             .value,
         isFalse,
       );
+      await tester.drag(find.byType(ListView).last, const Offset(0, -160));
+      await tester.pump(const Duration(milliseconds: 300));
       expect(
         tester
             .widget<CupertinoSwitch>(
@@ -230,4 +260,67 @@ void main() {
       });
     },
   );
+
+  testWidgets('основную роль можно выбрать и сбросить при редактировании', (
+    tester,
+  ) async {
+    final setup = await _pump(
+      tester,
+      server: const Server(
+        id: 4,
+        name: 'Сервер',
+        fkMainRole: 7,
+        mainRole: RoleMember(id: 7, name: 'Модератор'),
+      ),
+    );
+    expect(find.text('Модератор'), findsOneWidget);
+    final picker = find.byKey(const ValueKey('server_main_role_picker'));
+    final chevron = find.descendant(
+      of: picker,
+      matching: find.byIcon(CupertinoIcons.chevron_down),
+    );
+    expect(
+      tester.getTopRight(chevron).dx,
+      closeTo(tester.getTopRight(picker).dx - 14, 1),
+    );
+    await tester.tap(find.byKey(const ValueKey('server_main_role_picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('main_role_3')));
+    await tester.pumpAndSettle();
+    expect(find.text('Участник'), findsOneWidget);
+    await tester.tap(find.text('Сохранить').last);
+    await tester.pumpAndSettle();
+    expect(setup.repository.savedMainRoleId, 3);
+    expect(setup.repository.savedClearMainRole, isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await setup.bloc.close();
+      setup.bus.dispose();
+      await sl.reset();
+    });
+
+    final clearSetup = await _pump(
+      tester,
+      server: const Server(
+        id: 4,
+        name: 'Сервер',
+        fkMainRole: 7,
+        mainRole: RoleMember(id: 7, name: 'Модератор'),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('server_main_role_picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('main_role_none')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить').last);
+    await tester.pumpAndSettle();
+    expect(clearSetup.repository.savedMainRoleId, isNull);
+    expect(clearSetup.repository.savedClearMainRole, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await clearSetup.bloc.close();
+      clearSetup.bus.dispose();
+      await sl.reset();
+    });
+  });
 }

@@ -14,6 +14,9 @@ class ChatHeader extends StatelessWidget {
   final bool isReconnect;
   final VoidCallback? onTap;
   final VoidCallback? onSearchTap;
+  final VoidCallback? onCallTap;
+  final bool hasActiveCall;
+  final bool isCurrentCall;
 
   const ChatHeader({
     super.key,
@@ -21,6 +24,9 @@ class ChatHeader extends StatelessWidget {
     required this.isReconnect,
     this.onTap,
     this.onSearchTap,
+    this.onCallTap,
+    this.hasActiveCall = false,
+    this.isCurrentCall = false,
   });
 
   @override
@@ -134,10 +140,10 @@ class ChatHeader extends StatelessWidget {
 
           if (chat.isSoloChat == false) ...[
             GlassIconButton(
-              icon: CupertinoIcons.phone_fill,
-              onTap: () {
-                // TODO: Инициализация LiveKit для аудио/видео звонков
-              },
+              icon: isCurrentCall
+                  ? CupertinoIcons.arrow_up_left_arrow_down_right
+                  : CupertinoIcons.phone_fill,
+              onTap: hasActiveCall && !isCurrentCall ? null : onCallTap,
               size: 36,
             ),
           ],

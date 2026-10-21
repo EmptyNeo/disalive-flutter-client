@@ -59,6 +59,7 @@ class HttpClientService {
         response: response,
         fromJson: fromJson,
         endpoint: endpoint,
+        requireAuth: requireAuth,
         onUnauthorized: onUnauthorized,
         errorMessage: errorMessage,
       );
@@ -123,6 +124,7 @@ class HttpClientService {
         response: response,
         fromJson: fromJson,
         endpoint: endpoint,
+        requireAuth: requireAuth,
         onUnauthorized: onUnauthorized,
         errorMessage: errorMessage,
       );
@@ -166,6 +168,7 @@ class HttpClientService {
         response: response,
         fromJson: fromJson,
         endpoint: endpoint,
+        requireAuth: requireAuth,
         onUnauthorized: onUnauthorized,
         errorMessage: errorMessage,
       );
@@ -178,6 +181,7 @@ class HttpClientService {
     required http.Response response,
     required T Function(dynamic json) fromJson,
     required String endpoint,
+    required bool requireAuth,
     VoidCallback? onUnauthorized,
     String? errorMessage,
   }) {
@@ -195,6 +199,9 @@ class HttpClientService {
         final error = jsonResponse['error'].toString();
 
         if (response.statusCode == 401 || response.statusCode == 403) {
+          if (!requireAuth) {
+            return Left(ClientFailure(error));
+          }
           if (onUnauthorized != null) {
             onUnauthorized();
           }

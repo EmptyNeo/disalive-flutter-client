@@ -15,9 +15,21 @@ class ServerRepositoryImpl implements ServerRepository {
   int? _selectedServerId;
 
   @override
-  Future<Either<Failure, List<Server>>> get() async {
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  }) async {
+    final search = query?.trim();
     final result = await _httpClient.postFormData<List<Server>>(
       endpoint: 'servers/get.php',
+      data: isPublic
+          ? {
+              'public': 1,
+              'category': ?category?.value,
+              if (search != null && search.isNotEmpty) 'query': search,
+            }
+          : null,
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) => (json as List)
@@ -25,7 +37,9 @@ class ServerRepositoryImpl implements ServerRepository {
           .toList(),
     );
 
-    result.fold((failure) => null, (servers) => _servers = servers);
+    if (!isPublic) {
+      result.fold((failure) => null, (servers) => _servers = servers);
+    }
     return result;
   }
 
@@ -80,6 +94,8 @@ class ServerRepositoryImpl implements ServerRepository {
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,
+    int? fkMainRole,
+    bool isSetNullMainRole = false,
     File? avatar,
   }) async {
     final data = <String, dynamic>{
@@ -90,6 +106,7 @@ class ServerRepositoryImpl implements ServerRepository {
       'category': ?category?.value,
       'fkMainChannel': ?fkMainChannel,
       if (isSetNullMainChannel) 'isSetNullMainChannel': 1,
+      if (isSetNullMainRole) 'fkMainRole': '' else 'fkMainRole': ?fkMainRole,
     };
 
     final result = avatar == null

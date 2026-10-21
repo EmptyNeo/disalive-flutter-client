@@ -1,5 +1,6 @@
 // lib/domain/models/server.dart
 import 'package:disalive/domain/enums/server_type.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:equatable/equatable.dart';
 
 class Server extends Equatable {
@@ -11,8 +12,11 @@ class Server extends Equatable {
   final int? private;
   final ServerType? category;
   final int? fkMainChannel;
+  final int? fkMainRole;
+  final RoleMember? mainRole;
   final bool? isBlocked;
   final int? memberCount;
+  final int? memberId;
   final int? onlineMemberCount;
   final int? newMessagesCount;
   final List<int>? channelChatIds;
@@ -31,8 +35,11 @@ class Server extends Equatable {
     this.private,
     this.category,
     this.fkMainChannel,
+    this.fkMainRole,
+    this.mainRole,
     this.isBlocked,
     this.memberCount,
+    this.memberId,
     this.onlineMemberCount,
     this.newMessagesCount,
     this.channelChatIds,
@@ -45,11 +52,17 @@ class Server extends Equatable {
 
   factory Server.fromMap(Map<String, dynamic> map) {
     Map<String, bool>? permissions;
-    if (map['permissions'] != null) {
-      final perms = map['permissions'] as Map<String, dynamic>;
-      permissions = perms.map(
-        (key, value) => MapEntry(key, value == true || value == 1),
+    final rawPermissions = map['permissions'];
+    if (rawPermissions is Map) {
+      permissions = rawPermissions.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          value == true || value == 1 || value == '1',
+        ),
       );
+    } else if (rawPermissions is List && rawPermissions.isEmpty) {
+      // PHP сериализует пустой массив прав как [], а не как {}.
+      permissions = const {};
     }
 
     List<int>? channelChatIds;
@@ -70,8 +83,19 @@ class Server extends Equatable {
           ? null
           : ServerType.fromString(map['category'] as String?),
       fkMainChannel: map['fkMainChannel'],
+      fkMainRole: map['fkMainRole'] is int
+          ? map['fkMainRole'] as int
+          : int.tryParse(map['fkMainRole']?.toString() ?? ''),
+      mainRole: map['mainRole'] is Map
+          ? RoleMember.fromMap(
+              Map<String, dynamic>.from(map['mainRole'] as Map),
+            )
+          : null,
       isBlocked: map['isBlocked'],
       memberCount: map['memberCount'],
+      memberId: map['memberId'] is int
+          ? map['memberId'] as int
+          : int.tryParse(map['memberId']?.toString() ?? ''),
       onlineMemberCount: map['onlineMemberCount'],
       newMessagesCount: map['newMessagesCount'],
       channelChatIds: channelChatIds,
@@ -93,8 +117,11 @@ class Server extends Equatable {
       if (private != null) 'private': private,
       if (category != null) 'category': category!.value,
       if (fkMainChannel != null) 'fkMainChannel': fkMainChannel,
+      'fkMainRole': fkMainRole,
+      'mainRole': mainRole?.toMap(),
       if (isBlocked != null) 'isBlocked': isBlocked,
       if (memberCount != null) 'memberCount': memberCount,
+      if (memberId != null) 'memberId': memberId,
       if (onlineMemberCount != null) 'onlineMemberCount': onlineMemberCount,
       if (newMessagesCount != null) 'newMessagesCount': newMessagesCount,
       if (channelChatIds != null) 'channelChatIds': channelChatIds,
@@ -115,8 +142,11 @@ class Server extends Equatable {
     int? private,
     ServerType? category,
     int? fkMainChannel,
+    int? fkMainRole,
+    RoleMember? mainRole,
     bool? isBlocked,
     int? memberCount,
+    int? memberId,
     int? onlineMemberCount,
     int? newMessagesCount,
     List<int>? channelChatIds,
@@ -135,8 +165,11 @@ class Server extends Equatable {
       private: private ?? this.private,
       category: category ?? this.category,
       fkMainChannel: fkMainChannel ?? this.fkMainChannel,
+      fkMainRole: fkMainRole ?? this.fkMainRole,
+      mainRole: mainRole ?? this.mainRole,
       isBlocked: isBlocked ?? this.isBlocked,
       memberCount: memberCount ?? this.memberCount,
+      memberId: memberId ?? this.memberId,
       onlineMemberCount: onlineMemberCount ?? this.onlineMemberCount,
       newMessagesCount: newMessagesCount ?? this.newMessagesCount,
       channelChatIds: channelChatIds ?? this.channelChatIds,
@@ -170,8 +203,11 @@ class Server extends Equatable {
     private,
     category,
     fkMainChannel,
+    fkMainRole,
+    mainRole,
     isBlocked,
     memberCount,
+    memberId,
     onlineMemberCount,
     newMessagesCount,
     channelChatIds,

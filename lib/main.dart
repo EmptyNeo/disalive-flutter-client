@@ -105,6 +105,8 @@ class _DisaliveAppState extends State<DisaliveApp> {
       child: BlocBuilder<ThemeCubit, ThemeState>(
         builder: (context, themeState) {
           return BlocBuilder<AuthBloc, AuthState>(
+            buildWhen: (_, state) =>
+                state is AuthAuthenticated || state is AuthUnauthenticated,
             builder: (context, authState) {
               if (authState is AuthAuthenticated) {
                 _scheduleProfileNavigation();

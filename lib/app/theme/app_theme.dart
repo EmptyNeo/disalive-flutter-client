@@ -12,6 +12,7 @@ class AppColors {
 
   // Текущий режим темы (по умолчанию темная)
   static bool _isDarkMode = true;
+  static bool _isAmoled = false;
 
   // Цвета для темной темы
   static const Color _darkDark = Color(0xFF141318);
@@ -24,7 +25,15 @@ class AppColors {
   static const Color _darkIconGrey = Color(0xFFC6C7CC);
   static const Color _darkGreyple = Color(0xFF82858E);
 
+  static const Color _amoledBackground = Color(0xFF000000);
+  static const Color _amoledMainGrey = Color(0xFF0A0A0C);
+  static const Color _amoledActionGrey = Color(0xFF151518);
+  static const Color _amoledLightGrey = Color(0xFF101013);
+  static const Color _amoledDarkGrey = Color(0xFF1C1C20);
+  static const Color _amoledDivider = Color(0xFF2B2B30);
+
   static const Color _darkHighlight = Color(0x330E6EE2);
+  static const Color darkHighlight = _darkHighlight;
 
   // Цвета для светлой темы
   static const Color _lightDark = Color(0xFFE3E5E8); // Сайдбар серверов (Light)
@@ -53,25 +62,35 @@ class AppColors {
   static const Color gold = Color(0xFFFAA61A); // Discord-стиль золотой
 
   // Динамические цвета (возвращают значение в зависимости от темы)
-  static Color get dark => _isDarkMode ? _darkDark : _lightDark;
+  static Color get dark =>
+      _isAmoled ? _amoledBackground : (_isDarkMode ? _darkDark : _lightDark);
 
   static Color get highlight => _isDarkMode ? _darkHighlight : _lightHighlight;
 
   static Color get onBlurple => CupertinoColors.white;
 
-  static Color get mainBackground =>
-      _isDarkMode ? _darkMainBackground : _lightMainBackground;
+  static Color get mainBackground => _isAmoled
+      ? _amoledBackground
+      : (_isDarkMode ? _darkMainBackground : _lightMainBackground);
 
-  static Color get mainGrey => _isDarkMode ? _darkMainGrey : _lightMainGrey;
+  static Color get mainGrey => _isAmoled
+      ? _amoledMainGrey
+      : (_isDarkMode ? _darkMainGrey : _lightMainGrey);
 
-  static Color get actionGrey =>
-      _isDarkMode ? _darkActionGrey : _lightActionGrey;
+  static Color get actionGrey => _isAmoled
+      ? _amoledActionGrey
+      : (_isDarkMode ? _darkActionGrey : _lightActionGrey);
 
-  static Color get lightGrey => _isDarkMode ? _darkLightGrey : _lightLightGrey;
+  static Color get lightGrey => _isAmoled
+      ? _amoledLightGrey
+      : (_isDarkMode ? _darkLightGrey : _lightLightGrey);
 
-  static Color get darkGrey => _isDarkMode ? _darkDarkGrey : _lightDarkGrey;
+  static Color get darkGrey => _isAmoled
+      ? _amoledDarkGrey
+      : (_isDarkMode ? _darkDarkGrey : _lightDarkGrey);
 
-  static Color get divider => _isDarkMode ? _darkDivider : _lightDivider;
+  static Color get divider =>
+      _isAmoled ? _amoledDivider : (_isDarkMode ? _darkDivider : _lightDivider);
 
   static Color get iconGrey => _isDarkMode ? _darkIconGrey : _lightIconGrey;
 
@@ -86,8 +105,9 @@ class AppColors {
   static Color get grey => _isDarkMode ? Color(0xFF9E9E9E) : Color(0xFF757575);
 
   // Метод для обновления темы
-  static void setThemeMode(bool isDarkMode) {
+  static void setThemeMode(bool isDarkMode, {bool isAmoled = false}) {
     _isDarkMode = isDarkMode;
+    _isAmoled = isDarkMode && isAmoled;
   }
 
   // Метод для получения текущего режима
@@ -104,14 +124,17 @@ class AppColors {
 
   // 🎯 Адаптивные цвета для стеклянных панелей (Glassmorphism)
   // В светлой теме используем чистый белый и очень светлый серый для имитации нативного iOS-блюра
-  static Color get glassPanelTop =>
-      _isDarkMode ? const Color(0xFF2F3135) : const Color(0xFFFFFFFF);
+  static Color get glassPanelTop => _isAmoled
+      ? _amoledActionGrey
+      : (_isDarkMode ? const Color(0xFF2F3135) : const Color(0xFFFFFFFF));
 
-  static Color get glassPanelBottom =>
-      _isDarkMode ? const Color(0xFF2C2F33) : const Color(0xFFF2F3F5);
+  static Color get glassPanelBottom => _isAmoled
+      ? _amoledMainGrey
+      : (_isDarkMode ? const Color(0xFF2C2F33) : const Color(0xFFF2F3F5));
 
-  static Color get glassPanelPressed =>
-      _isDarkMode ? const Color(0xFF404348) : const Color(0xFFE3E5E8);
+  static Color get glassPanelPressed => _isAmoled
+      ? _amoledDarkGrey
+      : (_isDarkMode ? const Color(0xFF404348) : const Color(0xFFE3E5E8));
 }
 
 class AppText {
@@ -134,8 +157,8 @@ class AppTheme {
     brightness: Brightness.dark,
     primaryColor: AppColors.blurple,
     primaryContrastingColor: AppColors.onBlurple,
-    scaffoldBackgroundColor: AppColors.mainBackground,
-    barBackgroundColor: AppColors.mainBackground,
+    scaffoldBackgroundColor: AppColors._darkMainBackground,
+    barBackgroundColor: AppColors._darkMainBackground,
     textTheme: CupertinoTextThemeData(
       primaryColor: AppColors.blurple,
       textStyle: AppText.mediumTextStyle.copyWith(color: AppColors.white),
@@ -159,6 +182,11 @@ class AppTheme {
         color: AppColors.white,
       ),
     ),
+  );
+
+  static final CupertinoThemeData amoledTheme = darkTheme.copyWith(
+    scaffoldBackgroundColor: AppColors._amoledBackground,
+    barBackgroundColor: AppColors._amoledBackground,
   );
 
   static final CupertinoThemeData lightTheme = CupertinoThemeData(

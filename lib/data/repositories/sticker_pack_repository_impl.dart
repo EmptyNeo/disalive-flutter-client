@@ -44,7 +44,7 @@ class StickerPackRepositoryImpl extends StickerPackRepository {
     int take,
   ) async {
     StickerPack? stickerPack = _packs.where((p) => p.id == packId).firstOrNull;
-    if (stickerPack != null) {
+    if (stickerPack?.attachments != null) {
       return Right(stickerPack);
     }
 

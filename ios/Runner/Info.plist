@@ -4,6 +4,10 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Камера нужна для видеозвонков.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Микрофон нужен для голосовых звонков.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Disalive</string>
 	<key>FlutterDeepLinkingEnabled</key>

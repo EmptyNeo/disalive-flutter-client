@@ -33,7 +33,11 @@ class _FakeServerRepository implements ServerRepository {
   void selectServer(int? serverId) => _selectedServerId = serverId;
 
   @override
-  Future<Either<Failure, List<Server>>> get() async {
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  }) async {
     servers = [
       const Server(id: 1, name: 'Original', fkOwner: 9, newMessagesCount: 5),
     ];
@@ -70,7 +74,11 @@ class _DelayedServerRepository extends _FakeServerRepository {
   final Completer<void> release = Completer<void>();
 
   @override
-  Future<Either<Failure, List<Server>>> get() async {
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  }) async {
     await release.future;
     servers = [const Server(id: 1, name: 'Stale response')];
     return Right(List<Server>.from(servers));
@@ -94,6 +102,55 @@ class _CachedChannels implements ChannelServerRepository {
 }
 
 void main() {
+  test('new channel message increments server unread count', () async {
+    await sl.reset();
+    sl.registerSingleton<ChannelServerRepository>(_CachedChannels());
+    final repository = _FakeServerRepository();
+    final bus = WsEventBus();
+    final bloc = ServersBloc(repository, bus);
+    bloc.add(const GetServers());
+    await bloc.stream.firstWhere((state) => state is ServersLoaded);
+
+    final added = bloc.stream.firstWhere(
+      (state) =>
+          state is ServersLoaded && state.servers.first.newMessagesCount == 6,
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'Message',
+        action: ActionType.create,
+        data: {
+          'message': {'id': 50, 'chatId': 90},
+        },
+        isSelf: false,
+      ),
+    );
+    await added;
+
+    final read = bloc.stream.firstWhere(
+      (state) =>
+          state is ServersLoaded && state.servers.first.newMessagesCount == 2,
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'ChatMembers',
+        action: ActionType.update,
+        data: {
+          'entityId': 1,
+          'entityType': 'server',
+          'chatId': 90,
+          'isSelf': true,
+          'member': {'lastIdReadMessage': 50},
+        },
+        isSelf: true,
+      ),
+    );
+    await read;
+    await bloc.close();
+    bus.dispose();
+    await sl.reset();
+  });
+
   test('server member update changes mute and reduces unread count', () async {
     await sl.reset();
     sl.registerSingleton<ChannelServerRepository>(_CachedChannels());
@@ -302,7 +359,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(ServerItem), findsNWidgets(3));
+    expect(find.byType(ServerItem), findsNWidgets(4));
+    expect(find.byKey(const ValueKey('discover_servers_item')), findsOneWidget);
     expect(find.text('O'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
 

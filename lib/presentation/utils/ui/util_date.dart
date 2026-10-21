@@ -3,42 +3,31 @@ class UtilDate {
   UtilDate._();
 
   static String formatTime(String? createdAt) {
-    if (createdAt == null) return '';
-
-    final normalized = createdAt.contains('T')
-        ? createdAt
-        : createdAt.replaceFirst(' ', 'T');
-
-    final utcTime = DateTime.tryParse('${normalized}Z');
-    if (utcTime == null) return '';
-
-    final local = utcTime.toLocal();
+    final local = parseDateTime(createdAt);
+    if (local == null) return '';
     final hh = local.hour.toString().padLeft(2, '0');
     final mm = local.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
   }
 
   /// Парсит бэкендовую строку времени ("2026-08-20 21:24:36" и т.п.) в
-  /// [DateTime] (локальное время). Возвращает null, если строка пустая или
-  /// не парсится. Вынесено отдельно, чтобы форматирование для UI и
-  /// сортировка по времени последнего сообщения использовали один и тот же
-  /// парсинг и не расходились в трактовке формата.
+  /// [DateTime] (локальное время). Строки без часового пояса считаются UTC.
+  /// Возвращает null, если строка пустая или не парсится. Вынесено отдельно,
+  /// чтобы форматирование и сортировка одинаково трактовали время сервера.
   static DateTime? parseDateTime(String? raw) {
     if (raw == null || raw.isEmpty) return null;
     final normalized = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
     final date = DateTime.tryParse(normalized);
-    return date?.toLocal();
+    if (date == null) return null;
+    // Бэкенд передаёт UTC без суффикса зоны. Явное смещение сохраняем.
+    return (date.isUtc ? date : DateTime.tryParse('${normalized}Z'))?.toLocal();
   }
 
   static String? formatDayTime(String? raw, bool dayLabel) {
     if (raw == null || raw.isEmpty) return null;
 
-    final normalized = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
-    final date = DateTime.tryParse(normalized);
-
-    if (date == null) return raw;
-
-    final local = date.toLocal();
+    final local = parseDateTime(raw);
+    if (local == null) return raw;
 
     final now = DateTime.now();
 
@@ -53,7 +42,7 @@ class UtilDate {
       return '${two(local.hour)}:${two(local.minute)}';
     }
 
-    final yesterday = now.subtract(const Duration(days: 1));
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
     final isYesterday =
         local.year == yesterday.year &&
         local.month == yesterday.month &&
@@ -67,5 +56,4 @@ class UtilDate {
   }
 
   static String two(int value) => value.toString().padLeft(2, '0');
-
 }

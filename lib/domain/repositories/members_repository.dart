@@ -3,8 +3,11 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/server.dart';
 
 abstract class MembersRepository {
+  Future<Either<Failure, Server>> create(int entityId, EntityType entityType);
+
   Future<Either<Failure, List<Member>>> get(
     int entityId,
     EntityType entityType,

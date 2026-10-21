@@ -36,15 +36,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _currentFcmToken;
 
+  bool get _credentialsValid {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    return email.isNotEmpty && email.contains('@') && password.length >= 6;
+  }
+
   @override
   void initState() {
     super.initState();
+    _emailController.addListener(_onCredentialsChanged);
+    _passwordController.addListener(_onCredentialsChanged);
     _emailFocus.addListener(() => setState(() {}));
     _passwordFocus.addListener(() => setState(() {}));
   }
 
+  void _onCredentialsChanged() => setState(() {});
+
   @override
   void dispose() {
+    _emailController.removeListener(_onCredentialsChanged);
+    _passwordController.removeListener(_onCredentialsChanged);
     _emailController.dispose();
     _passwordController.dispose();
     _emailFocus.dispose();
@@ -63,8 +75,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    if (password.isEmpty) {
-      CustomToast.open(context: context, message: 'Введите пароль');
+    if (!email.contains('@')) {
+      CustomToast.open(context: context, message: 'Введите корректный email');
+      return;
+    }
+
+    if (password.length < 6) {
+      CustomToast.open(
+        context: context,
+        message: 'Пароль должен содержать не менее 6 символов',
+      );
       return;
     }
 
@@ -356,7 +376,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: CupertinoButton.filled(
-                                      onPressed: state is AuthLoading
+                                      onPressed:
+                                          state is AuthLoading ||
+                                              !_credentialsValid
                                           ? null
                                           : _handleLogin,
                                       color: AppColors.blurple,

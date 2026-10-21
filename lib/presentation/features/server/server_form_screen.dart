@@ -4,10 +4,15 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/enums/server_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_screen_shell.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
+import 'package:disalive/presentation/features/server/widgets/server_main_role_sheet.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/app_selection_sheet.dart';
@@ -43,6 +48,9 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
   late bool _canInvite;
   late bool _isPrivate;
   File? _avatar;
+  int? _mainRoleId;
+  RoleMember? _mainRole;
+  bool _choosingRole = false;
   bool _submitting = false;
 
   bool get _isEditing => widget.server != null;
@@ -66,6 +74,8 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     _category = widget.server?.category ?? ServerType.none;
     _canInvite = (widget.server?.canInvite ?? 1) == 1;
     _isPrivate = widget.server?.isPrivate ?? false;
+    _mainRoleId = widget.server?.fkMainRole;
+    _mainRole = widget.server?.mainRole;
   }
 
   @override
@@ -112,6 +122,34 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     ServerType.sports => CupertinoIcons.sportscourt,
   };
 
+  Future<void> _chooseMainRole() async {
+    final serverId = widget.server?.id;
+    if (serverId == null || _choosingRole) return;
+    setState(() => _choosingRole = true);
+    final result = await sl<RoleMemberRepository>().get(
+      serverId,
+      EntityType.server,
+    );
+    if (!mounted) return;
+    setState(() => _choosingRole = false);
+    await result.fold(
+      (failure) async =>
+          CustomToast.open(context: context, message: failure.message),
+      (roles) async {
+        final selectedId = await ServerMainRoleSheet.show(
+          context,
+          roles: roles,
+          selectedRoleId: _mainRoleId,
+        );
+        if (!mounted || selectedId == null) return;
+        setState(() {
+          _mainRoleId = selectedId == 0 ? null : selectedId;
+          _mainRole = roles.where((role) => role.id == _mainRoleId).firstOrNull;
+        });
+      },
+    );
+  }
+
   Future<void> _submit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty || _submitting) return;
@@ -124,6 +162,8 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             canInvite: _canInvite ? 1 : 0,
             isPrivate: _isPrivate ? 1 : 0,
             category: _category,
+            fkMainRole: _mainRoleId,
+            isSetNullMainRole: _mainRoleId == null,
             avatar: _avatar,
           )
         : await repository.create(
@@ -275,6 +315,72 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
           ),
         ),
         const SizedBox(height: 18),
+        if (_isEditing) ...[
+          _sectionTitle('Основная роль'),
+          const SizedBox(height: 8),
+          CupertinoButton(
+            key: const ValueKey('server_main_role_picker'),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            color: AppColors.actionGrey,
+            borderRadius: BorderRadius.circular(13),
+            onPressed: _choosingRole ? null : _chooseMainRole,
+            child: Row(
+              children: [
+                Icon(
+                  CupertinoIcons.shield_lefthalf_fill,
+                  color: AppColors.iconGrey,
+                  size: 21,
+                ),
+                const SizedBox(width: 11),
+                if (_mainRoleId == null)
+                  Expanded(
+                    child: Text(
+                      'Без основной роли',
+                      style: TextStyle(color: AppColors.white),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (_mainRole?.name?.trim().isNotEmpty == true)
+                          Flexible(
+                            child: Text(
+                              _mainRole!.name!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: AppColors.white),
+                            ),
+                          )
+                        else if (_mainRole?.emoji?.isNotEmpty != true)
+                          Flexible(
+                            child: Text(
+                              'Роль #$_mainRoleId',
+                              style: TextStyle(color: AppColors.white),
+                            ),
+                          ),
+                        if (_mainRole?.emoji?.isNotEmpty == true) ...[
+                          if (_mainRole?.name?.trim().isNotEmpty == true)
+                            const SizedBox(width: 7),
+                          RoleEmoji(_mainRole!.emoji),
+                        ],
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                if (_choosingRole)
+                  const CupertinoActivityIndicator()
+                else
+                  Icon(
+                    CupertinoIcons.chevron_down,
+                    color: AppColors.greyple,
+                    size: 17,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
         _setting(
           key: const ValueKey('server_can_invite_switch'),
           title: 'Разрешить приглашения пользователей на сервер',

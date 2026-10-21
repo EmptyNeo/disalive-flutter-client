@@ -6,12 +6,15 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/category_channel.dart';
+import 'package:disalive/domain/models/call_data.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
+import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
@@ -27,6 +30,17 @@ import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _Calls implements CallsRepository {
+  @override
+  Future<Either<Failure, CallParticipants>> getParticipants({
+    required EntityKey entityKey,
+    int? chatId,
+  }) async => const Right(CallParticipants({}));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 class _Channels implements ChannelServerRepository {
   _Channels(this.source);
@@ -210,6 +224,8 @@ class _ServerRepository implements ServerRepository {
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,
+    int? fkMainRole,
+    bool isSetNullMainRole = false,
     File? avatar,
   }) async {
     updatedMainChannel = fkMainChannel;
@@ -245,6 +261,7 @@ Future<void> _pumpSidebar(
 }) async {
   await sl.reset();
   sl.registerSingleton<WsEventBus>(WsEventBus());
+  sl.registerSingleton<CallsRepository>(_Calls());
   sl.registerSingleton<ChannelServerRepository>(_Channels(channels));
   sl.registerSingleton<CategoryChannelRepository>(_Categories(categories));
   await tester.pumpWidget(
@@ -276,6 +293,7 @@ void main() {
     final repository = _ServerRepository();
     final bloc = ServersBloc(repository, bus);
     sl.registerSingleton<WsEventBus>(bus);
+    sl.registerSingleton<CallsRepository>(_Calls());
     sl.registerSingleton<ServerRepository>(repository);
     sl.registerSingleton<ChannelServerRepository>(
       _Channels(const [

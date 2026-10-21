@@ -57,3 +57,20 @@ class ServerChannelReadUpdated extends ChannelServerEvent {
     newMessagesCount,
   ];
 }
+
+class ServerChannelMessageAdded extends ChannelServerEvent {
+  const ServerChannelMessageAdded(
+    this.serverId,
+    this.chatId,
+    this.messageId,
+    this.isSelf,
+  );
+
+  final int serverId;
+  final int chatId;
+  final int messageId;
+  final bool isSelf;
+
+  @override
+  List<Object?> get props => [serverId, chatId, messageId, isSelf];
+}

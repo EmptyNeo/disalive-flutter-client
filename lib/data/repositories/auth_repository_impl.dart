@@ -8,8 +8,14 @@ import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  final HttpClientService _httpClient = sl<HttpClientService>();
-  final SecureStorageService _secureStorage = sl<SecureStorageService>();
+  final HttpClientService _httpClient;
+  final SecureStorageService _secureStorage;
+
+  AuthRepositoryImpl({
+    HttpClientService? httpClient,
+    SecureStorageService? secureStorage,
+  }) : _httpClient = httpClient ?? sl<HttpClientService>(),
+       _secureStorage = secureStorage ?? sl<SecureStorageService>();
 
   @override
   Future<Either<Failure, AppLogin>> login(
@@ -30,11 +36,19 @@ class AuthRepositoryImpl implements AuthRepository {
       },
     );
 
-    result.fold((failure) => null, (appLogin) {
-      if (appLogin.keySession.isNotEmpty) {
-        _secureStorage.saveKeySession(appLogin.keySession);
+    final appLogin = result.fold((failure) => null, (value) => value);
+    if (appLogin != null) {
+      if (!appLogin.requireTotp && appLogin.keySession.isEmpty) {
+        return const Left(ParsingFailure('Ключ сессии отсутствует в ответе'));
       }
-    });
+      if (appLogin.keySession.isNotEmpty) {
+        try {
+          await _secureStorage.saveKeySession(appLogin.keySession);
+        } catch (_) {
+          return const Left(CacheFailure('Не удалось сохранить сессию'));
+        }
+      }
+    }
 
     return result;
   }
@@ -70,11 +84,17 @@ class AuthRepositoryImpl implements AuthRepository {
       },
     );
 
-    result.fold((failure) => null, (appLogin) {
-      if (appLogin.keySession.isNotEmpty) {
-        _secureStorage.saveKeySession(appLogin.keySession);
+    final appLogin = result.fold((failure) => null, (value) => value);
+    if (appLogin != null) {
+      if (appLogin.keySession.isEmpty) {
+        return const Left(ParsingFailure('Ключ сессии отсутствует в ответе'));
       }
-    });
+      try {
+        await _secureStorage.saveKeySession(appLogin.keySession);
+      } catch (_) {
+        return const Left(CacheFailure('Не удалось сохранить сессию'));
+      }
+    }
 
     return result;
   }

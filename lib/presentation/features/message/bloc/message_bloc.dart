@@ -4,7 +4,6 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
-import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/history_action.dart';
@@ -15,6 +14,7 @@ import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:flutter/cupertino.dart';
 
 part 'message_event.dart';
@@ -33,6 +33,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
   StreamSubscription? _reactionCreateSubscription;
   StreamSubscription? _reactionDeleteSubscription;
+  final Map<int, List<List<Message>>> _messagesDuringLoad = {};
 
   final String tableName = 'Message';
   final String reactionTableName = 'ReactionsMessage';
@@ -86,11 +87,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   void _onWsCreateEvent(WsEvent event) {
-    final messageData = event.data['message'];
-    if (messageData is! Map<String, dynamic>) return;
-
-    final message = Message.fromMap(messageData);
-    final chatId = message.chatId ?? 0;
+    final message = _messageFromWs(event);
+    final chatId = message?.chatId;
+    if (message == null || chatId == null) return;
+    for (final pending
+        in _messagesDuringLoad[chatId] ?? const <List<Message>>[]) {
+      pending.add(message);
+    }
 
     add(
       CreateMessage(
@@ -105,11 +108,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   void _onWsUpdateEvent(WsEvent event) {
-    final messageData = event.data['message'];
-    if (messageData is! Map<String, dynamic>) return;
-
-    final message = Message.fromMap(messageData);
-    final chatId = message.chatId ?? 0;
+    final message = _messageFromWs(event);
+    final chatId = message?.chatId;
+    if (message == null || chatId == null) return;
 
     add(
       UpdateMessage(
@@ -123,8 +124,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   void _onWsDeleteEvent(WsEvent event) {
-    final messageId = event.data['messageId'] ?? event.data['id'];
-    final chatId = event.data['chatId'];
+    final messageId = DataParser.parseInt(
+      event.data['messageId'] ?? event.data['id'],
+    );
+    final chatId = DataParser.parseInt(event.data['chatId']);
 
     if (messageId == null || chatId == null) return;
 
@@ -137,6 +140,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         isWs: true,
       ),
     );
+  }
+
+  Message? _messageFromWs(WsEvent event) {
+    final rawMessage = event.data['message'];
+    if (rawMessage is! Map) return null;
+    final data = Map<String, dynamic>.from(rawMessage);
+    final chatId = DataParser.parseInt(data['chatId'] ?? event.data['chatId']);
+    final id = DataParser.parseInt(data['id']);
+    if (chatId == null || id == null) return null;
+    data['chatId'] = chatId;
+    data['id'] = id;
+    return Message.fromMap(data);
   }
 
   List<Message> _ensureDescendingOrder(List<Message> messages) {
@@ -165,26 +180,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       if (isAroundLoad) {
         final cachedResponse = _messageRepository.getCached(event.chatId);
         if (cachedResponse != null && cachedResponse.messages.isNotEmpty) {
-          final aroundIndex = cachedResponse.messages.indexWhere(
-            (m) => m.id == event.aroundId,
-          );
-
-          if (aroundIndex != -1) {
-            final halfLimit = event.limit ~/ 2;
-            final start = (aroundIndex - halfLimit).clamp(
-              0,
-              cachedResponse.messages.length,
-            );
-            final end = (aroundIndex + halfLimit + 1).clamp(
-              0,
-              cachedResponse.messages.length,
-            );
-
-            final slicedMessages = cachedResponse.messages.sublist(start, end);
-
+          if (cachedResponse.messages.any((m) => m.id == event.aroundId)) {
             emit(
               MessageLoaded(
-                messages: slicedMessages,
+                messages: _ensureDescendingOrder(cachedResponse.messages),
                 actions: cachedResponse.actions,
                 hasMoreMessages: true,
                 hasNewerMessages: true,
@@ -197,6 +196,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         }
       }
 
+      final pendingMessages = <Message>[];
+      (_messagesDuringLoad[event.chatId] ??= []).add(pendingMessages);
       final result = await _messageRepository.get(
         event.chatId,
         event.entityId,
@@ -207,43 +208,44 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         event.newerThanId,
         event.searchQuery,
       );
+      final activeLoads = _messagesDuringLoad[event.chatId];
+      activeLoads?.remove(pendingMessages);
+      if (activeLoads?.isEmpty ?? false) {
+        _messagesDuringLoad.remove(event.chatId);
+      }
 
       result.fold(
         (failure) {
           emit(MessageFailure(failure));
         },
         (response) {
-          final serverMessages = _ensureDescendingOrder(response.messages);
+          final serverMessages = _ensureDescendingOrder(
+            _removeDuplicates([...response.messages, ...pendingMessages]),
+          );
           List<Message> finalMessages;
 
           if (isAroundLoad) {
-            final targetIndex = serverMessages.indexWhere(
-              (m) => m.id == event.aroundId,
-            );
-
-            if (targetIndex != -1) {
-              final halfLimit = event.limit ~/ 2;
-              final start = (targetIndex - halfLimit).clamp(
-                0,
-                serverMessages.length,
-              );
-              final end = (targetIndex + halfLimit + 1).clamp(
-                0,
-                serverMessages.length,
-              );
-              finalMessages = serverMessages.sublist(start, end);
-            } else {
-              finalMessages = serverMessages.length > event.limit
-                  ? serverMessages.sublist(0, event.limit)
-                  : serverMessages;
-            }
+            finalMessages = serverMessages;
           } else {
             finalMessages = serverMessages.length > event.limit
                 ? serverMessages.sublist(0, event.limit)
                 : serverMessages;
           }
 
-          _messageRepository.cacheMessages(event.chatId, finalMessages);
+          final cachedMessages = isAroundLoad
+              ? _messageRepository.getCached(event.chatId)?.messages ??
+                    const <Message>[]
+              : const <Message>[];
+          _messageRepository.cacheMessages(
+            event.chatId,
+            _ensureDescendingOrder(
+              _removeDuplicates([
+                ...cachedMessages,
+                ...finalMessages,
+                ...pendingMessages,
+              ]),
+            ),
+          );
 
           emit(
             MessageLoaded(
@@ -251,7 +253,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               actions: response.actions,
               hasMoreMessages: isAroundLoad
                   ? true
-                  : (finalMessages.length >= event.limit),
+                  : (response.messages.length >= event.limit),
               hasNewerMessages: isAroundLoad ? true : false,
               isLoadingMore: false,
               isLoadingNewer: false,
@@ -263,6 +265,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     } else {
       final currentState = state;
       if (currentState is MessageLoaded) {
+        if (isOlderLoad &&
+            (currentState.isLoadingMore || !currentState.hasMoreMessages)) {
+          return;
+        }
+        if (isNewerLoad && currentState.isLoadingNewer) return;
         if (isOlderLoad) {
           final cached = _messageRepository.getCached(event.chatId);
           if (cached != null && cached.messages.isNotEmpty) {
@@ -277,17 +284,22 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
             if (olderMessages.isNotEmpty) {
               final merged = [...currentState.messages, ...olderMessages];
-              emit(
-                MessageLoaded(
-                  messages: _removeDuplicates(merged),
-                  actions: currentState.actions,
-                  isLoadingMore: false,
-                  isLoadingNewer: false,
-                  hasMoreMessages: currentState.hasMoreMessages,
-                  hasNewerMessages: currentState.hasNewerMessages,
-                ),
-              );
-              return;
+              final uniqueMessages = _removeDuplicates(merged);
+              final addedCount =
+                  uniqueMessages.length - currentState.messages.length;
+              if (addedCount > 0) {
+                emit(
+                  MessageLoaded(
+                    messages: uniqueMessages,
+                    actions: currentState.actions,
+                    isLoadingMore: false,
+                    isLoadingNewer: false,
+                    hasMoreMessages: currentState.hasMoreMessages,
+                    hasNewerMessages: currentState.hasNewerMessages,
+                  ),
+                );
+                return;
+              }
             }
           }
         }
@@ -363,8 +375,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
                 actions: currentState.actions,
                 isLoadingMore: false,
                 isLoadingNewer: false,
-                hasMoreMessages: currentState.hasMoreMessages,
-                hasNewerMessages: false,
+                hasMoreMessages: isOlderLoad
+                    ? false
+                    : currentState.hasMoreMessages,
+                hasNewerMessages: isNewerLoad
+                    ? false
+                    : currentState.hasNewerMessages,
               ),
             );
             return;
@@ -375,6 +391,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               : [...currentState.messages, ...serverMessages];
 
           final uniqueMessages = _removeDuplicates(mergedMessages);
+          final addedCount =
+              uniqueMessages.length - currentState.messages.length;
           _messageRepository.cacheMessages(event.chatId, uniqueMessages);
 
           emit(
@@ -385,9 +403,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               isLoadingNewer: false,
               hasMoreMessages: isNewerLoad
                   ? currentState.hasMoreMessages
-                  : (serverMessages.length >= event.limit),
+                  : (serverMessages.length >= event.limit && addedCount > 0),
               hasNewerMessages: isNewerLoad
-                  ? (serverMessages.length >= event.limit)
+                  ? (serverMessages.length >= event.limit && addedCount > 0)
                   : currentState.hasNewerMessages,
             ),
           );
@@ -433,8 +451,10 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final message = event.message;
     final chatId = _wsChatId(event);
     final cached = _messageRepository.getCached(chatId);
-    if (cached == null) return;
-    print(event.localGeneratedId);
+    if (cached == null) {
+      _messageRepository.cacheMessages(chatId, [message]);
+      return;
+    }
     final localIndex = cached.messages.indexWhere(
       (m) => m.localGeneratedId == event.localGeneratedId,
     );
@@ -643,16 +663,6 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     for (final message in messages) {
       if (message.id != null) {
         uniqueMap[message.id!] = message;
-      }
-    }
-    return uniqueMap.values.toList();
-  }
-
-  List<HistoryAction> _removeDuplicateActions(List<HistoryAction> actions) {
-    final uniqueMap = <int, HistoryAction>{};
-    for (final action in actions) {
-      if (action.id != null) {
-        uniqueMap[action.id!] = action;
       }
     }
     return uniqueMap.values.toList();
@@ -920,6 +930,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   @override
   Future<void> close() {
     closeSubs();
+    _messagesDuringLoad.clear();
     _messageRepository.clearAllCache();
     return super.close();
   }

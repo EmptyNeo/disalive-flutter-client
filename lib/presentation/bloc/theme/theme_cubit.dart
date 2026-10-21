@@ -74,7 +74,7 @@ class ThemeCubit extends Cubit<ThemeState> {
 
   // 🎯 Вспомогательный метод для применения темы
   void _applyTheme(AppThemeMode mode, bool isDark) {
-    AppColors.setThemeMode(isDark); // Твой существующий метод
+    AppColors.setThemeMode(isDark, isAmoled: mode == AppThemeMode.amoled);
 
     CupertinoThemeData theme;
     switch (mode) {
@@ -82,8 +82,7 @@ class ThemeCubit extends Cubit<ThemeState> {
         theme = AppTheme.lightTheme;
         break;
       case AppThemeMode.amoled:
-        // theme = AppTheme.amoledTheme; // Раскомментируй, когда добавишь эту тему
-        theme = AppTheme.darkTheme;
+        theme = AppTheme.amoledTheme;
         break;
       case AppThemeMode.dark:
       case AppThemeMode.system:

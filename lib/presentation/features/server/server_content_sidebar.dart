@@ -1,16 +1,21 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/call_data.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/category_channel.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
+import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/category_channel/bloc/category_channel_bloc.dart';
+import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
+import 'package:disalive/presentation/features/calls/widgets/channel_call_participants.dart';
 import 'package:disalive/presentation/features/category_channel/widgets/category_channel_item.dart';
 import 'package:disalive/presentation/features/channel_server/bloc/channel_server_bloc.dart';
 import 'package:disalive/presentation/features/channel_server/channel_form_screen.dart';
@@ -49,8 +54,10 @@ class ServerContentSidebar extends StatefulWidget {
 
 class _ServerContentSidebarState extends State<ServerContentSidebar> {
   final Set<int> _collapsedCategories = {};
+  final Set<int> _collapsedCalls = {};
   late final ChannelServerBloc _channelsBloc;
   late final CategoryChannelBloc _categoriesBloc;
+  late final CallParticipantsBloc _callParticipantsBloc;
 
   int get _serverId => widget.server.id!;
   ServerActionPermissions get _rights =>
@@ -67,6 +74,12 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       sl<CategoryChannelRepository>(),
       sl<WsEventBus>(),
     )..add(GetChannelCategories(_serverId));
+    _callParticipantsBloc = CallParticipantsBloc(sl<CallsRepository>())
+      ..add(
+        WatchCallParticipants(
+          EntityKey(entityId: _serverId, entityType: EntityType.server),
+        ),
+      );
   }
 
   @override
@@ -74,8 +87,14 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.server.id != widget.server.id) {
       _collapsedCategories.clear();
+      _collapsedCalls.clear();
       _channelsBloc.add(GetServerChannels(_serverId));
       _categoriesBloc.add(GetChannelCategories(_serverId));
+      _callParticipantsBloc.add(
+        WatchCallParticipants(
+          EntityKey(entityId: _serverId, entityType: EntityType.server),
+        ),
+      );
     }
   }
 
@@ -83,6 +102,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   void dispose() {
     _channelsBloc.close();
     _categoriesBloc.close();
+    _callParticipantsBloc.close();
     super.dispose();
   }
 
@@ -686,11 +706,36 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   }
 
   Widget _channelItem(ChannelServer channel) {
-    return ChannelServerItem(
-      key: ValueKey('channel_${channel.id}'),
-      channel: channel,
-      onTap: () => widget.onChannelTap?.call(channel),
-      onLongPress: () => _showChannelActions(channel),
+    return BlocBuilder<CallParticipantsBloc, CallParticipantsState>(
+      bloc: _callParticipantsBloc,
+      builder: (context, state) {
+        final chatId = channel.chatId;
+        final participants = chatId == null
+            ? const <CallParticipant>[]
+            : state.participants.forChat(chatId);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ChannelServerItem(
+              key: ValueKey('channel_${channel.id}'),
+              channel: channel,
+              onTap: () => widget.onChannelTap?.call(channel),
+              onLongPress: () => _showChannelActions(channel),
+            ),
+            if (chatId != null && participants.isNotEmpty)
+              ChannelCallParticipants(
+                key: ValueKey('channel_call_$chatId'),
+                participants: participants,
+                isCollapsed: _collapsedCalls.contains(chatId),
+                onToggle: () => setState(() {
+                  if (!_collapsedCalls.add(chatId)) {
+                    _collapsedCalls.remove(chatId);
+                  }
+                }),
+              ),
+          ],
+        );
+      },
     );
   }
 }

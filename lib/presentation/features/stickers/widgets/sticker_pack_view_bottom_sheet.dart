@@ -2,8 +2,12 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/sticker_pack.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/sticker_item.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
+import 'package:disalive/presentation/features/stickers/share_sticker_pack_screen.dart';
+import 'package:disalive/presentation/features/stickers/sticker_pack_link.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart'; // поправьте путь
 import 'package:flutter/cupertino.dart';
@@ -27,10 +31,22 @@ class StickerPackViewBottomSheet extends StatelessWidget {
     required Function(StickerContent) onStickerTap,
   }) {
     final stickersPackBloc = context.read<StickersPackBloc>();
+    ChatBloc? chatBloc;
+    MessageBloc? messageBloc;
+    try {
+      chatBloc = context.read<ChatBloc>();
+      messageBloc = context.read<MessageBloc>();
+    } on ProviderNotFoundException {
+      // The pack can also be viewed outside a chat.
+    }
     return showCupertinoModalPopup(
       context: context,
-      builder: (context) => BlocProvider.value(
-        value: stickersPackBloc,
+      builder: (context) => MultiBlocProvider(
+        providers: [
+          BlocProvider.value(value: stickersPackBloc),
+          if (chatBloc != null) BlocProvider.value(value: chatBloc),
+          if (messageBloc != null) BlocProvider.value(value: messageBloc),
+        ],
         child: StickerPackViewBottomSheet(
           pack: pack,
           onStickerTap: onStickerTap,
@@ -89,21 +105,13 @@ class StickerPackViewBottomSheet extends StatelessWidget {
       ActionItem(
         label: 'Поделиться',
         icon: CupertinoIcons.square_arrow_up,
-        onTap: () {
-          // TODO: Реализовать шеринг
-          Navigator.pop(context);
-        },
+        onTap: () => ShareStickerPackScreen.open(context, pack: pack),
       ),
       ActionItem(
         label: 'Копировать ссылку',
         icon: CupertinoIcons.link,
         onTap: () {
-          Clipboard.setData(
-            ClipboardData(
-              text:
-                  'https://disalive.ru/addstickers/index.php?packId=${pack.id}',
-            ),
-          );
+          Clipboard.setData(ClipboardData(text: stickerPackUrl(pack.id)));
           Navigator.pop(context);
         },
       ),
@@ -217,7 +225,7 @@ class StickerPackViewBottomSheet extends StatelessWidget {
                         ),
                         CupertinoButton(
                           padding: EdgeInsets.zero,
-                          minSize: 32,
+                          minimumSize: const Size(32, 32),
                           onPressed: () => _showPackOptions(context, pack),
                           child: Icon(
                             CupertinoIcons.ellipsis,

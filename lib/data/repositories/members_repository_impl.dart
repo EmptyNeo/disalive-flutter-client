@@ -7,12 +7,23 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 
 class MembersRepositoryImpl extends MembersRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
   final Map<EntityKey, List<Member>> _members = {};
+
+  @override
+  Future<Either<Failure, Server>> create(int entityId, EntityType entityType) =>
+      _httpClient.postFormData<Server>(
+        endpoint: 'members/create.php',
+        data: {'entityId': entityId, 'entityType': entityType.value},
+        apiType: ApiType.v1,
+        requireAuth: true,
+        fromJson: (json) => Server.fromMap(json as Map<String, dynamic>),
+      );
 
   @override
   Future<Either<Failure, List<Member>>> get(

@@ -1,5 +1,6 @@
 import 'package:disalive/data/repositories/auth_repository_impl.dart';
 import 'package:disalive/data/repositories/category_channel_repository_impl.dart';
+import 'package:disalive/data/repositories/calls_repository_impl.dart';
 import 'package:disalive/data/repositories/channel_server_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
@@ -27,6 +28,7 @@ import 'package:disalive/data/repositories/user_stickers_pack_repository_impl.da
 import 'package:disalive/data/repositories/ws_repository_impl.dart';
 import 'package:disalive/domain/repositories/auth_repository.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
+import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
@@ -115,6 +117,7 @@ Future<void> setupDependencies() async {
     () => CategoryChannelRepositoryImpl(),
   );
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
+  sl.registerLazySingleton<CallsRepository>(() => CallsRepositoryImpl());
   sl.registerLazySingleton<MediaStatsRepository>(
     () => MediaStatsRepositoryImpl(),
   );

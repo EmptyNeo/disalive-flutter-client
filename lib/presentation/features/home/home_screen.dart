@@ -4,6 +4,7 @@ import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
@@ -22,6 +23,8 @@ import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
+import 'package:disalive/presentation/features/calls/call_pip_overlay.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
@@ -63,6 +66,8 @@ class _HomeScreenState extends State<HomeScreen> {
   late PageController _pageController;
   int personalUnredCount = 0;
   bool isReconnect = false;
+  bool _isDiscoveringServers = false;
+  bool _discoveryGridView = false;
 
   @override
   void initState() {
@@ -73,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     HomeScreen.scopeContext = null;
+    CallPipOverlay.dispose();
     if (sl.isRegistered<MediaStatsRepository>()) {
       sl<MediaStatsRepository>().clear();
     }
@@ -94,6 +100,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider<CallBloc>(
+          lazy: false,
+          create: (_) => CallBloc(sl<CallsRepository>()),
+        ),
         BlocProvider<ChatServerBloc>(
           lazy: false,
           create: (_) =>
@@ -194,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
               BlocListener<ProfileBloc, ProfileState>(
                 listener: (context, state) {
                   if (state is AuthLogout) {
+                    context.read<CallBloc>().add(const LeaveCall());
                     LoginScreen.routeToMe(context);
                   }
                 },
@@ -201,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
               BlocListener<SessionBloc, SessionState>(
                 listener: (context, state) {
                   if (state is SessionLoggedOut) {
+                    context.read<CallBloc>().add(const LeaveCall());
                     LoginScreen.routeToMe(context);
                   }
                 },
@@ -236,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             // Основной контент с поддержкой свайпов
                             _buildBody(state.user),
                             if (_currentIndex == 0) ...[
-                              // Кнопка создания чата (FAB)
+                              // Действие для текущего раздела чатов.
                               Positioned(
                                 bottom: menuBottomMargin + 80,
                                 right: 20,
@@ -256,12 +268,36 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ],
                                   ),
-                                  child: GlassIconButton(
-                                    filled: true,
-                                    icon: CupertinoIcons.add,
-                                    onTap: () {
-                                      CreateChatScreen.open(context);
-                                    },
+                                  child: Semantics(
+                                    label: _isDiscoveringServers
+                                        ? _discoveryGridView
+                                              ? 'Показать список серверов'
+                                              : 'Показать сетку серверов'
+                                        : 'Создать чат',
+                                    button: true,
+                                    child: GlassIconButton(
+                                      key: ValueKey(
+                                        _isDiscoveringServers
+                                            ? 'discovery_layout_toggle'
+                                            : 'create_chat_button',
+                                      ),
+                                      filled: true,
+                                      icon: _isDiscoveringServers
+                                          ? _discoveryGridView
+                                                ? CupertinoIcons.list_bullet
+                                                : CupertinoIcons.square_grid_2x2
+                                          : CupertinoIcons.add,
+                                      onTap: () {
+                                        if (_isDiscoveringServers) {
+                                          setState(
+                                            () => _discoveryGridView =
+                                                !_discoveryGridView,
+                                          );
+                                        } else {
+                                          CreateChatScreen.open(context);
+                                        }
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),
@@ -323,6 +359,12 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ChatsView(
             personalUnreadCount: personalUnredCount,
             isReconnect: isReconnect,
+            discoveryGridView: _discoveryGridView,
+            onDiscoveryChanged: (value) {
+              if (mounted && _isDiscoveringServers != value) {
+                setState(() => _isDiscoveringServers = value);
+              }
+            },
           ),
         ),
         const KeepAlivePage(

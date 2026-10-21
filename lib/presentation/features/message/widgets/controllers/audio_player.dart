@@ -28,6 +28,7 @@ class AudioPlayerWidget extends StatefulWidget {
 }
 
 class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
+  static _AudioPlayerWidgetState? _activePlayer;
   final AudioPlayer _player = AudioPlayer();
 
   StreamSubscription<Duration>? _positionSub;
@@ -71,6 +72,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
 
   @override
   void dispose() {
+    if (identical(_activePlayer, this)) _activePlayer = null;
     _positionSub?.cancel();
     _durationSub?.cancel();
     _stateSub?.cancel();
@@ -84,9 +86,22 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
   Future<void> _togglePlay() async {
     if (_isPlaying) {
       await _player.pause();
+      if (identical(_activePlayer, this)) _activePlayer = null;
+      if (mounted) setState(() => _playerState = PlayerState.paused);
     } else {
+      final previous = _activePlayer;
+      if (previous != null && !identical(previous, this)) {
+        await previous._pauseForAnotherPlayer();
+      }
+      _activePlayer = this;
+      if (mounted) setState(() => _playerState = PlayerState.playing);
       await _player.play(UrlSource(widget.url), position: _position);
     }
+  }
+
+  Future<void> _pauseForAnotherPlayer() async {
+    await _player.pause();
+    if (mounted) setState(() => _playerState = PlayerState.paused);
   }
 
   void _onSeekStart(double fraction) {

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/data/repositories/server_repository_impl.dart';
+import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
@@ -39,6 +40,58 @@ void main() {
     }
     await sl.reset();
   });
+
+  test(
+    'public server query sends category without replacing joined cache',
+    () async {
+      final requests = <http.Request>[];
+      final client = MockClient((request) async {
+        requests.add(request);
+        final isPublic = request.bodyFields['public'] == '1';
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': isPublic
+                ? [
+                    {
+                      'id': 9,
+                      'name': 'Public',
+                      'memberId': '42',
+                      'memberCount': 15,
+                      'onlineMemberCount': 4,
+                      'permissions': [],
+                    },
+                  ]
+                : [
+                    {'id': 4, 'name': 'Joined', 'memberId': 3},
+                  ],
+          }),
+          200,
+        );
+      });
+      sl.registerSingleton<HttpClientService>(
+        HttpClientService(client: client, secureStorage: _TestStorage()),
+      );
+      final repository = ServerRepositoryImpl();
+
+      await repository.get();
+      final publicResult = await repository.get(
+        isPublic: true,
+        category: ServerType.games,
+        query: '  Команда  ',
+      );
+
+      expect(requests[0].bodyFields.containsKey('public'), isFalse);
+      expect(requests[0].bodyFields.containsKey('category'), isFalse);
+      expect(requests[1].bodyFields['public'], '1');
+      expect(requests[1].bodyFields['category'], ServerType.games.value);
+      expect(requests[1].bodyFields['query'], 'Команда');
+      expect(publicResult.getOrElse(() => []).single.memberId, 42);
+      expect(publicResult.getOrElse(() => []).single.permissions, isEmpty);
+      expect(repository.getCached().single.id, 4);
+      expect(repository.getCached().single.memberId, 3);
+    },
+  );
 
   test(
     'loads servers and keeps cached data when a later request fails',
@@ -99,6 +152,70 @@ void main() {
       expect(repository.getByIdCached(4), isNull);
       expect(repository.selectedServerId, isNull);
       expect(repository.selectedServer, isNull);
+    },
+  );
+
+  test(
+    'main role is parsed and update sends its id or an explicit reset',
+    () async {
+      final sent = <http.Request>[];
+      final client = MockClient((request) async {
+        sent.add(request);
+        if (request.url.path.endsWith('/get.php')) {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'data': [
+                {
+                  'id': 4,
+                  'name': 'Сервер',
+                  'fkMainRole': 7,
+                  'mainRole': {'id': 7, 'name': 'Модератор', 'emoji': '⭐'},
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        final roleId = request.bodyFields['fkMainRole'];
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 4,
+              'name': 'Сервер',
+              'fkMainRole': roleId == '' ? null : int.parse(roleId!),
+              'mainRole': roleId == ''
+                  ? null
+                  : {'id': int.parse(roleId!), 'name': 'Участник'},
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      sl.registerSingleton<HttpClientService>(
+        HttpClientService(client: client, secureStorage: _TestStorage()),
+      );
+      final repository = ServerRepositoryImpl();
+      final loaded = await repository.get();
+      expect(loaded.isRight(), isTrue, reason: loaded.toString());
+      expect(repository.getByIdCached(4)?.fkMainRole, 7);
+      expect(repository.getByIdCached(4)?.mainRole?.name, 'Модератор');
+
+      await repository.update(4, 'Сервер', fkMainRole: 3);
+      expect(sent[1].bodyFields['fkMainRole'], '3');
+      expect(repository.getByIdCached(4)?.mainRole?.name, 'Участник');
+
+      final cleared = await repository.update(
+        4,
+        'Сервер',
+        isSetNullMainRole: true,
+      );
+      expect(sent[2].bodyFields['fkMainRole'], '');
+      expect(cleared.getOrElse(() => const Server()).fkMainRole, isNull);
+      expect(repository.getByIdCached(4)?.mainRole, isNull);
     },
   );
 

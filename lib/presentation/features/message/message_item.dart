@@ -9,11 +9,13 @@ import 'package:disalive/presentation/features/message/widgets/answer_preview.da
 import 'package:disalive/presentation/features/message/widgets/invite_message_card.dart';
 import 'package:disalive/presentation/features/message/widgets/invite_message_meta.dart';
 import 'package:disalive/presentation/features/message/widgets/link_preview.dart';
+import 'package:disalive/presentation/features/message/widgets/message_link_text.dart';
 import 'package:disalive/presentation/features/message/widgets/media/medias_grid.dart';
 import 'package:disalive/presentation/features/message/widgets/message_status_row.dart';
+import 'package:disalive/presentation/features/message/widgets/sticker_pack_message_card.dart';
+import 'package:disalive/presentation/features/stickers/sticker_pack_link.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/reactions_grid.dart';
-import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -75,18 +77,27 @@ class MessageItem extends StatelessWidget {
     final hasInviteData = contentMessage.inviteData != null;
     final inviteCode = inviteCodeFromText(contentMessage.text);
     final hasInviteCard = hasInviteData && inviteCode != null;
-    final hasLinkPreview = contentMessage.linkPreview != null && !hasInviteData;
+    final stickerPackLink =
+        stickerPackLinkFromText(contentMessage.text) ??
+        stickerPackLinkFromText(contentMessage.linkPreview?.url);
+    final hasStickerPackCard = stickerPackLink != null;
+    final displayText = contentMessage.text ?? '';
+    final hasLinkPreview =
+        contentMessage.linkPreview != null &&
+        !hasInviteData &&
+        !hasStickerPackCard;
     final hasReactions = message.reactions?.isNotEmpty ?? false;
     final hasAnswer = message.answerMessage != null;
     final showSenderInfo = !isMine && showSender && showAvatar;
     final showStatusRow = isMine || showTime || hasLoading || hasError;
-    final hasText = (contentMessage.text ?? '').isNotEmpty;
+    final hasText = displayText.isNotEmpty;
 
     final isMediasOnly =
         MediasGrid.hasOnlyImage(contentMessage) &&
         !hasText &&
         !hasLinkPreview &&
         !hasInviteData &&
+        !hasStickerPackCard &&
         !hasReactions &&
         !hasAnswer &&
         !hasForward;
@@ -96,6 +107,7 @@ class MessageItem extends StatelessWidget {
         hasText &&
         !hasLinkPreview &&
         !hasInviteData &&
+        !hasStickerPackCard &&
         !MediasGrid.hasOnlyImage(contentMessage);
 
     var backgroundColor = isMine ? AppColors.blurple : AppColors.actionGrey;
@@ -232,26 +244,14 @@ class MessageItem extends StatelessWidget {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Text.rich(
-                            textWidthBasis: TextWidthBasis.longestLine,
-                            TextSpan(
-                              children: [
-                                ...EmojiTextParser.parse(
-                                  contentMessage.text!,
-                                  baseTextStyle: AppText.mediumTextStyle
-                                      .copyWith(
-                                        color: isMine
-                                            ? AppColors.onBlurple
-                                            : AppColors.white,
-                                      ),
-                                  emojiSize: 20, // Размер эмодзи
-                                ),
-                                WidgetSpan(
-                                  alignment: PlaceholderAlignment.middle,
-                                  child: SizedBox(width: _statusReserveWidth()),
-                                ),
-                              ],
+                          MessageLinkText(
+                            text: displayText,
+                            style: AppText.mediumTextStyle.copyWith(
+                              color: isMine
+                                  ? AppColors.onBlurple
+                                  : AppColors.white,
                             ),
+                            reserveWidth: _statusReserveWidth(),
                           ),
                           Positioned(
                             right: 0,
@@ -268,19 +268,11 @@ class MessageItem extends StatelessWidget {
                         ],
                       )
                     else if (hasText)
-                      Text.rich(
-                        TextSpan(
-                          children: EmojiTextParser.parse(
-                            contentMessage.text!,
-                            baseTextStyle: AppText.mediumTextStyle.copyWith(
-                              color: isMine
-                                  ? AppColors.onBlurple
-                                  : AppColors.white,
-                            ),
-                            emojiSize: 20,
-                          ),
+                      MessageLinkText(
+                        text: displayText,
+                        style: AppText.mediumTextStyle.copyWith(
+                          color: isMine ? AppColors.onBlurple : AppColors.white,
                         ),
-                        textWidthBasis: TextWidthBasis.longestLine,
                       ),
 
                     if (hasLinkPreview)
@@ -294,14 +286,20 @@ class MessageItem extends StatelessWidget {
                         code: inviteCode,
                         onMention: onInviteMention,
                       ),
+                    if (hasStickerPackCard)
+                      StickerPackMessageCard(
+                        packId: stickerPackLink.packId,
+                        onStickerTap: onStickerTap,
+                      ),
 
                     MediasGrid(
                       message: contentMessage,
                       isMine: isMine,
                       hasContentAbove:
-                          (contentMessage.text ?? '').isNotEmpty ||
+                          hasText ||
                           hasAnswer ||
-                          hasForward,
+                          hasForward ||
+                          hasStickerPackCard,
                       onStickerTap: onStickerTap,
                       onTapImage: onTapImage,
                       showTime: showTime,

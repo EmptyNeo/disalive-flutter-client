@@ -1,5 +1,4 @@
 import 'dart:async'; // 🎯 Для Timer
-import 'dart:io';
 
 import 'package:disalive/app/di/di.dart'; // 🎯 Для sl()
 import 'package:disalive/app/theme/app_theme.dart';
@@ -13,7 +12,6 @@ import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/media_position.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
-import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
@@ -31,11 +29,7 @@ import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
-/// Резерв места под хэдер сверху списка сообщений.
-const double _kHeaderReserve = 64;
 
 const double _kLoadMoreThreshold = 100;
 
@@ -45,6 +39,7 @@ class MessagesList extends StatefulWidget {
   final Chat chat;
   final int? currentUserId;
   final double inputReserve;
+  final double headerReserve;
   final int? initialAroundId;
   final int? initialPositionId;
 
@@ -66,6 +61,7 @@ class MessagesList extends StatefulWidget {
     required this.initialAroundId,
     this.initialPositionId,
     required this.inputReserve,
+    this.headerReserve = 64,
     required this.onSendMessage,
     required this.onEditMessage,
     required this.onDeleteMessage,
@@ -104,8 +100,10 @@ class MessagesListState extends State<MessagesList> {
   bool _hasScrolledToUnread = false;
   Timer? _readDebounceTimer;
   bool _isUpdatingRead = false;
-  bool _hasMarkedInitialUnread = false;
   int? _fixedSeparatorId;
+  Timer? _separatorUpdateTimer;
+  static const _separatorUpdateDelay = Duration(seconds: 2);
+  bool _hasUserScrolled = false;
   Timer? _timeForNextSetState;
   int? _highlightedMessageId;
   Timer? _highlightTimer;
@@ -125,13 +123,20 @@ class MessagesListState extends State<MessagesList> {
     _hasScrolledToUnread = widget.initialPositionId != null;
 
     _startTimeForNextState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.messageBloc.state is MessageLoaded) {
+        _scheduleReadTracking();
+      }
+    });
   }
 
   @override
   void didUpdateWidget(covariant MessagesList oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chat.id != widget.chat.id) {
+      _separatorUpdateTimer?.cancel();
       _fixedSeparatorId = widget.initialAroundId;
+      _hasUserScrolled = false;
       _hasScrolledToUnread = false;
       _messageKeys.clear();
       _anchorKey = null;
@@ -139,7 +144,34 @@ class MessagesListState extends State<MessagesList> {
       _anchorKey = widget.initialPositionId;
       _restoredPosition = false;
       _hasScrolledToUnread = widget.initialPositionId != null;
+    } else if (oldWidget.initialAroundId != widget.initialAroundId) {
+      if (_hasUserScrolled || _fixedSeparatorId == null) {
+        _scheduleSeparatorUpdate();
+      }
     }
+  }
+
+  void _scheduleSeparatorUpdate() {
+    _separatorUpdateTimer?.cancel();
+    final nextSeparatorId = widget.initialAroundId;
+    if (_fixedSeparatorId == nextSeparatorId) return;
+    _separatorUpdateTimer = Timer(_separatorUpdateDelay, () {
+      if (!mounted || widget.initialAroundId != nextSeparatorId) return;
+      setState(() {
+        _fixedSeparatorId = nextSeparatorId;
+        _hasScrolledToUnread = true;
+      });
+    });
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null &&
+        !_hasUserScrolled) {
+      _hasUserScrolled = true;
+      _scheduleSeparatorUpdate();
+    }
+    return false;
   }
 
   @override
@@ -147,6 +179,7 @@ class MessagesListState extends State<MessagesList> {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _readDebounceTimer?.cancel();
+    _separatorUpdateTimer?.cancel();
     _timeForNextSetState?.cancel();
     _highlightTimer?.cancel();
     super.dispose();
@@ -188,7 +221,7 @@ class MessagesListState extends State<MessagesList> {
     if (state is! MessageLoaded) return null;
     final viewport = context.findRenderObject() as RenderBox?;
     if (viewport == null || !viewport.hasSize) return null;
-    final top = viewport.localToGlobal(Offset.zero).dy + _kHeaderReserve;
+    final top = viewport.localToGlobal(Offset.zero).dy + widget.headerReserve;
     final bottom =
         viewport.localToGlobal(Offset(0, viewport.size.height)).dy -
         widget.inputReserve;
@@ -246,8 +279,6 @@ class MessagesListState extends State<MessagesList> {
 
     final newestId = currentMessages.first.id;
     if (newestId == null || newestId <= 0) return;
-    final chatLastId = widget.chat.idLastMessage ?? 0;
-    if (newestId >= chatLastId) return;
     final entity = _currentEntityKey();
     if (entity == null) return;
 
@@ -367,6 +398,7 @@ class MessagesListState extends State<MessagesList> {
 
     if (ctx != null) {
       // Да, построен! Плавно центрируем его.
+      if (!ctx.mounted) return false;
       await Scrollable.ensureVisible(
         ctx,
         alignment: alignment,
@@ -407,6 +439,7 @@ class MessagesListState extends State<MessagesList> {
 
     // 4. Ждем ровно один кадр, чтобы виджет успел построиться и привязать контекст.
     await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return false;
 
     // 5. Теперь контекст ГАРАНТИРОВАННО не null (мы только что заставили его построиться).
     _cleanupDeadKeys();
@@ -415,6 +448,7 @@ class MessagesListState extends State<MessagesList> {
     if (ctx != null) {
       // Теперь ensureVisible сработает идеально и плавно доцентрует сообщение
       // с учетом его реальной, а не примерной высоты.
+      if (!ctx.mounted) return false;
       await Scrollable.ensureVisible(ctx, alignment: alignment);
       return true;
     }
@@ -436,23 +470,22 @@ class MessagesListState extends State<MessagesList> {
     if (state is! MessageLoaded) return;
     final messages = state.messages;
     if (messages.isEmpty) return;
-
-    final currentReadId = widget.chat.member?.lastIdReadMessage ?? 0;
-    int? targetReadId = _getLowestVisibleMessageId(messages, context);
-
-    if (targetReadId == null) {
-      if (widget.initialAroundId != null && !_hasMarkedInitialUnread) {
-        targetReadId = messages.first.id;
-      } else if (_distanceFromBottom < 100) {
-        targetReadId = messages.first.id;
-      } else {
-        return;
-      }
+    if (messages.first.chatId != null &&
+        messages.first.chatId != widget.chat.id) {
+      return;
     }
 
-    if (targetReadId != null && targetReadId > currentReadId) {
+    final currentReadId = widget.chat.member?.lastIdReadMessage ?? 0;
+    final targetReadId =
+        _getLowestVisibleMessageId(messages, context) ??
+        (_distanceFromBottom < 100 ? messages.first.id : null);
+
+    if (targetReadId == null) {
+      return;
+    }
+
+    if (targetReadId > currentReadId) {
       _updateServerReadStatus(targetReadId);
-      if (widget.initialAroundId != null) _hasMarkedInitialUnread = true;
     }
   }
 
@@ -461,9 +494,7 @@ class MessagesListState extends State<MessagesList> {
     BuildContext context,
   ) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final limit = messages.length < 15 ? messages.length : 15;
-
-    for (int i = 0; i < limit; i++) {
+    for (int i = 0; i < messages.length; i++) {
       final msg = messages[i];
       final msgId = msg.id ?? msg.localGeneratedId;
       final key = _messageKeys[msgId];
@@ -487,11 +518,22 @@ class MessagesListState extends State<MessagesList> {
     if (entityKey == null) return;
     _isUpdatingRead = true;
     try {
-      await sl<MembersRepository>().update(
+      final result = await sl<MembersRepository>().update(
         entityId: entityKey.entityId,
         entityType: entityKey.entityType,
         lastIdReadMessage: newReadId,
         chatId: widget.chat.id,
+      );
+      result.fold(
+        (failure) =>
+            debugPrint('Ошибка обновления lastIdReadMessage: $failure'),
+        (updated) {
+          if (!updated) {
+            debugPrint(
+              'lastIdReadMessage не обновлён для чата ${widget.chat.id}',
+            );
+          }
+        },
       );
     } catch (e) {
       debugPrint('Ошибка обновления lastIdReadMessage: $e');
@@ -508,6 +550,10 @@ class MessagesListState extends State<MessagesList> {
   }
 
   Future<void> handleScrollToBottom({bool animated = true}) async {
+    if (!_hasUserScrolled) {
+      _hasUserScrolled = true;
+      _scheduleSeparatorUpdate();
+    }
     final state = widget.messageBloc.state;
     if (state is! MessageLoaded) return;
 
@@ -635,8 +681,7 @@ class MessagesListState extends State<MessagesList> {
       listeners: [
         BlocListener<MessageBloc, MessageState>(
           bloc: widget.messageBloc,
-          listenWhen: (p, c) =>
-              c is MessageLoading || (p is MessageLoaded && c is MessageLoaded),
+          listenWhen: (p, c) => c is MessageLoading || c is MessageLoaded,
           listener: (context, state) {
             if (state is MessageLoading) {
               _anchorKey = _restoredPosition ? null : widget.initialPositionId;
@@ -650,7 +695,17 @@ class MessagesListState extends State<MessagesList> {
                 (_) => _newerBatchPending = false,
               );
             }
-            _scheduleReadTracking();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _scheduleReadTracking();
+              final loaded = widget.messageBloc.state;
+              if (loaded is MessageLoaded &&
+                  loaded.hasNewerMessages &&
+                  _scrollController.hasClients &&
+                  _distanceFromBottom <= _kLoadMoreThreshold) {
+                _loadNewer(loaded.messages);
+              }
+            });
           },
         ),
       ],
@@ -658,7 +713,7 @@ class MessagesListState extends State<MessagesList> {
         bloc: widget.messageBloc,
         builder: (context, state) {
           final reservePadding = EdgeInsets.only(
-            top: _kHeaderReserve,
+            top: widget.headerReserve,
             bottom: widget.inputReserve,
           );
 
@@ -718,16 +773,6 @@ class MessagesListState extends State<MessagesList> {
               });
             }
           }
-          if (_fixedSeparatorId != null) {
-            final currentReadId = widget.chat.member?.lastIdReadMessage ?? 0;
-            final chatLastId = widget.chat.idLastMessage ?? 0;
-            if (currentReadId >= chatLastId && chatLastId > 0) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _fixedSeparatorId = null);
-              });
-            }
-          }
-
           final groupedMessages = MessageGrouper.group(
             messages as List<Message>,
             isGroup: widget.chat.isGroup,
@@ -755,9 +800,8 @@ class MessagesListState extends State<MessagesList> {
             final showSeparator =
                 _fixedSeparatorId != null &&
                 currentMsgId > _fixedSeparatorId! &&
-                (olderMsgId <= _fixedSeparatorId! || olderMsgId == 0);
-            final separatorKey = showSeparator ? GlobalKey() : null;
-
+                olderMessage != null &&
+                olderMsgId <= _fixedSeparatorId!;
             final isRead = isMessageReadByAny(
               message: message,
               currentUserId: widget.currentUserId ?? 0,
@@ -841,64 +885,67 @@ class MessagesListState extends State<MessagesList> {
 
           return Stack(
             children: [
-              CustomScrollView(
-                controller: _scrollController,
-                physics: _physics,
-                reverse: true,
-                center: _centerKey,
-                slivers: [
-                  // 1. Слайвер для сообщений НОВЕЕ якоря (растет вниз от якоря, в отрицательную сторону offset)
-                  SliverPadding(
-                    padding: EdgeInsets.only(bottom: _bottomPadding),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, j) => buildMessage(anchorIndex - 1 - j),
-                        childCount: anchorIndex,
-                        findChildIndexCallback: (key) {
-                          final i = globalIndexOf(key);
-                          return (i != null && i < anchorIndex)
-                              ? anchorIndex - 1 - i
-                              : null;
-                        },
+              NotificationListener<ScrollNotification>(
+                onNotification: _onScrollNotification,
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: _physics,
+                  reverse: true,
+                  center: _centerKey,
+                  slivers: [
+                    // 1. Слайвер для сообщений НОВЕЕ якоря (растет вниз от якоря, в отрицательную сторону offset)
+                    SliverPadding(
+                      padding: EdgeInsets.only(bottom: _bottomPadding),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, j) => buildMessage(anchorIndex - 1 - j),
+                          childCount: anchorIndex,
+                          findChildIndexCallback: (key) {
+                            final i = globalIndexOf(key);
+                            return (i != null && i < anchorIndex)
+                                ? anchorIndex - 1 - i
+                                : null;
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                  // 2. Слайвер для ЯКОРЯ и сообщений СТАРЕЕ него (начало координат, offset 0)
-                  SliverPadding(
-                    key: _centerKey,
-                    padding: const EdgeInsets.only(top: _kHeaderReserve + 8),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, k) {
-                          final index = anchorIndex + k;
-                          if (index == groupedMessages.length &&
-                              isLoadingMore) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: CupertinoActivityIndicator(radius: 10),
-                              ),
-                            );
-                          }
-                          if (index < groupedMessages.length) {
-                            return buildMessage(index);
-                          }
-                          return const SizedBox.shrink();
-                        },
-                        childCount:
-                            groupedMessages.length -
-                            anchorIndex +
-                            (isLoadingMore ? 1 : 0),
-                        findChildIndexCallback: (key) {
-                          final i = globalIndexOf(key);
-                          return (i != null && i >= anchorIndex)
-                              ? i - anchorIndex
-                              : null;
-                        },
+                    // 2. Слайвер для ЯКОРЯ и сообщений СТАРЕЕ него (начало координат, offset 0)
+                    SliverPadding(
+                      key: _centerKey,
+                      padding: EdgeInsets.only(top: widget.headerReserve + 8),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, k) {
+                            final index = anchorIndex + k;
+                            if (index == groupedMessages.length &&
+                                isLoadingMore) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: CupertinoActivityIndicator(radius: 10),
+                                ),
+                              );
+                            }
+                            if (index < groupedMessages.length) {
+                              return buildMessage(index);
+                            }
+                            return const SizedBox.shrink();
+                          },
+                          childCount:
+                              groupedMessages.length -
+                              anchorIndex +
+                              (isLoadingMore ? 1 : 0),
+                          findChildIndexCallback: (key) {
+                            final i = globalIndexOf(key);
+                            return (i != null && i >= anchorIndex)
+                                ? i - anchorIndex
+                                : null;
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               if (isLoadingNewer)
                 Positioned(

@@ -20,6 +20,9 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
   final WsEventBus _eventBus;
   StreamSubscription<WsEvent>? _subscription;
   StreamSubscription<WsEvent>? _memberSubscription;
+  StreamSubscription<WsEvent>? _messageSubscription;
+  Timer? _refreshTimer;
+  final Map<int, int> _latestMessageIds = {};
   final List<ChannelServerEvent> _changesDuringLoad = [];
   int? _serverId;
   int _loadGeneration = 0;
@@ -31,6 +34,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     on<ServerChannelUpserted>(_onUpserted);
     on<ServerChannelRemoved>(_onRemoved);
     on<ServerChannelReadUpdated>(_onReadUpdated);
+    on<ServerChannelMessageAdded>(_onMessageAdded);
     setupListeners();
   }
 
@@ -96,8 +100,43 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
             newMessagesCount: DataParser.parseInt(member['newMessagesCount']),
           ),
         );
+        _scheduleRefresh();
       },
     );
+    _messageSubscription?.cancel();
+    _messageSubscription = _eventBus.subscribe(
+      table: 'Message',
+      action: ActionType.create,
+      onData: (event) {
+        final rawMessage = event.data['message'];
+        if (rawMessage is! Map || _serverId == null) return;
+        final message = Map<String, dynamic>.from(rawMessage);
+        final chatId = DataParser.parseInt(
+          message['chatId'] ?? event.data['chatId'],
+        );
+        final messageId = DataParser.parseInt(message['id']);
+        if (chatId == null || messageId == null) return;
+        final channels = _repository.getCached(_serverId!);
+        if (!channels.any((channel) => channel.chatId == chatId)) return;
+        add(
+          ServerChannelMessageAdded(
+            _serverId!,
+            chatId,
+            messageId,
+            event.isSelf,
+          ),
+        );
+      },
+    );
+  }
+
+  void _scheduleRefresh() {
+    _refreshTimer?.cancel();
+    final serverId = _serverId;
+    if (serverId == null) return;
+    _refreshTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!isClosed) add(GetServerChannels(serverId));
+    });
   }
 
   Future<void> _onGetServerChannels(
@@ -141,6 +180,8 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
             channels.removeWhere((channel) => channel.id == change.id);
           } else if (change is ServerChannelReadUpdated) {
             _applyReadUpdate(channels, change);
+          } else if (change is ServerChannelMessageAdded) {
+            _applyMessageAdded(channels, change);
           }
         }
         _repository.updateCache(event.serverId, channels);
@@ -210,6 +251,38 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(channels)));
   }
 
+  void _onMessageAdded(
+    ServerChannelMessageAdded event,
+    Emitter<ChannelServerState> emit,
+  ) {
+    if (event.serverId != _serverId) return;
+    if (_isLoading) _changesDuringLoad.add(event);
+    final channels = List<ChannelServer>.from(
+      _repository.getCached(event.serverId),
+    );
+    if (!_applyMessageAdded(channels, event)) return;
+    _repository.updateCache(event.serverId, channels);
+    emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(channels)));
+  }
+
+  bool _applyMessageAdded(
+    List<ChannelServer> channels,
+    ServerChannelMessageAdded event,
+  ) {
+    final index = channels.indexWhere((item) => item.chatId == event.chatId);
+    if (index < 0) return false;
+    final lastMessageId = _latestMessageIds[event.chatId] ?? 0;
+    if (event.messageId <= lastMessageId) return false;
+    _latestMessageIds[event.chatId] = event.messageId;
+    if (event.isSelf) return false;
+    final previous = channels[index];
+    channels[index] = ChannelServer.fromMap({
+      ...previous.toMap(),
+      'newMessagesCount': previous.newMessagesCount + 1,
+    });
+    return true;
+  }
+
   bool _applyReadUpdate(
     List<ChannelServer> channels,
     ServerChannelReadUpdated event,
@@ -219,12 +292,16 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     final previous = channels[index];
     final currentRead = previous.lastIdReadMessage ?? 0;
     if (event.lastIdReadMessage < currentRead) return false;
+    final latestMessageId = _latestMessageIds[event.chatId] ?? 0;
     final unread =
         event.newMessagesCount ??
-        math.max(
-          0,
-          previous.newMessagesCount - (event.lastIdReadMessage - currentRead),
-        );
+        (latestMessageId > 0 && event.lastIdReadMessage >= latestMessageId
+            ? 0
+            : math.max(
+                0,
+                previous.newMessagesCount -
+                    (event.lastIdReadMessage - currentRead),
+              ));
     channels[index] = ChannelServer.fromMap({
       ...previous.toMap(),
       'lastIdReadMessage': event.lastIdReadMessage,
@@ -237,6 +314,9 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
   Future<void> close() async {
     await _subscription?.cancel();
     await _memberSubscription?.cancel();
+    await _messageSubscription?.cancel();
+    _refreshTimer?.cancel();
+    _latestMessageIds.clear();
     if (_serverId != null) _repository.clear(_serverId);
     await super.close();
   }

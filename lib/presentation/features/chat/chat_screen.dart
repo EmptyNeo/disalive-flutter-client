@@ -2,23 +2,34 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/file_message.dart';
+import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/calls_repository.dart';
+import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
+import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
+import 'package:disalive/presentation/features/calls/call_screen.dart';
+import 'package:disalive/presentation/features/calls/widgets/call_activity_banner.dart';
 import 'package:disalive/presentation/features/chat/screens/search_messages_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_header.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_input_area.dart';
@@ -36,6 +47,7 @@ import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/id_generator.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_file.dart';
 import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
@@ -43,13 +55,20 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mime/mime.dart';
-import 'package:path/path.dart' as p show basename, extension;
+import 'package:path/path.dart' as p show basename;
 
 /// Отступ для плавающих хэдера/поля ввода от краёв карточки чата.
 const double _kFloatingPanelMargin = 8;
 
 /// Начальный (минимальный) резерв под поле ввода снизу списка.
 const double _kInputReserveMin = 76;
+
+int? initialPositionForChat(Chat chat, int? savedPositionId) {
+  if (chat.type == ChatType.channel) {
+    return null;
+  }
+  return savedPositionId;
+}
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
@@ -68,6 +87,7 @@ class ChatScreen extends StatefulWidget {
     final invitesBloc = context.read<InvitesBloc>();
     final mediaStatsBloc = context.read<MediaStatsBloc>();
     final serversBloc = context.read<ServersBloc>();
+    final callBloc = context.read<CallBloc>();
     sl<ChatRepository>().setCurrentChat(chat);
 
     return SwipeToDismissRoute.push(
@@ -84,6 +104,7 @@ class ChatScreen extends StatefulWidget {
           BlocProvider.value(value: invitesBloc),
           BlocProvider.value(value: mediaStatsBloc),
           BlocProvider.value(value: serversBloc),
+          BlocProvider.value(value: callBloc),
         ],
         child: ChatScreen(chat: chat),
       ),
@@ -112,6 +133,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   late final MessageBloc _messageBloc;
   late final ChatBloc _chatBloc;
+  late final CallParticipantsBloc _callParticipantsBloc;
 
   final GlobalKey _inputKey = GlobalKey();
   double _inputReserve = _kInputReserveMin;
@@ -122,7 +144,45 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   bool get _hasAnswer => _answerMessage != null;
 
+  Future<void> _openCall() async {
+    final chat = _currentChat;
+    final serverId = chat.type == ChatType.channel
+        ? sl<ServerRepository>().selectedServerId
+        : null;
+    if (chat.type == ChatType.channel && serverId == null) return;
+    final entityKey = EntityKey(
+      entityId: serverId ?? chat.id,
+      entityType: serverId == null ? EntityType.chat : EntityType.server,
+    );
+    _callParticipantsBloc.add(const StopWatchingCallParticipants());
+    try {
+      await CallScreen.open(
+        context,
+        chatId: chat.id,
+        entityKey: entityKey,
+        title: chat.name,
+        lastIdMessage: chat.idLastMessage,
+      );
+    } finally {
+      if (mounted) {
+        _callParticipantsBloc.add(
+          WatchCallParticipants(entityKey, chatId: chat.id),
+        );
+      }
+    }
+  }
+
   late Chat _currentChat;
+  StreamSubscription? _channelReadSubscription;
+  StreamSubscription? _channelMessageSubscription;
+
+  bool _hasUnread(Chat chat) {
+    if (chat.type == ChatType.channel) {
+      return (chat.newMessagesCount ?? 0) > 0;
+    }
+    final lastRead = chat.member?.lastIdReadMessage ?? 0;
+    return lastRead > 0 && (chat.idLastMessage ?? 0) > lastRead;
+  }
 
   bool _isExtraPanelOpen = false;
   final double _extraPanelHeight = 335;
@@ -139,14 +199,112 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     _messageBloc = context.read<MessageBloc>();
     _chatBloc = context.read<ChatBloc>();
+    _callParticipantsBloc = CallParticipantsBloc(sl<CallsRepository>());
+    if (_currentChat.isSoloChat != true) {
+      final serverId = _currentChat.type == ChatType.channel
+          ? sl<ServerRepository>().selectedServerId
+          : null;
+      if (_currentChat.type != ChatType.channel || serverId != null) {
+        _callParticipantsBloc.add(
+          WatchCallParticipants(
+            EntityKey(
+              entityId: serverId ?? _currentChat.id,
+              entityType: serverId == null
+                  ? EntityType.chat
+                  : EntityType.server,
+            ),
+            chatId: _currentChat.id,
+          ),
+        );
+      }
+    }
+    if (_currentChat.type == ChatType.channel) _listenToChannelEvents();
     _restoreDraft();
-    _initialPositionId = sl<LocalChatStateRepository>()
+    final savedPositionId = sl<LocalChatStateRepository>()
         .getFirstVisibleMessageId(_draftUserId, widget.chat.id);
+    _initialPositionId = initialPositionForChat(_currentChat, savedPositionId);
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
     context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
 
     _inputFocusNode.addListener(_handleFocusChange);
+  }
+
+  void _listenToChannelEvents() {
+    final bus = sl<WsEventBus>();
+    _channelReadSubscription = bus.subscribe(
+      table: 'ChatMembers',
+      action: ActionType.update,
+      onData: (event) {
+        if (event.data['entityType'] != 'server' ||
+            !(DataParser.parseBool(event.data['isSelf']) ?? event.isSelf) ||
+            DataParser.parseInt(event.data['chatId']) != _currentChat.id) {
+          return;
+        }
+        final raw = event.data['member'];
+        if (raw is! Map) return;
+        final memberData = Map<String, dynamic>.from(raw);
+        final readId = DataParser.parseInt(memberData['lastIdReadMessage']);
+        if (readId == null) return;
+        final previousRead = _currentChat.member?.lastIdReadMessage ?? 0;
+        if (readId < previousRead) return;
+        final loaded = _messageBloc.state;
+        final readMessages = loaded is MessageLoaded
+            ? loaded.messages.where((message) {
+                final id = message.id;
+                return id != null && id > previousRead && id <= readId;
+              }).length
+            : 0;
+        final newestLoaded =
+            loaded is MessageLoaded && loaded.messages.isNotEmpty
+            ? loaded.messages.first.id ?? 0
+            : 0;
+        final latestId = math.max(
+          _currentChat.idLastMessage ?? 0,
+          newestLoaded,
+        );
+        final serverCount = DataParser.parseInt(memberData['newMessagesCount']);
+        final nextCount =
+            serverCount ??
+            (latestId > 0 && readId >= latestId
+                ? 0
+                : math.max(
+                    0,
+                    (_currentChat.newMessagesCount ?? 0) - readMessages,
+                  ));
+        if (!mounted) return;
+        setState(() {
+          _currentChat = _currentChat.copyWith(
+            member: (_currentChat.member ?? const Member()).copyWith(
+              lastIdReadMessage: readId,
+            ),
+            newMessagesCount: nextCount,
+          );
+        });
+      },
+    );
+    _channelMessageSubscription = bus.subscribe(
+      table: 'Message',
+      action: ActionType.create,
+      onData: (event) {
+        final raw = event.data['message'];
+        if (raw is! Map) return;
+        final message = Map<String, dynamic>.from(raw);
+        final chatId = DataParser.parseInt(
+          message['chatId'] ?? event.data['chatId'],
+        );
+        final id = DataParser.parseInt(message['id']);
+        if (chatId != _currentChat.id || id == null || !mounted) return;
+        if (id <= (_currentChat.idLastMessage ?? 0)) return;
+        setState(() {
+          _currentChat = _currentChat.copyWith(
+            idLastMessage: id,
+            newMessagesCount:
+                (_currentChat.newMessagesCount ?? 0) + (event.isSelf ? 0 : 1),
+          );
+        });
+      },
+    );
   }
 
   void _handleFocusChange() {
@@ -372,17 +530,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _loadInitial() {
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
-    final originalLastIdRead = widget.chat.member?.lastIdReadMessage ?? 0;
+    final originalLastIdRead = _currentChat.member?.lastIdReadMessage ?? 0;
     final lastReadId = math.max(
       0,
-      (widget.chat.member?.lastIdReadMessage ?? 0) - 2,
+      originalLastIdRead - 2,
     ); // -2 для того, чтобы загрузить немного старых
-    final lastMessageId = widget.chat.idLastMessage ?? 0;
-
-    final hasUnread =
-        originalLastIdRead > 0 && lastMessageId > originalLastIdRead;
+    final hasUnread = _hasUnread(_currentChat);
     final initialAroundId =
-        _initialPositionId ?? (hasUnread ? lastReadId : null);
+        _initialPositionId ??
+        (hasUnread && originalLastIdRead > 0 ? lastReadId : null);
 
     _messageBloc.add(
       GetMessages(
@@ -398,6 +554,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _callParticipantsBloc.close();
+    _channelReadSubscription?.cancel();
+    _channelMessageSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
     _savePosition();
@@ -417,7 +576,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       canPop: !_isExtraPanelOpen,
 
       // 🎯 2. Перехватываем действие "Назад"
-      onPopInvoked: (bool didPop) {
+      onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) {
           _saveDraft();
           _savePosition();
@@ -435,6 +594,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           BlocListener<ChatBloc, ChatState>(
             listener: (context, state) {
               if (state is ChatLoaded) {
+                if (_currentChat.type == ChatType.channel) return;
                 final updatedChat = state.chats.firstWhere(
                   (c) => c.id == _currentChat.id,
                   orElse: () => _currentChat,
@@ -482,43 +642,112 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: RepaintBoundary(
-                          child: MessagesList(
-                            key: _messagesListKey,
-                            messageBloc: _messageBloc,
-                            chatBloc: _chatBloc,
-                            chat: _currentChat,
-                            currentUserId: _currentUserId,
-                            initialAroundId:
-                                _currentChat.member?.lastIdReadMessage ?? 0,
-                            initialPositionId: _initialPositionId,
-                            inputReserve:
-                                _inputReserve +
-                                (_isExtraPanelOpen ? _extraPanelHeight : 0),
-                            onSendMessage: _onSendMessage,
-                            onEditMessage: _onEditMessage,
-                            onDeleteMessage: _onDeleteMessage,
-                            onAnswerMessage: _onAnswerMessage,
-                            onFocusInput: _focusInput,
-                            onUnfocusInput: _unfocusInput,
-                            onStickerTap: onTapSticker,
-                            onInviteMention: _sendInviteRequest,
-                          ),
-                        ),
+                        child:
+                            BlocBuilder<
+                              CallParticipantsBloc,
+                              CallParticipantsState
+                            >(
+                              bloc: _callParticipantsBloc,
+                              buildWhen: (previous, current) =>
+                                  previous.hasParticipants(_currentChat.id) !=
+                                  current.hasParticipants(_currentChat.id),
+                              builder: (context, callState) => RepaintBoundary(
+                                child: MessagesList(
+                                  key: _messagesListKey,
+                                  messageBloc: _messageBloc,
+                                  chatBloc: _chatBloc,
+                                  chat: _currentChat,
+                                  currentUserId: _currentUserId,
+                                  initialAroundId: _hasUnread(_currentChat)
+                                      ? (_currentChat
+                                                .member
+                                                ?.lastIdReadMessage ??
+                                            0)
+                                      : null,
+                                  initialPositionId: _initialPositionId,
+                                  inputReserve:
+                                      _inputReserve +
+                                      (_isExtraPanelOpen
+                                          ? _extraPanelHeight
+                                          : 0),
+                                  headerReserve:
+                                      callState.hasParticipants(_currentChat.id)
+                                      ? 116
+                                      : 64,
+                                  onSendMessage: _onSendMessage,
+                                  onEditMessage: _onEditMessage,
+                                  onDeleteMessage: _onDeleteMessage,
+                                  onAnswerMessage: _onAnswerMessage,
+                                  onFocusInput: _focusInput,
+                                  onUnfocusInput: _unfocusInput,
+                                  onStickerTap: onTapSticker,
+                                  onInviteMention: _sendInviteRequest,
+                                ),
+                              ),
+                            ),
                       ),
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
-                        child: ChatHeader(
-                          chat: _currentChat,
-                          isReconnect: isReconnect,
-                          onTap: () => DeterminantProfileScreen.open(
-                            context,
-                            chat: widget.chat,
-                          ),
-                          onSearchTap: _onSearchTap,
-                        ),
+                        child:
+                            BlocBuilder<
+                              CallParticipantsBloc,
+                              CallParticipantsState
+                            >(
+                              bloc: _callParticipantsBloc,
+                              buildWhen: (previous, current) =>
+                                  previous.participants
+                                      .forChat(_currentChat.id)
+                                      .length !=
+                                  current.participants
+                                      .forChat(_currentChat.id)
+                                      .length,
+                              builder: (context, callState) =>
+                                  BlocBuilder<CallBloc, CallState>(
+                                    builder: (context, activeCall) {
+                                      final isCurrentCall =
+                                          activeCall.chatId ==
+                                              _currentChat.id &&
+                                          (activeCall.status ==
+                                                  CallStatus.connected ||
+                                              activeCall.status ==
+                                                  CallStatus.connecting);
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ChatHeader(
+                                            chat: _currentChat,
+                                            isReconnect: isReconnect,
+                                            hasActiveCall: callState
+                                                .hasParticipants(
+                                                  _currentChat.id,
+                                                ),
+                                            isCurrentCall: isCurrentCall,
+                                            onCallTap: _openCall,
+                                            onTap: () =>
+                                                DeterminantProfileScreen.open(
+                                                  context,
+                                                  chat: widget.chat,
+                                                ),
+                                            onSearchTap: _onSearchTap,
+                                          ),
+                                          if (callState.hasParticipants(
+                                            _currentChat.id,
+                                          ))
+                                            CallActivityBanner(
+                                              participantCount: callState
+                                                  .participants
+                                                  .forChat(_currentChat.id)
+                                                  .length,
+                                              isCurrentCall: isCurrentCall,
+                                              onJoin: _openCall,
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                            ),
                       ),
                       Positioned(
                         left: 0,

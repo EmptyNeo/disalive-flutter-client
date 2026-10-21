@@ -6,7 +6,11 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
 
 abstract class ServerRepository {
-  Future<Either<Failure, List<Server>>> get();
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  });
 
   Future<Either<Failure, Server>> create(
     String name, {
@@ -24,6 +28,8 @@ abstract class ServerRepository {
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,
+    int? fkMainRole,
+    bool isSetNullMainRole = false,
     File? avatar,
   });
 

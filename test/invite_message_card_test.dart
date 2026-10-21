@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/link_data.dart';
@@ -34,7 +35,11 @@ class _ServerRepository implements ServerRepository {
   List<Server> getCached() => _servers;
 
   @override
-  Future<Either<Failure, List<Server>>> get() async => Right(_servers);
+  Future<Either<Failure, List<Server>>> get({
+    bool isPublic = false,
+    ServerType? category,
+    String? query,
+  }) async => Right(_servers);
 
   @override
   void updateCache(List<Server> servers) => _servers = servers;

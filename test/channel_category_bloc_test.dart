@@ -113,6 +113,50 @@ WsEvent _ws(String table, ActionType action, Map<String, dynamic> data) =>
     WsEvent(table: table, action: action, data: data, isSelf: false);
 
 void main() {
+  test('new channel message increments unread and reading clears it', () async {
+    final repository = _ChannelRepository();
+    final bus = WsEventBus();
+    final bloc = ChannelServerBloc(repository, bus);
+    bloc.add(const GetServerChannels(2));
+    await bloc.stream.firstWhere((state) => state is ServerChannelsLoaded);
+
+    final added = bloc.stream.firstWhere(
+      (state) =>
+          state is ServerChannelsLoaded &&
+          state.channels.first.newMessagesCount == 6,
+    );
+    bus.dispatch(
+      _ws('Message', ActionType.create, {
+        'message': {'id': 50, 'chatId': 90},
+      }),
+    );
+    await added;
+
+    final read = bloc.stream.firstWhere(
+      (state) =>
+          state is ServerChannelsLoaded &&
+          state.channels.first.lastIdReadMessage == 50,
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'ChatMembers',
+        action: ActionType.update,
+        data: {
+          'entityId': 2,
+          'entityType': 'server',
+          'chatId': 90,
+          'isSelf': true,
+          'member': {'lastIdReadMessage': 50},
+        },
+        isSelf: true,
+      ),
+    );
+    await read;
+    expect(repository.getByIdCached(10)?.newMessagesCount, 0);
+    await bloc.close();
+    bus.dispose();
+  });
+
   test('channel member update advances read status and unread count', () async {
     final repository = _ChannelRepository();
     final bus = WsEventBus();

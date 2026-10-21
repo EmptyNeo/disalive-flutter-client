@@ -34,17 +34,8 @@ class SoloChatProfileScreen extends StatelessWidget {
               child: Stack(
                 children: [
                   ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 54, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 76, 16, 24),
                     children: [
-                      Text(
-                        'Избранное',
-                        textAlign: TextAlign.left,
-                        style: AppText.highTextStyle.copyWith(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
                       MediaStatsSection(
                         chatId: chat.id,
                         onCategoryTap: onMediaCategoryTap,
@@ -52,6 +43,20 @@ class SoloChatProfileScreen extends StatelessWidget {
                     ],
                   ),
                   const CustomBackButton(),
+                  Positioned(
+                    top: 13,
+                    left: 56,
+                    right: 16,
+                    child: Text(
+                      'Избранное',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.highTextStyle.copyWith(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

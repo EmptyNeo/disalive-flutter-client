@@ -11,6 +11,8 @@ class ServersSidebar extends StatelessWidget {
   final VoidCallback? onSelectDm;
   final ValueChanged<Server>? onSelectServer;
   final VoidCallback? onCreateServer;
+  final VoidCallback? onDiscoverServers;
+  final bool isDiscovering;
 
   const ServersSidebar({
     super.key,
@@ -19,6 +21,8 @@ class ServersSidebar extends StatelessWidget {
     this.onSelectDm,
     this.onSelectServer,
     this.onCreateServer,
+    this.onDiscoverServers,
+    this.isDiscovering = false,
   });
 
   @override
@@ -34,7 +38,7 @@ class ServersSidebar extends StatelessWidget {
             ServerItem(
               key: const ValueKey('dm_server_item'),
               icon: CupertinoIcons.chat_bubble_fill,
-              isActive: selectedServerId == null,
+              isActive: selectedServerId == null && !isDiscovering,
               isSpecial: true,
               isAction: true,
               unreadCount: personalUnreadCount,
@@ -53,6 +57,15 @@ class ServersSidebar extends StatelessWidget {
               isAction: true,
               unreadCount: 0,
               onTap: onCreateServer,
+            ),
+            const SizedBox(height: 12),
+            ServerItem(
+              key: const ValueKey('discover_servers_item'),
+              icon: CupertinoIcons.compass_fill,
+              isActive: isDiscovering,
+              isAction: true,
+              unreadCount: 0,
+              onTap: onDiscoverServers,
             ),
             Expanded(
               child: BlocBuilder<ServersBloc, ServersState>(
