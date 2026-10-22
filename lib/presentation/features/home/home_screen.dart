@@ -38,6 +38,7 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
+import 'package:disalive/presentation/features/home/bottom_system_inset_tracker.dart';
 import 'package:disalive/presentation/features/updates/app_update_sheet.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
@@ -72,7 +73,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   late PageController _pageController;
   int personalUnredCount = 0;
@@ -81,7 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discoveryGridView = false;
   bool _incomingCallDialogOpen = false;
   bool _checkedForUpdates = false;
-  double _lastBottomSystemInset = 0;
+  final _bottomSystemInset = BottomSystemInsetTracker();
+  bool _bottomInsetRefreshScheduled = false;
+  int _bottomInsetRequestRevision = 0;
 
   Future<void> _checkForUpdates() async {
     if (_checkedForUpdates || !Platform.isAndroid) return;
@@ -141,26 +144,43 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     CallScreen.exitRevision.addListener(_onCallScreenExited);
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleBottomInsetRefresh();
   }
 
   void _onCallScreenExited() {
+    _scheduleBottomInsetRefresh();
+  }
+
+  @override
+  void didChangeMetrics() {
+    _scheduleBottomInsetRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _scheduleBottomInsetRefresh();
+  }
+
+  void _scheduleBottomInsetRefresh() {
+    if (_bottomInsetRefreshScheduled) return;
+    _bottomInsetRefreshScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_refreshBottomInsetAfterCall());
+      _bottomInsetRefreshScheduled = false;
+      if (mounted) unawaited(_refreshBottomInset());
     });
   }
 
-  Future<void> _refreshBottomInsetAfterCall() async {
+  Future<void> _refreshBottomInset() async {
+    final requestRevision = ++_bottomInsetRequestRevision;
     final nativeInset = await SystemInsetsService.navigationBarBottom();
-    if (!mounted) return;
-    setState(() {
-      if (nativeInset != null && nativeInset > _lastBottomSystemInset) {
-        _lastBottomSystemInset = nativeInset;
-      }
-    });
+    if (!mounted || requestRevision != _bottomInsetRequestRevision) return;
+    if (_bottomSystemInset.updateFromPlatform(nativeInset)) setState(() {});
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     CallScreen.exitRevision.removeListener(_onCallScreenExited);
     HomeScreen.scopeContext = null;
     CallPipOverlay.dispose();
@@ -340,12 +360,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       final bottomSystemInset = MediaQuery.viewPaddingOf(
                         context,
                       ).bottom;
-                      // The first frame after an immersive call can still
-                      // report zero even though the navigation bar is visible.
-                      if (bottomSystemInset > _lastBottomSystemInset) {
-                        _lastBottomSystemInset = bottomSystemInset;
-                      }
-                      final menuBottomMargin = _lastBottomSystemInset + 16.0;
+                      _bottomSystemInset.updateFromMediaQuery(
+                        bottomSystemInset,
+                      );
+                      final menuBottomMargin = _bottomSystemInset.inset + 16.0;
 
                       return CupertinoPageScaffold(
                         backgroundColor: AppColors.mainBackground,
