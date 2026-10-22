@@ -25,7 +25,6 @@ import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
-import 'package:disalive/domain/services/system_insets_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
@@ -38,7 +37,6 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
-import 'package:disalive/presentation/features/home/bottom_system_inset_tracker.dart';
 import 'package:disalive/presentation/features/updates/app_update_sheet.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
@@ -73,7 +71,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   late PageController _pageController;
   int personalUnredCount = 0;
@@ -82,9 +80,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _discoveryGridView = false;
   bool _incomingCallDialogOpen = false;
   bool _checkedForUpdates = false;
-  final _bottomSystemInset = BottomSystemInsetTracker();
-  bool _bottomInsetRefreshScheduled = false;
-  int _bottomInsetRequestRevision = 0;
 
   Future<void> _checkForUpdates() async {
     if (_checkedForUpdates || !Platform.isAndroid) return;
@@ -94,16 +89,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final currentVersion = package.version.split('.').length >= 4
           ? package.version
           : '${package.version}.${package.buildNumber}';
-      final result = await sl<AppUpdateRepository>().checkAndroid(currentVersion);
-      if (!mounted) return;
-      result.fold(
-        (_) {},
-        (update) {
-          if (update.isUpdateAvailable && update.downloadUrl.isNotEmpty) {
-            unawaited(showAppUpdateSheet(context, update));
-          }
-        },
+      final result = await sl<AppUpdateRepository>().checkAndroid(
+        currentVersion,
       );
+      if (!mounted) return;
+      result.fold((_) {}, (update) {
+        if (update.isUpdateAvailable && update.downloadUrl.isNotEmpty) {
+          unawaited(showAppUpdateSheet(context, update));
+        }
+      });
     } catch (_) {
       // A failed background check must not interrupt the home screen.
     }
@@ -144,43 +138,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     CallScreen.exitRevision.addListener(_onCallScreenExited);
-    WidgetsBinding.instance.addObserver(this);
-    _scheduleBottomInsetRefresh();
   }
 
   void _onCallScreenExited() {
-    _scheduleBottomInsetRefresh();
-  }
-
-  @override
-  void didChangeMetrics() {
-    _scheduleBottomInsetRefresh();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _scheduleBottomInsetRefresh();
-  }
-
-  void _scheduleBottomInsetRefresh() {
-    if (_bottomInsetRefreshScheduled) return;
-    _bottomInsetRefreshScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _bottomInsetRefreshScheduled = false;
-      if (mounted) unawaited(_refreshBottomInset());
+      if (mounted) setState(() {});
     });
-  }
-
-  Future<void> _refreshBottomInset() async {
-    final requestRevision = ++_bottomInsetRequestRevision;
-    final nativeInset = await SystemInsetsService.navigationBarBottom();
-    if (!mounted || requestRevision != _bottomInsetRequestRevision) return;
-    if (_bottomSystemInset.updateFromPlatform(nativeInset)) setState(() {});
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     CallScreen.exitRevision.removeListener(_onCallScreenExited);
     HomeScreen.scopeContext = null;
     CallPipOverlay.dispose();
@@ -357,14 +324,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   // Это заставит весь этот блок перерисоваться мгновенно при смене темы
                   return BlocBuilder<ThemeCubit, ThemeState>(
                     builder: (context, themeState) {
-                      final bottomSystemInset = MediaQuery.viewPaddingOf(
-                        context,
-                      ).bottom;
-                      _bottomSystemInset.updateFromMediaQuery(
-                        bottomSystemInset,
-                      );
-                      final menuBottomMargin = _bottomSystemInset.inset + 16.0;
-
                       return CupertinoPageScaffold(
                         backgroundColor: AppColors.mainBackground,
                         child: Stack(
@@ -374,53 +333,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             if (_currentIndex == 0) ...[
                               // Действие для текущего раздела чатов.
                               Positioned(
-                                bottom: menuBottomMargin + 80,
+                                bottom: 0,
                                 right: 20,
-                                child: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.blurple,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.blurple.withValues(
-                                          alpha: 0.4,
+                                child: SafeArea(
+                                  top: false,
+                                  left: false,
+                                  right: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 96),
+                                    child: Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.blurple,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.blurple.withValues(
+                                              alpha: 0.4,
+                                            ),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Semantics(
+                                        label: _isDiscoveringServers
+                                            ? _discoveryGridView
+                                                  ? 'Показать список серверов'
+                                                  : 'Показать сетку серверов'
+                                            : 'Создать чат',
+                                        button: true,
+                                        child: GlassIconButton(
+                                          key: ValueKey(
+                                            _isDiscoveringServers
+                                                ? 'discovery_layout_toggle'
+                                                : 'create_chat_button',
+                                          ),
+                                          filled: true,
+                                          icon: _isDiscoveringServers
+                                              ? _discoveryGridView
+                                                    ? CupertinoIcons.list_bullet
+                                                    : CupertinoIcons
+                                                          .square_grid_2x2
+                                              : CupertinoIcons.add,
+                                          onTap: () {
+                                            if (_isDiscoveringServers) {
+                                              setState(
+                                                () => _discoveryGridView =
+                                                    !_discoveryGridView,
+                                              );
+                                            } else {
+                                              CreateChatScreen.open(context);
+                                            }
+                                          },
                                         ),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 4),
                                       ),
-                                    ],
-                                  ),
-                                  child: Semantics(
-                                    label: _isDiscoveringServers
-                                        ? _discoveryGridView
-                                              ? 'Показать список серверов'
-                                              : 'Показать сетку серверов'
-                                        : 'Создать чат',
-                                    button: true,
-                                    child: GlassIconButton(
-                                      key: ValueKey(
-                                        _isDiscoveringServers
-                                            ? 'discovery_layout_toggle'
-                                            : 'create_chat_button',
-                                      ),
-                                      filled: true,
-                                      icon: _isDiscoveringServers
-                                          ? _discoveryGridView
-                                                ? CupertinoIcons.list_bullet
-                                                : CupertinoIcons.square_grid_2x2
-                                          : CupertinoIcons.add,
-                                      onTap: () {
-                                        if (_isDiscoveringServers) {
-                                          setState(
-                                            () => _discoveryGridView =
-                                                !_discoveryGridView,
-                                          );
-                                        } else {
-                                          CreateChatScreen.open(context);
-                                        }
-                                      },
                                     ),
                                   ),
                                 ),
@@ -429,14 +397,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
                             // Стеклянное плавающее нижнее меню
                             Positioned(
-                              bottom: menuBottomMargin,
+                              bottom: 0,
                               left: 16,
                               right: 16,
-                              child: BottomMenu(
-                                user: state.user,
-                                onTapTapped: _onTabTapped,
-                                currentIndex: _currentIndex,
-                                personalUnreadCount: personalUnredCount,
+                              child: SafeArea(
+                                top: false,
+                                left: false,
+                                right: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: BottomMenu(
+                                    user: state.user,
+                                    onTapTapped: _onTabTapped,
+                                    currentIndex: _currentIndex,
+                                    personalUnreadCount: personalUnredCount,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
