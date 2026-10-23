@@ -18,6 +18,8 @@ class Chat extends Equatable {
   final ChatType? type;
   final String? lastActionTime;
   final String? lastMessageTime;
+  final String? lastMessageText;
+  final int? lastMessageUserId;
   final bool? isBlocked;
   final bool? isCreator;
   final bool? isPersonal;
@@ -41,6 +43,8 @@ class Chat extends Equatable {
     this.type,
     this.lastActionTime,
     this.lastMessageTime,
+    this.lastMessageText,
+    this.lastMessageUserId,
     this.isBlocked,
     this.isCreator,
     this.isPersonal,
@@ -74,6 +78,8 @@ class Chat extends Equatable {
           : null,
       lastActionTime: map['lastActionTime'],
       lastMessageTime: map['lastMessageTime'],
+      lastMessageText: map['lastMessageText'],
+      lastMessageUserId: map['lastMessageUserId'],
       isBlocked: map['isBlocked'],
       isCreator: map['isCreator'],
       isPersonal: map['isPersonal'],
@@ -105,6 +111,8 @@ class Chat extends Equatable {
       if (type != null) 'type': type?.value,
       if (lastActionTime != null) 'lastActionTime': lastActionTime,
       if (lastMessageTime != null) 'lastMessageTime': lastMessageTime,
+      if (lastMessageText != null) 'lastMessageText': lastMessageText,
+      if (lastMessageUserId != null) 'lastMessageUserId': lastMessageUserId,
       if (isBlocked != null) 'isBlocked': isBlocked,
       if (isCreator != null) 'isCreator': isCreator,
       if (isPersonal != null) 'isPersonal': isPersonal,
@@ -130,6 +138,7 @@ class Chat extends Equatable {
     int? fkCreator,
     int? roleId,
     int? idLastMessage,
+    bool clearIdLastMessage = false,
     int? newMessagesCount,
     int? memberCount,
     String? name,
@@ -137,6 +146,10 @@ class Chat extends Equatable {
     ChatType? type,
     String? lastActionTime,
     String? lastMessageTime,
+    String? lastMessageText,
+    bool clearLastMessageText = false,
+    int? lastMessageUserId,
+    bool clearLastMessageUserId = false,
     bool? isBlocked,
     bool? isCreator,
     bool? isPersonal,
@@ -151,7 +164,9 @@ class Chat extends Equatable {
       id: chatId ?? id,
       fkCreator: fkCreator ?? this.fkCreator,
       roleId: roleId ?? this.roleId,
-      idLastMessage: idLastMessage ?? this.idLastMessage,
+      idLastMessage: clearIdLastMessage
+          ? null
+          : (idLastMessage ?? this.idLastMessage),
       newMessagesCount: newMessagesCount ?? this.newMessagesCount,
       memberCount: memberCount ?? this.memberCount,
       name: name ?? this.name,
@@ -159,6 +174,12 @@ class Chat extends Equatable {
       type: type ?? this.type,
       lastActionTime: lastActionTime ?? this.lastActionTime,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
+      lastMessageText: clearLastMessageText
+          ? null
+          : (lastMessageText ?? this.lastMessageText),
+      lastMessageUserId: clearLastMessageUserId
+          ? null
+          : (lastMessageUserId ?? this.lastMessageUserId),
       isBlocked: isBlocked ?? this.isBlocked,
       isCreator: isCreator ?? this.isCreator,
       isPersonal: isPersonal ?? this.isPersonal,
@@ -214,6 +235,8 @@ class Chat extends Equatable {
     type,
     lastActionTime,
     lastMessageTime,
+    lastMessageText,
+    lastMessageUserId,
     isBlocked,
     isCreator,
     isPersonal,

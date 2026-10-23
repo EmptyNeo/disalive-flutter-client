@@ -59,7 +59,15 @@ void main() {
         table: 'Message',
         action: ActionType.create,
         data: {
-          'message': {'id': 21, 'chatId': 1, 'time': '2026-10-13 12:00:00'},
+          'message': {
+            'id': 21,
+            'chatId': 1,
+            'userId': 42,
+            'text': 'Своё сообщение',
+            'time': '2026-10-13 12:00:00',
+          },
+          'lastMessageText': 'Фото',
+          'lastMessageUserId': 42,
         },
         isSelf: true,
       ),
@@ -67,6 +75,8 @@ void main() {
     final ownState = (await ownUpdate) as ChatLoaded;
     expect(ownState.chats.map((chat) => chat.id).toList(), [1, 2]);
     expect(repository.getCached().first.newMessagesCount, 2);
+    expect(ownState.chats.first.lastMessageText, 'Фото');
+    expect(ownState.chats.first.lastMessageUserId, 42);
     expect(ownState.unreadCount, 2);
 
     final foreignUpdate = bloc.stream.firstWhere(
@@ -80,7 +90,13 @@ void main() {
         table: 'Message',
         action: ActionType.create,
         data: {
-          'message': {'id': 22, 'chatId': 2, 'time': '2026-10-13 13:00:00'},
+          'message': {
+            'id': 22,
+            'chatId': 2,
+            'userId': 9,
+            'text': 'Чужое сообщение',
+            'time': '2026-10-13 13:00:00',
+          },
         },
         isSelf: false,
       ),
@@ -88,7 +104,102 @@ void main() {
     final foreignState = (await foreignUpdate) as ChatLoaded;
     expect(foreignState.chats.map((chat) => chat.id).toList(), [2, 1]);
     expect(repository.getCached().first.newMessagesCount, 1);
+    expect(foreignState.chats.first.lastMessageText, 'Чужое сообщение');
+    expect(foreignState.chats.first.lastMessageUserId, 9);
     expect(foreignState.unreadCount, 3);
+
+    await bloc.close();
+    bus.dispose();
+  });
+
+  test('edit and delete apply the server preview, including null', () async {
+    final repository = _FakeChatRepository();
+    final bus = WsEventBus();
+    final bloc = ChatBloc(repository, bus)..setupListeners();
+
+    final initial = bloc.stream.firstWhere((state) => state is ChatLoaded);
+    bloc.add(GetChats());
+    await initial;
+
+    bus.dispatch(
+      WsEvent(
+        table: 'Message',
+        action: ActionType.update,
+        data: {
+          'chatId': 2,
+          'message': {'id': 19, 'text': 'Изменено не последнее'},
+        },
+        isSelf: false,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(repository.chats.first.lastMessageText, isNull);
+
+    final edited = bloc.stream.firstWhere(
+      (state) =>
+          state is ChatLoaded &&
+          state.chats.first.lastMessageText == 'Изменённое превью',
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'Message',
+        action: ActionType.update,
+        data: {
+          'chatId': 2,
+          'lastMessageText': 'Изменённое превью',
+          'lastMessageUserId': 9,
+        },
+        isSelf: false,
+      ),
+    );
+    final editedChat = ((await edited) as ChatLoaded).chats.first;
+    expect(editedChat.lastMessageUserId, 9);
+    expect(editedChat.idLastMessage, 20);
+
+    final restored = bloc.stream.firstWhere(
+      (state) =>
+          state is ChatLoaded &&
+          state.chats.first.lastMessageText == 'Предыдущее сообщение',
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'Message',
+        action: ActionType.delete,
+        data: {
+          'chatId': 2,
+          'messageId': 20,
+          'lastMessageId': 18,
+          'lastMessageText': 'Предыдущее сообщение',
+          'lastMessageUserId': 7,
+        },
+        isSelf: false,
+      ),
+    );
+    final restoredChat = ((await restored) as ChatLoaded).chats.first;
+    expect(restoredChat.idLastMessage, 18);
+    expect(restoredChat.lastMessageUserId, 7);
+
+    final cleared = bloc.stream.firstWhere(
+      (state) =>
+          state is ChatLoaded && state.chats.first.lastMessageText == null,
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'Message',
+        action: ActionType.delete,
+        data: {
+          'chatId': 2,
+          'messageId': 18,
+          'lastMessageId': null,
+          'lastMessageText': null,
+          'lastMessageUserId': null,
+        },
+        isSelf: false,
+      ),
+    );
+    final clearedChat = ((await cleared) as ChatLoaded).chats.first;
+    expect(clearedChat.lastMessageUserId, isNull);
+    expect(clearedChat.idLastMessage, isNull);
 
     await bloc.close();
     bus.dispose();

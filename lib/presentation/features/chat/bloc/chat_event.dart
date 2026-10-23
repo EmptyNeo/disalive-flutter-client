@@ -10,8 +10,33 @@ class GetChats extends ChatEvent {}
 class AddMessageToChat extends ChatEvent {
   final Message message;
   final bool isSelf;
+  final bool hasLastMessagePreview;
+  final String? lastMessageText;
+  final int? lastMessageUserId;
 
-  AddMessageToChat({required this.message, required this.isSelf});
+  AddMessageToChat({
+    required this.message,
+    required this.isSelf,
+    this.hasLastMessagePreview = false,
+    this.lastMessageText,
+    this.lastMessageUserId,
+  });
+}
+
+class UpdateLastMessageInChat extends ChatEvent {
+  final int chatId;
+  final String? lastMessageText;
+  final int? lastMessageUserId;
+  final bool hasLastMessageId;
+  final int? lastMessageId;
+
+  UpdateLastMessageInChat({
+    required this.chatId,
+    required this.lastMessageText,
+    required this.lastMessageUserId,
+    this.hasLastMessageId = false,
+    this.lastMessageId,
+  });
 }
 
 class AddChat extends ChatEvent {

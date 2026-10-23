@@ -7,6 +7,7 @@ class EmojiTextParser {
     String text, {
     TextStyle? baseTextStyle,
     double emojiSize = 20,
+    bool animateEmoji = true,
   }) {
     final List<InlineSpan> spans = [];
     final regex = RegExp(r'\[([a-zA-Z0-9_]+):(\d+)\]');
@@ -38,6 +39,7 @@ class EmojiTextParser {
               emoji: emojiDef,
               sheetData: sheetData,
               size: emojiSize,
+              animate: animateEmoji,
             ),
           ),
         );

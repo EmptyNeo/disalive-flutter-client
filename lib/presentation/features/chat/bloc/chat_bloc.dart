@@ -25,6 +25,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final WsEventBus _eventBus;
 
   StreamSubscription<WsEvent>? _messageCreateSubscription;
+  StreamSubscription<WsEvent>? _messageUpdateSubscription;
+  StreamSubscription<WsEvent>? _messageDeleteSubscription;
   StreamSubscription<WsEvent>? _memberUpdateSubscription;
   StreamSubscription<WsEvent>? _memberCreateSubscription;
   StreamSubscription<WsEvent>? _memberDeleteSubscription;
@@ -37,6 +39,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   ChatBloc(this._chatRepository, this._eventBus) : super(ChatInitial()) {
     on<GetChats>(_onGetChats);
     on<AddMessageToChat>(_onAddMessageToChat);
+    on<UpdateLastMessageInChat>(_onUpdateLastMessageInChat);
     on<SearchChats>(_onSearchChats);
     on<AddChat>(_onAddChat);
     on<UpdateChat>(_onUpdateChat);
@@ -58,8 +61,59 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         final map = event.data['message'];
         if (map is Map<String, dynamic>) {
           final message = Message.fromMap(map);
-          add(AddMessageToChat(message: message, isSelf: event.isSelf));
+          final hasPreview = event.data.containsKey('lastMessageText');
+          add(
+            AddMessageToChat(
+              message: message,
+              isSelf: event.isSelf,
+              hasLastMessagePreview: hasPreview,
+              lastMessageText: event.data['lastMessageText'] as String?,
+              lastMessageUserId: DataParser.parseInt(
+                event.data['lastMessageUserId'],
+              ),
+            ),
+          );
         }
+      },
+    );
+
+    _messageUpdateSubscription = _eventBus.subscribe(
+      table: 'Message',
+      action: ActionType.update,
+      onData: (event) {
+        if (!event.data.containsKey('lastMessageText')) return;
+        final chatId = DataParser.parseInt(event.data['chatId']);
+        if (chatId == null) return;
+        add(
+          UpdateLastMessageInChat(
+            chatId: chatId,
+            lastMessageText: event.data['lastMessageText'] as String?,
+            lastMessageUserId: DataParser.parseInt(
+              event.data['lastMessageUserId'],
+            ),
+          ),
+        );
+      },
+    );
+
+    _messageDeleteSubscription = _eventBus.subscribe(
+      table: 'Message',
+      action: ActionType.delete,
+      onData: (event) {
+        if (!event.data.containsKey('lastMessageText')) return;
+        final chatId = DataParser.parseInt(event.data['chatId']);
+        if (chatId == null) return;
+        add(
+          UpdateLastMessageInChat(
+            chatId: chatId,
+            lastMessageText: event.data['lastMessageText'] as String?,
+            lastMessageUserId: DataParser.parseInt(
+              event.data['lastMessageUserId'],
+            ),
+            hasLastMessageId: event.data.containsKey('lastMessageId'),
+            lastMessageId: DataParser.parseInt(event.data['lastMessageId']),
+          ),
+        );
       },
     );
 
@@ -241,10 +295,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final oldChat = cachedChats[index];
       final newChat = event.chat;
 
-      // Обновляем только name и pathImage — то, что реально меняется
+      // Частичные обновления чата не должны сбрасывать последний текст.
       cachedChats[index] = oldChat.copyWith(
         name: newChat.name,
         pathImage: newChat.pathImage ?? oldChat.pathImage,
+        lastMessageText: newChat.lastMessageText,
+        lastMessageUserId: newChat.lastMessageUserId,
       );
 
       // Сортируем (имя могло измениться)
@@ -276,6 +332,16 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final chat = cachedChats[chatIndex];
       cachedChats[chatIndex] = chat.copyWith(
         lastMessageTime: message.time,
+        lastMessageText: event.hasLastMessagePreview
+            ? event.lastMessageText
+            : message.text ?? '',
+        clearLastMessageText:
+            event.hasLastMessagePreview && event.lastMessageText == null,
+        lastMessageUserId: event.hasLastMessagePreview
+            ? event.lastMessageUserId
+            : message.userId,
+        clearLastMessageUserId:
+            event.hasLastMessagePreview && event.lastMessageUserId == null,
         idLastMessage: message.id,
         newMessagesCount: chat.unreadCount + (event.isSelf ? 0 : 1),
       );
@@ -285,6 +351,25 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       int unreadCount = _chatRepository.getAllUnredCount();
       emit(ChatLoaded(cachedChats, unreadCount));
     }
+  }
+
+  void _onUpdateLastMessageInChat(
+    UpdateLastMessageInChat event,
+    Emitter<ChatState> emit,
+  ) {
+    final cachedChats = _chatRepository.getCached();
+    final index = cachedChats.indexWhere((chat) => chat.id == event.chatId);
+    if (index == -1) return;
+
+    cachedChats[index] = cachedChats[index].copyWith(
+      lastMessageText: event.lastMessageText,
+      clearLastMessageText: event.lastMessageText == null,
+      lastMessageUserId: event.lastMessageUserId,
+      clearLastMessageUserId: event.lastMessageUserId == null,
+      idLastMessage: event.lastMessageId,
+      clearIdLastMessage: event.hasLastMessageId && event.lastMessageId == null,
+    );
+    emit(ChatLoaded(cachedChats, _chatRepository.getAllUnredCount()));
   }
 
   void _onUpdateMemberInChat(
@@ -462,6 +547,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   void closeSubs() {
     _messageCreateSubscription?.cancel();
+    _messageUpdateSubscription?.cancel();
+    _messageDeleteSubscription?.cancel();
     _memberUpdateSubscription?.cancel();
     _memberCreateSubscription?.cancel();
     _memberDeleteSubscription?.cancel();

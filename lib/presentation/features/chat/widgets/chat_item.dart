@@ -5,6 +5,7 @@ import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/presentation/utils/ui/pluralize.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
@@ -59,12 +60,15 @@ class _ChatItemState extends State<ChatItem> {
     final int unreadCount = chat.unreadCount;
     final bool hasUnread = chat.hasUnreadMessages;
     final String? time = UtilDate.formatDayTime(chat.lastMessageTime, false);
-    final draft = _localState.getDraft(
-      sl<UserRepository>().getCurrentUser()?.id,
-      chat.id,
-    );
+    final currentUserId = sl<UserRepository>().getCurrentUser()?.id;
+    final draft = _localState.getDraft(currentUserId, chat.id);
     final hasDraft = draft != null && !draft.isEmpty;
     final draftText = draft?.text.trim() ?? '';
+    final lastMessageText = chat.lastMessageText?.trim() ?? '';
+    final lastMessagePreview =
+        currentUserId != null && chat.lastMessageUserId == currentUserId
+        ? 'Вы: $lastMessageText'
+        : lastMessageText;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -155,8 +159,8 @@ class _ChatItemState extends State<ChatItem> {
                   ),
                   const SizedBox(height: 3),
 
-                  // Нижняя строка: подпись (кол-во участников) слева, пин и
-                  // бейдж непрочитанных справа.
+                  // Нижняя строка: черновик или последнее сообщение, затем
+                  // количество участников, если сообщений ещё нет.
                   Row(
                     children: [
                       Expanded(
@@ -167,6 +171,28 @@ class _ChatItemState extends State<ChatItem> {
                                     : 'Черновик: $draftText',
                                 style: const TextStyle(
                                   color: AppColors.red,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            : lastMessageText.isNotEmpty
+                            ? Text.rich(
+                                TextSpan(
+                                  children: EmojiTextParser.parse(
+                                    lastMessagePreview,
+                                    baseTextStyle: TextStyle(
+                                      color: AppColors.greyple,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    emojiSize: 14,
+                                    animateEmoji: false,
+                                  ),
+                                ),
+                                style: TextStyle(
+                                  color: AppColors.greyple,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w400,
                                 ),
