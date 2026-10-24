@@ -34,6 +34,7 @@ void main() {
             'audio': 1,
             'links': 17,
             'mutualChatsCount': 5,
+            'mutualServersCount': 2,
           },
           '73': {'photos': 60, 'links': 11},
           'unexpected': {'photos': 999},
@@ -61,6 +62,7 @@ void main() {
           audio: 1,
           links: 17,
           mutualChatsCount: 5,
+          mutualServersCount: 2,
         ),
       );
       expect(repository.getCached()[73]?.videos, 0);

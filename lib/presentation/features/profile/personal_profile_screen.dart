@@ -10,6 +10,7 @@ import 'package:disalive/presentation/features/profile/widgets/profile_banner.da
 import 'package:disalive/presentation/features/profile/widgets/profile_info_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_qr_sheet.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_thoughts_bubble.dart';
+import 'package:disalive/presentation/features/profile/widgets/user_status_sheet.dart';
 import 'package:disalive/presentation/utils/ui/color_service.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -114,13 +115,16 @@ class PersonalProfileScreen extends StatelessWidget {
                         Positioned(
                           top: 76,
                           left: 16,
-                          child: ProfileAvatar(
-                            url: user.urlAvatar,
-                            status: user.status,
-                            isBookmark: false,
-                            wh: 80,
-                            size: 42,
-                            colorOutline: profileMainColor,
+                          child: GestureDetector(
+                            onTap: () => UserStatusSheet.show(context, user),
+                            child: ProfileAvatar(
+                              url: user.urlAvatar,
+                              status: user.status,
+                              isBookmark: false,
+                              wh: 80,
+                              size: 42,
+                              colorOutline: profileMainColor,
+                            ),
                           ),
                         ),
 

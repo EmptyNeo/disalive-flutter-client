@@ -20,6 +20,7 @@ class _StatsRepository implements MediaStatsRepository {
       audio: 4,
       links: 17,
       mutualChatsCount: 5,
+      mutualServersCount: 2,
     ),
   };
 
@@ -35,7 +36,7 @@ class _StatsRepository implements MediaStatsRepository {
 
 void main() {
   testWidgets(
-    'shows five media counts and mutual groups only for direct chat',
+    'shows media counts and mutual categories only for direct chat',
     (tester) async {
       final bloc = MediaStatsBloc(_StatsRepository())
         ..add(const LoadMediaStats());
@@ -71,6 +72,7 @@ void main() {
         expect(find.text(title), findsOneWidget);
       }
       expect(find.text('Общие группы'), findsNothing);
+      expect(find.text('Общие серверы'), findsNothing);
       expect(find.text('17'), findsOneWidget);
       final labels = ['Изображения', 'Видео', 'Файлы', 'Аудиофайлы', 'Ссылки'];
       final positions = labels
@@ -85,11 +87,11 @@ void main() {
       await tester.pumpWidget(screen(true, onCategoryTap: selected.add));
       await tester.pumpAndSettle();
       expect(find.text('Общие группы'), findsOneWidget);
+      expect(find.text('Общие серверы'), findsOneWidget);
+      expect(find.text('2'), findsNWidgets(2));
       expect(find.text('5'), findsOneWidget);
-      for (final title in [...labels, 'Общие группы']) {
-        await tester.tap(find.text(title));
-      }
-      expect(selected, MediaStatsCategory.values);
+      await tester.tap(find.text('Общие серверы'));
+      expect(selected, [MediaStatsCategory.mutualServers]);
     },
   );
 
@@ -112,10 +114,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Избранное'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.text('Избранное')).textAlign,
-      TextAlign.left,
-    );
+    expect(tester.getTopLeft(find.text('Избранное')).dx, lessThan(200));
     expect(find.text('Изображения'), findsOneWidget);
     expect(find.text('Общие группы'), findsNothing);
   });

@@ -306,13 +306,25 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
               color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(action.icon, color: color, size: 18),
+            child: action.leading ?? Icon(action.icon, color: color, size: 18),
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              action.label,
-              style: AppText.mediumTextStyle.copyWith(color: color),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  action.label,
+                  style: AppText.mediumTextStyle.copyWith(color: color),
+                ),
+                if (action.subtitle != null)
+                  Text(
+                    action.subtitle!,
+                    style: AppText.lowTextStyle.copyWith(
+                      color: AppColors.greyple,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

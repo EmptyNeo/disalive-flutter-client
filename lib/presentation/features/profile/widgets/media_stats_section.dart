@@ -11,7 +11,15 @@ import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-enum MediaStatsCategory { photos, videos, files, audio, links, mutualChats }
+enum MediaStatsCategory {
+  photos,
+  videos,
+  files,
+  audio,
+  links,
+  mutualChats,
+  mutualServers,
+}
 
 class MediaStatsSection extends StatelessWidget {
   const MediaStatsSection({
@@ -20,12 +28,16 @@ class MediaStatsSection extends StatelessWidget {
     this.showMutualChats = false,
     this.onCategoryTap,
     this.onGroupTap,
+    this.onServerTap,
+    this.onMessageTap,
   });
 
   final int chatId;
   final bool showMutualChats;
   final ValueChanged<MediaStatsCategory>? onCategoryTap;
   final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+  final ValueChanged<MediaFilterMutualServer>? onServerTap;
+  final ValueChanged<int>? onMessageTap;
 
   void _openCategory(BuildContext context, MediaStatsCategory category) {
     onCategoryTap?.call(category);
@@ -36,6 +48,7 @@ class MediaStatsSection extends StatelessWidget {
       MediaStatsCategory.audio => MediaFilterCategory.audio,
       MediaStatsCategory.links => MediaFilterCategory.links,
       MediaStatsCategory.mutualChats => MediaFilterCategory.mutualChats,
+      MediaStatsCategory.mutualServers => MediaFilterCategory.mutualServers,
     };
     SwipeToDismissRoute.push(
       context,
@@ -46,6 +59,8 @@ class MediaStatsSection extends StatelessWidget {
         child: MediaFilterScreen(
           category: filterCategory,
           onGroupTap: onGroupTap,
+          onServerTap: onServerTap,
+          onMessageTap: onMessageTap,
         ),
       ),
     );
@@ -115,6 +130,13 @@ class MediaStatsSection extends StatelessWidget {
                   icon: CupertinoIcons.person_2,
                   title: 'Общие группы',
                   count: stats.mutualChatsCount,
+                ),
+              if (showMutualChats)
+                (
+                  category: MediaStatsCategory.mutualServers,
+                  icon: CupertinoIcons.square_stack_3d_up,
+                  title: 'Общие серверы',
+                  count: stats.mutualServersCount,
                 ),
             ];
 

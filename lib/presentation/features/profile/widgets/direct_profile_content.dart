@@ -20,7 +20,10 @@ class DirectProfileContent extends StatelessWidget {
   final int? chatId;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
   final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+  final ValueChanged<MediaFilterMutualServer>? onServerTap;
+  final ValueChanged<int>? onMessageTap;
   final Widget? actions;
+  final Widget? footer;
 
   const DirectProfileContent({
     super.key,
@@ -29,7 +32,10 @@ class DirectProfileContent extends StatelessWidget {
     this.chatId,
     this.onMediaCategoryTap,
     this.onGroupTap,
+    this.onServerTap,
+    this.onMessageTap,
     this.actions,
+    this.footer,
   });
 
   @override
@@ -187,6 +193,8 @@ class DirectProfileContent extends StatelessWidget {
                         showMutualChats: true,
                         onCategoryTap: onMediaCategoryTap,
                         onGroupTap: onGroupTap,
+                        onServerTap: onServerTap,
+                        onMessageTap: onMessageTap,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -220,6 +228,11 @@ class DirectProfileContent extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (footer != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+                      child: footer!,
+                    ),
                   const SizedBox(height: 24),
                 ],
               ),

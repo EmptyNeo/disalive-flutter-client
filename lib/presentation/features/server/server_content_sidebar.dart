@@ -20,6 +20,7 @@ import 'package:disalive/presentation/features/category_channel/widgets/category
 import 'package:disalive/presentation/features/channel_server/bloc/channel_server_bloc.dart';
 import 'package:disalive/presentation/features/channel_server/channel_form_screen.dart';
 import 'package:disalive/presentation/features/channel_server/widgets/channel_server_item.dart';
+import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/invites/manage_server_invites_screen.dart';
 import 'package:disalive/presentation/features/server/server_members_screen.dart';
@@ -254,6 +255,25 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     );
   }
 
+  Future<void> _removeMainChannel() async {
+    final result = await sl<ServerRepository>().update(
+      _serverId,
+      widget.server.name ?? 'Сервер',
+      isSetNullMainChannel: true,
+    );
+    if (!mounted) return;
+    result.fold(
+      (failure) => _showMessage(failure.message),
+      (server) => context.read<ServersBloc>().add(
+        ServerUpserted({
+          ...server.toMap(),
+          'fkMainChannel': null,
+          'mainChatId': 0,
+        }),
+      ),
+    );
+  }
+
   Future<void> _editCategory(CategoryChannel category) async {
     final name = await AppTextInputSheet.show(
       context,
@@ -296,34 +316,51 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   }
 
   void _showChannelActions(ChannelServer channel) {
-    if (!_rights.canManageChannels && !_rights.canManageServer) return;
-    ActionBottomSheet.show(
-      context,
-      title: channel.chatName,
-      actions: [
-        if (_rights.canManageServer &&
-            channel.id != null &&
-            widget.server.fkMainChannel != channel.id)
-          ActionItem(
-            icon: CupertinoIcons.star_fill,
-            label: 'Сделать главным каналом',
-            onTap: () => _setMainChannel(channel),
+    final actions = <ActionItem>[
+      if (channel.newMessagesCount > 0)
+        ActionItem(
+          icon: CupertinoIcons.checkmark_circle,
+          label: 'Прочитать канал',
+          onTap: () => ReadStatusActions.markChannel(
+            context,
+            _serverId,
+            channel,
+            refreshChannels: () =>
+                _channelsBloc.add(GetServerChannels(_serverId)),
           ),
-        if (_rights.canManageChannels) ...[
-          ActionItem(
-            icon: CupertinoIcons.pencil,
-            label: 'Редактировать канал',
-            onTap: () => _editChannel(channel),
-          ),
-          ActionItem(
-            icon: CupertinoIcons.delete,
-            label: 'Удалить канал',
-            isDestructive: true,
-            onTap: () => _deleteChannel(channel),
-          ),
-        ],
+        ),
+      if (_rights.canManageServer &&
+          channel.id != null &&
+          widget.server.fkMainChannel != channel.id)
+        ActionItem(
+          icon: CupertinoIcons.star_fill,
+          label: 'Сделать главным каналом',
+          onTap: () => _setMainChannel(channel),
+        ),
+      if (_rights.canManageServer &&
+          channel.id != null &&
+          widget.server.fkMainChannel == channel.id)
+        ActionItem(
+          icon: CupertinoIcons.star_slash,
+          label: 'Убрать основной канал',
+          onTap: _removeMainChannel,
+        ),
+      if (_rights.canManageChannels) ...[
+        ActionItem(
+          icon: CupertinoIcons.pencil,
+          label: 'Редактировать канал',
+          onTap: () => _editChannel(channel),
+        ),
+        ActionItem(
+          icon: CupertinoIcons.delete,
+          label: 'Удалить канал',
+          isDestructive: true,
+          onTap: () => _deleteChannel(channel),
+        ),
       ],
-    );
+    ];
+    if (actions.isEmpty) return;
+    ActionBottomSheet.show(context, title: channel.chatName, actions: actions);
   }
 
   void _showCategoryActions(CategoryChannel category) {
@@ -353,6 +390,17 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       context,
       title: widget.server.name,
       actions: [
+        if ((widget.server.newMessagesCount ?? 0) > 0)
+          ActionItem(
+            icon: CupertinoIcons.checkmark_circle,
+            label: 'Пометить как прочитанное',
+            onTap: () => ReadStatusActions.markServer(
+              context,
+              widget.server,
+              refreshChannels: () =>
+                  _channelsBloc.add(GetServerChannels(_serverId)),
+            ),
+          ),
         if (rights.canInvite)
           ActionItem(
             icon: CupertinoIcons.person_add,

@@ -64,6 +64,7 @@ class MessagesList extends StatefulWidget {
   final bool canReply;
   final Function(StickerContent sticker) onStickerTap;
   final ValueChanged<String>? onInviteMention;
+  final ValueChanged<int>? onChannelTap;
   final VoidCallback? onFocusInput;
   final VoidCallback? onUnfocusInput;
 
@@ -84,6 +85,7 @@ class MessagesList extends StatefulWidget {
     this.canReply = true,
     required this.onStickerTap,
     this.onInviteMention,
+    this.onChannelTap,
     this.onFocusInput,
     this.onUnfocusInput,
   });
@@ -93,6 +95,11 @@ class MessagesList extends StatefulWidget {
 }
 
 class MessagesListState extends State<MessagesList> {
+  MessageState? get _chatState {
+    final current = widget.messageBloc.state;
+    return current.chatId == widget.chat.id ? current : null;
+  }
+
   EntityKey? _currentEntityKey() {
     return DeterminingContextService.getEntityKey();
   }
@@ -140,7 +147,7 @@ class MessagesListState extends State<MessagesList> {
 
     _startTimeForNextState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.messageBloc.state is MessageLoaded) {
+      if (mounted && _chatState is MessageLoaded) {
         _scheduleReadTracking();
       }
     });
@@ -233,7 +240,7 @@ class MessagesListState extends State<MessagesList> {
 
   int? firstVisibleMessageId() {
     if (!_scrollController.hasClients) return null;
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return null;
     final viewport = context.findRenderObject() as RenderBox?;
     if (viewport == null || !viewport.hasSize) return null;
@@ -270,7 +277,7 @@ class MessagesListState extends State<MessagesList> {
   // 🎯 4. ОБНОВЛЕННАЯ ЛОГИКА СКРОЛЛА И ПАГИНАЦИИ
   void _onScroll() {
     if (!_scrollController.hasClients) return;
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return;
     if (state.isLoadingMore || state.isLoadingNewer) return;
 
@@ -357,7 +364,7 @@ class MessagesListState extends State<MessagesList> {
     bool highlight = true,
   }) async {
     if (targetMessageId == null) return;
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return;
 
     final isLoaded = state.messages.any((m) => m.id == targetMessageId);
@@ -386,7 +393,11 @@ class MessagesListState extends State<MessagesList> {
     );
 
     final newState = await widget.messageBloc.stream
-        .firstWhere((s) => s is MessageLoaded || s is MessageFailure)
+        .firstWhere(
+          (s) =>
+              s.chatId == widget.chat.id &&
+              (s is MessageLoaded || s is MessageFailure),
+        )
         .timeout(const Duration(seconds: 10));
 
     if (newState is! MessageLoaded) return;
@@ -426,7 +437,7 @@ class MessagesListState extends State<MessagesList> {
 
     // 2. Если контекста нет, значит виджет НЕ построен (даже если он в стейте).
     // Нам нужно заставить SliverList его построить.
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return false;
 
     final index = state.messages.indexWhere((m) => m.id == messageId);
@@ -482,7 +493,7 @@ class MessagesListState extends State<MessagesList> {
 
   void _handleReadTracking() {
     if (!mounted || !_scrollController.hasClients) return;
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return;
     final messages = state.messages;
     if (messages.isEmpty) return;
@@ -570,7 +581,7 @@ class MessagesListState extends State<MessagesList> {
       _hasUserScrolled = true;
       _scheduleSeparatorUpdate();
     }
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return;
 
     final currentLatestId = state.messages.first.id ?? 0;
@@ -597,6 +608,7 @@ class MessagesListState extends State<MessagesList> {
       // Ждём, пока загрузятся самые свежие сообщения
       await widget.messageBloc.stream
           .firstWhere((newState) {
+            if (newState.chatId != widget.chat.id) return false;
             if (newState is MessageLoaded) {
               final newLatestId = newState.messages.first.id ?? 0;
               _isAtBottomNotifier.value = true;
@@ -618,7 +630,7 @@ class MessagesListState extends State<MessagesList> {
     // 🎯 ПРОВЕРЯЕМ ПЕРЕДАННЫЙ ПАРАМЕТР
     if (isAtBottom) return const SizedBox.shrink();
 
-    final state = widget.messageBloc.state;
+    final state = _chatState;
     if (state is! MessageLoaded) return const SizedBox.shrink();
     if (!_scrollController.hasClients) return const SizedBox.shrink();
     if (state.messages.isEmpty) return const SizedBox.shrink();
@@ -697,7 +709,9 @@ class MessagesListState extends State<MessagesList> {
       listeners: [
         BlocListener<MessageBloc, MessageState>(
           bloc: widget.messageBloc,
-          listenWhen: (p, c) => c is MessageLoading || c is MessageLoaded,
+          listenWhen: (p, c) =>
+              c.chatId == widget.chat.id &&
+              (c is MessageLoading || c is MessageLoaded),
           listener: (context, state) {
             if (state is MessageLoading) {
               _anchorKey = _restoredPosition ? null : widget.initialPositionId;
@@ -714,7 +728,7 @@ class MessagesListState extends State<MessagesList> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               _scheduleReadTracking();
-              final loaded = widget.messageBloc.state;
+              final loaded = _chatState;
               if (loaded is MessageLoaded &&
                   loaded.hasNewerMessages &&
                   _scrollController.hasClients &&
@@ -733,7 +747,7 @@ class MessagesListState extends State<MessagesList> {
             bottom: widget.inputReserve,
           );
 
-          if (state is MessageLoading) {
+          if (state.chatId != widget.chat.id || state is MessageLoading) {
             return Padding(
               padding: reservePadding,
               child: const Center(child: CupertinoActivityIndicator()),
@@ -910,6 +924,7 @@ class MessagesListState extends State<MessagesList> {
                   onTapReaction: onToggleReaction,
                   onStickerTap: widget.onStickerTap,
                   onInviteMention: widget.onInviteMention,
+                  onChannelTap: widget.onChannelTap,
                 ),
               ),
             );

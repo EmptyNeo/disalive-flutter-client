@@ -1,5 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 
 class StatusDot extends StatelessWidget {
@@ -25,7 +24,7 @@ class StatusDot extends StatelessWidget {
     }
 
     // Если статус "Не в сети" — вырезаем маленький круг посередине
-    if (status == UserStatus.offline) {
+    if (status == UserStatus.offline || status == UserStatus.invisible) {
       return CustomPaint(
         size: Size(size, size),
         painter: _OfflinePainter(color: status.color),

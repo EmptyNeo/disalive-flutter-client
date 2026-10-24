@@ -7,9 +7,12 @@ import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/channel_server.dart';
+import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/presentation/features/channel_server/bloc/channel_server_bloc.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/servers_sidebar.dart';
@@ -19,6 +22,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeServerRepository implements ServerRepository {
+  _FakeServerRepository({this.unreadCount = 5});
+
+  final int unreadCount;
   List<Server> servers = [];
   int? _selectedServerId;
 
@@ -39,7 +45,12 @@ class _FakeServerRepository implements ServerRepository {
     String? query,
   }) async {
     servers = [
-      const Server(id: 1, name: 'Original', fkOwner: 9, newMessagesCount: 5),
+      Server(
+        id: 1,
+        name: 'Original',
+        fkOwner: 9,
+        newMessagesCount: unreadCount,
+      ),
     ];
     return Right(List<Server>.from(servers));
   }
@@ -86,8 +97,7 @@ class _DelayedServerRepository extends _FakeServerRepository {
 }
 
 class _CachedChannels implements ChannelServerRepository {
-  @override
-  List<ChannelServer> getCached(int serverId) => const [
+  List<ChannelServer> channels = const [
     ChannelServer(
       id: 10,
       serverId: 1,
@@ -98,10 +108,90 @@ class _CachedChannels implements ChannelServerRepository {
   ];
 
   @override
+  List<ChannelServer> getCached(int serverId) => channels;
+
+  @override
+  Future<Either<Failure, List<ChannelServer>>> get(int serverId) async =>
+      Right(List<ChannelServer>.from(channels));
+
+  @override
+  void updateCache(int serverId, List<ChannelServer> updated) =>
+      channels = List<ChannelServer>.from(updated);
+
+  @override
+  void clear([int? serverId]) => channels = [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _CurrentUserRepository implements UserRepository {
+  @override
+  UserModel? getCurrentUser() => const UserModel(id: 42);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
+  test(
+    'deleting unread channel message updates channel and server counts',
+    () async {
+      await sl.reset();
+      final channels = _CachedChannels();
+      sl.registerSingleton<ChannelServerRepository>(channels);
+      sl.registerSingleton<UserRepository>(_CurrentUserRepository());
+      final repository = _FakeServerRepository();
+      final bus = WsEventBus();
+      final serverBloc = ServersBloc(repository, bus);
+      final channelBloc = ChannelServerBloc(channels, bus);
+      serverBloc.add(const GetServers());
+      await serverBloc.stream.firstWhere((state) => state is ServersLoaded);
+      channelBloc.add(const GetServerChannels(1));
+      await channelBloc.stream.firstWhere(
+        (state) => state is ServerChannelsLoaded,
+      );
+
+      void remove(int messageId, int authorId) => bus.dispatch(
+        WsEvent(
+          table: 'Message',
+          action: ActionType.delete,
+          data: {
+            'chatId': 90,
+            'messageId': messageId,
+            'messageUserId': authorId,
+            'userId': 42,
+          },
+          isSelf: true,
+        ),
+      );
+
+      final serverUpdated = serverBloc.stream.firstWhere(
+        (state) =>
+            state is ServersLoaded && state.servers.first.newMessagesCount == 4,
+      );
+      final channelUpdated = channelBloc.stream.firstWhere(
+        (state) =>
+            state is ServerChannelsLoaded &&
+            state.channels.first.newMessagesCount == 3,
+      );
+      remove(45, 9);
+      await serverUpdated;
+      await channelUpdated;
+
+      remove(40, 9);
+      remove(44, 42);
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.getByIdCached(1)?.newMessagesCount, 4);
+      expect(channels.channels.first.newMessagesCount, 3);
+
+      await serverBloc.close();
+      await channelBloc.close();
+      bus.dispose();
+      await sl.reset();
+    },
+  );
+
   test('new channel message increments server unread count', () async {
     await sl.reset();
     sl.registerSingleton<ChannelServerRepository>(_CachedChannels());
@@ -381,6 +471,88 @@ void main() {
     );
     expect(find.text('O'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
+
+    await tester.longPress(find.byKey(const ValueKey('dm_server_item')));
+    await tester.pumpAndSettle();
+    expect(find.text('Пометить как прочитанное'), findsOneWidget);
+    expect(find.text('Прочитать все серверы'), findsNothing);
+    Navigator.of(tester.element(find.byType(ServersSidebar))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.longPress(
+      find.byWidgetPredicate(
+        (widget) => widget is ServerItem && widget.name == 'Original',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Пометить как прочитанное'), findsOneWidget);
+    expect(find.text('Прочитать все серверы'), findsNothing);
+    Navigator.of(tester.element(find.byType(ServersSidebar))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await bloc.close();
+      bus.dispose();
+    });
+  });
+
+  testWidgets('read action exists only when its scope has unread messages', (
+    tester,
+  ) async {
+    final repository = _FakeServerRepository(unreadCount: 0);
+    final bus = WsEventBus();
+    final bloc = ServersBloc(repository, bus)..add(const GetServers());
+    Future<void> pump(int personalUnreadCount) async {
+      await tester.pumpWidget(
+        BlocProvider<ServersBloc>.value(
+          value: bloc,
+          child: CupertinoApp(
+            home: CupertinoPageScaffold(
+              child: ServersSidebar(personalUnreadCount: personalUnreadCount),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    await pump(0);
+    expect(
+      tester
+          .widget<ServerItem>(find.byKey(const ValueKey('dm_server_item')))
+          .onLongPress,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<ServerItem>(
+            find.byWidgetPredicate(
+              (widget) => widget is ServerItem && widget.name == 'Original',
+            ),
+          )
+          .onLongPress,
+      isNull,
+    );
+
+    await pump(2);
+    expect(
+      tester
+          .widget<ServerItem>(find.byKey(const ValueKey('dm_server_item')))
+          .onLongPress,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<ServerItem>(
+            find.byWidgetPredicate(
+              (widget) => widget is ServerItem && widget.name == 'Original',
+            ),
+          )
+          .onLongPress,
+      isNull,
+    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() async {

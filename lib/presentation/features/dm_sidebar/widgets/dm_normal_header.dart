@@ -10,11 +10,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class DmNormalHeader extends StatelessWidget {
   final bool isReconnect;
   final VoidCallback onSearchTap;
+  final VoidCallback? onReadAllTap;
 
   const DmNormalHeader({
     super.key,
     required this.isReconnect,
     required this.onSearchTap,
+    this.onReadAllTap,
   });
 
   static const double _buttonRadius = 32;
@@ -27,14 +29,35 @@ class DmNormalHeader extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
-          child: Text(
-            title,
-            style: TextStyle(
-              color: AppColors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.2,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+              if (onReadAllTap != null)
+                Semantics(
+                  label: 'Прочитать все чаты',
+                  button: true,
+                  child: CupertinoButton(
+                    key: const ValueKey('read_all_chats'),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(32, 32),
+                    onPressed: onReadAllTap,
+                    child: const Icon(
+                      CupertinoIcons.checkmark_circle,
+                      size: 21,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         Padding(
@@ -70,7 +93,7 @@ class DmNormalHeader extends StatelessWidget {
                         children: [
                           Icon(
                             CupertinoIcons.person_add_solid,
-                            color: AppColors.white.withOpacity(0.75),
+                            color: AppColors.white.withValues(alpha: 0.75),
                             size: 16,
                           ),
                           const SizedBox(width: 8),
@@ -81,7 +104,9 @@ class DmNormalHeader extends StatelessWidget {
                                   child: Text(
                                     'Добавить в друзья',
                                     style: TextStyle(
-                                      color: AppColors.white.withOpacity(0.85),
+                                      color: AppColors.white.withValues(
+                                        alpha: 0.85,
+                                      ),
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),

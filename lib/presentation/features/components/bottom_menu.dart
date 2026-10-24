@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/components/widgets/nav_unread_badge.dart';
+import 'package:disalive/presentation/features/profile/widgets/user_status_sheet.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -36,10 +37,10 @@ class BottomMenu extends StatelessWidget {
         child: Container(
           height: 64,
           decoration: BoxDecoration(
-            color: AppColors.darkGrey.withOpacity(0.65),
+            color: AppColors.darkGrey.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(32),
             border: Border.all(
-              color: AppColors.white.withOpacity(0.15),
+              color: AppColors.white.withValues(alpha: 0.15),
               width: 0.5,
             ),
           ),
@@ -90,6 +91,7 @@ class BottomMenu extends StatelessWidget {
                           label: 'Настройки',
                         ),
                         _buildProfileNavItem(
+                          context: context,
                           width: itemWidth,
                           index: 2,
                           user: user,
@@ -157,6 +159,7 @@ class BottomMenu extends StatelessWidget {
   }
 
   Widget _buildProfileNavItem({
+    required BuildContext context,
     required double width,
     required int index,
     required UserModel user,
@@ -168,6 +171,7 @@ class BottomMenu extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _onTabTapped(index),
+      onLongPress: () => UserStatusSheet.show(context, user),
       child: SizedBox(
         width: width,
         child: Column(

@@ -41,6 +41,7 @@ class MessageItem extends StatelessWidget {
   final void Function(int attachmentIndex)? onTapImage;
   final void Function(Message message, ReactionMessage reaction)? onTapReaction;
   final ValueChanged<String>? onInviteMention;
+  final ValueChanged<int>? onChannelTap;
 
   bool get hasLoading => isLoading != null;
 
@@ -64,6 +65,7 @@ class MessageItem extends StatelessWidget {
     this.onNavigateToMessage,
     this.onTapReaction,
     this.onInviteMention,
+    this.onChannelTap,
     required this.onStickerTap,
   });
 
@@ -82,6 +84,7 @@ class MessageItem extends StatelessWidget {
         stickerPackLinkFromText(contentMessage.linkPreview?.url);
     final hasStickerPackCard = stickerPackLink != null;
     final displayText = contentMessage.text ?? '';
+    final forwardedCaption = hasForward ? message.text?.trim() ?? '' : '';
     final hasLinkPreview =
         contentMessage.linkPreview != null &&
         !hasInviteData &&
@@ -104,6 +107,7 @@ class MessageItem extends StatelessWidget {
 
     final bool useInlineStatus =
         showStatusRow &&
+        !hasForward &&
         hasText &&
         !hasLinkPreview &&
         !hasInviteData &&
@@ -246,6 +250,7 @@ class MessageItem extends StatelessWidget {
                         children: [
                           MessageLinkText(
                             text: displayText,
+                            onChannelTap: onChannelTap,
                             style: AppText.mediumTextStyle.copyWith(
                               color: isMine
                                   ? AppColors.onBlurple
@@ -270,6 +275,7 @@ class MessageItem extends StatelessWidget {
                     else if (hasText)
                       MessageLinkText(
                         text: displayText,
+                        onChannelTap: onChannelTap,
                         style: AppText.mediumTextStyle.copyWith(
                           color: isMine ? AppColors.onBlurple : AppColors.white,
                         ),
@@ -307,6 +313,17 @@ class MessageItem extends StatelessWidget {
                       isLoading: isLoading,
                       hasError: hasError,
                     ),
+
+                    if (forwardedCaption.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      MessageLinkText(
+                        text: forwardedCaption,
+                        onChannelTap: onChannelTap,
+                        style: AppText.mediumTextStyle.copyWith(
+                          color: isMine ? AppColors.onBlurple : AppColors.white,
+                        ),
+                      ),
+                    ],
 
                     if (hasReactions) ...[
                       const SizedBox(height: 4),

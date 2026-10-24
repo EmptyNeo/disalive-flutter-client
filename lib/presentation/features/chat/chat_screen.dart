@@ -78,7 +78,51 @@ class ChatScreen extends StatefulWidget {
 
   const ChatScreen({super.key, required this.chat});
 
-  static Future<void> open(BuildContext context, Chat chat, bool isReconnect) {
+  static Future<void> openServerChannel(
+    BuildContext context,
+    ChannelServer channel,
+    bool isReconnect,
+  ) async {
+    final chatId = channel.chatId;
+    if (chatId == null) return;
+    if (channel.type == 'voice') {
+      final serverId =
+          channel.serverId ?? sl<ServerRepository>().selectedServerId;
+      if (serverId == null) return;
+      await CallScreen.open(
+        context,
+        chatId: chatId,
+        entityKey: EntityKey(entityId: serverId, entityType: EntityType.server),
+        title: channel.chatName ?? 'Голосовой канал',
+      );
+      return;
+    }
+    final cached = sl<ChatRepository>().getCached();
+    final cachedChat = cached.where((item) => item.id == chatId).firstOrNull;
+    final chat =
+        cachedChat?.copyWith(
+          type: ChatType.channel,
+          name: channel.chatName ?? cachedChat.name,
+          newMessagesCount: channel.newMessagesCount,
+          member: (cachedChat.member ?? const Member()).copyWith(
+            lastIdReadMessage: channel.lastIdReadMessage,
+          ),
+        ) ??
+        Chat(
+          id: chatId,
+          name: channel.chatName ?? 'Канал',
+          type: ChatType.channel,
+          newMessagesCount: channel.newMessagesCount,
+          member: Member(lastIdReadMessage: channel.lastIdReadMessage),
+        );
+    await open(context, chat, isReconnect);
+  }
+
+  static Future<void> open(
+    BuildContext context,
+    Chat chat,
+    bool isReconnect,
+  ) async {
     ChatBloc chatBloc = context.read<ChatBloc>();
     MessageBloc messageBloc = context.read<MessageBloc>();
     ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
@@ -91,27 +135,64 @@ class ChatScreen extends StatefulWidget {
     final mediaStatsBloc = context.read<MediaStatsBloc>();
     final serversBloc = context.read<ServersBloc>();
     final callBloc = context.read<CallBloc>();
-    sl<ChatRepository>().setCurrentChat(chat);
+    final chatRepository = sl<ChatRepository>();
+    final previousChat = chatRepository.getCurrentChat();
+    final previousEntity = DeterminingContextService.getEntityKey();
+    final previousMessages = messageBloc.state;
+    chatRepository.setCurrentChat(chat);
 
-    return SwipeToDismissRoute.push(
-      context,
-      (context) => MultiBlocProvider(
-        providers: [
-          BlocProvider.value(value: chatBloc),
-          BlocProvider.value(value: messageBloc),
-          BlocProvider.value(value: chatServerBloc),
-          BlocProvider.value(value: membersBloc),
-          BlocProvider.value(value: gifBloc),
-          BlocProvider.value(value: stickerBloc),
-          BlocProvider.value(value: preferredReactionsBloc),
-          BlocProvider.value(value: invitesBloc),
-          BlocProvider.value(value: mediaStatsBloc),
-          BlocProvider.value(value: serversBloc),
-          BlocProvider.value(value: callBloc),
-        ],
-        child: ChatScreen(chat: chat),
-      ),
-    );
+    try {
+      await SwipeToDismissRoute.push(
+        context,
+        (context) => MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: chatBloc),
+            BlocProvider.value(value: messageBloc),
+            BlocProvider.value(value: chatServerBloc),
+            BlocProvider.value(value: membersBloc),
+            BlocProvider.value(value: gifBloc),
+            BlocProvider.value(value: stickerBloc),
+            BlocProvider.value(value: preferredReactionsBloc),
+            BlocProvider.value(value: invitesBloc),
+            BlocProvider.value(value: mediaStatsBloc),
+            BlocProvider.value(value: serversBloc),
+            BlocProvider.value(value: callBloc),
+          ],
+          child: ChatScreen(chat: chat),
+        ),
+      );
+    } finally {
+      // Экраны чатов могут лежать друг над другом. При закрытии верхнего
+      // возвращаем контекст и сообщения чата, который остался под ним.
+      if (chatRepository.isCurrentChat(chat.id) &&
+          previousChat != null &&
+          previousChat.id != chat.id) {
+        chatRepository.setCurrentChat(previousChat);
+        if (previousEntity != null) {
+          if (previousMessages is MessageLoaded &&
+              previousMessages.chatId == previousChat.id) {
+            messageBloc.add(
+              RestoreChatMessages(
+                chatId: previousChat.id,
+                entityId: previousEntity.entityId,
+                entityType: previousEntity.entityType,
+                previousState: previousMessages,
+              ),
+            );
+          } else {
+            messageBloc.add(
+              GetMessages(
+                chatId: previousChat.id,
+                entityId: previousEntity.entityId,
+                entityType: previousEntity.entityType,
+                lastIdMessage: 0,
+                limit: 25,
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -142,6 +223,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   double _inputReserve = _kInputReserveMin;
 
   int? get _currentUserId => sl<UserRepository>().getCurrentUser()?.id;
+
+  Future<void> _openMentionedChannel(int chatId) async {
+    final serverId = _channelServerId;
+    if (serverId == null || chatId == _currentChat.id) return;
+    final repository = sl<ChannelServerRepository>();
+    var channels = repository.getCached(serverId);
+    if (!channels.any((channel) => channel.chatId == chatId)) {
+      final result = await repository.get(serverId);
+      result.fold((_) {}, (loaded) => channels = loaded);
+    }
+    if (!mounted) return;
+    for (final channel in channels) {
+      if (channel.chatId == chatId) {
+        await ChatScreen.openServerChannel(context, channel, isReconnect);
+        return;
+      }
+    }
+  }
 
   bool get _hasEdit => _editingMessageId != null;
 
@@ -329,14 +428,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         final previousRead = _currentChat.member?.lastIdReadMessage ?? 0;
         if (readId < previousRead) return;
         final loaded = _messageBloc.state;
-        final readMessages = loaded is MessageLoaded
+        final isThisChatLoaded =
+            loaded is MessageLoaded && loaded.chatId == _currentChat.id;
+        final readMessages = isThisChatLoaded
             ? loaded.messages.where((message) {
                 final id = message.id;
                 return id != null && id > previousRead && id <= readId;
               }).length
             : 0;
-        final newestLoaded =
-            loaded is MessageLoaded && loaded.messages.isNotEmpty
+        final newestLoaded = isThisChatLoaded && loaded.messages.isNotEmpty
             ? loaded.messages.first.id ?? 0
             : 0;
         final latestId = math.max(
@@ -537,58 +637,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _deleteLastEmojiOrChar() {
-    final currentText = _textController.text;
-    final currentSelection = _textController.selection;
-
-    // Если есть выделение, просто удаляем его (стандартное поведение)
-    if (!currentSelection.isCollapsed) {
-      final newText = currentText.replaceRange(
-        currentSelection.start,
-        currentSelection.end,
-        '',
-      );
-      _textController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: currentSelection.start),
-      );
-      _onTextChanged();
-      return;
-    }
-
-    if (currentSelection.start == 0) return; // Нечего удалять
-
-    final textBeforeCursor = currentText.substring(0, currentSelection.start);
-
-    // 🎯 Регекс ищет паттерн [category:id] с возможным пробелом на конце строки
-    final regex = RegExp(r'\[[a-zA-Z0-9_]+:\d+\]\s?$');
-    final match = regex.firstMatch(textBeforeCursor);
-
-    String newText;
-    int newCursorOffset;
-
-    if (match != null) {
-      // Удаляем весь тег эмодзи целиком
-      newText = currentText.replaceRange(
-        match.start,
-        currentSelection.start,
-        '',
-      );
-      newCursorOffset = match.start;
-    } else {
-      // Стандартное удаление: стираем 1 последний символ
-      newText = currentText.replaceRange(
-        currentSelection.start - 1,
-        currentSelection.start,
-        '',
-      );
-      newCursorOffset = currentSelection.start - 1;
-    }
-
-    _textController.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newCursorOffset),
+    _textController.value = const EmojiAtomicDeletionFormatter().deleteBackward(
+      _textController.value,
     );
-    _onTextChanged();
   }
 
   Future<void> _onSearchTap() async {
@@ -606,6 +657,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         highlight: true,
       );
     }
+  }
+
+  void _openMessageFromMediaFilter(int messageId) {
+    if (!mounted) return;
+    final chatRoute = ModalRoute.of(context);
+    if (chatRoute == null) return;
+    Navigator.of(context).popUntil((route) => route == chatRoute);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _messagesListKey.currentState?.navigateToPublic(
+          messageId,
+          highlight: true,
+        );
+      }
+    });
   }
 
   void _loadInitial() {
@@ -780,6 +846,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   onUnfocusInput: _unfocusInput,
                                   onStickerTap: onTapSticker,
                                   onInviteMention: _sendInviteRequest,
+                                  onChannelTap: _channelServerId == null
+                                      ? null
+                                      : _openMentionedChannel,
                                 ),
                               ),
                             ),
@@ -827,6 +896,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                                 DeterminantProfileScreen.open(
                                                   context,
                                                   chat: widget.chat,
+                                                  onMessageTap:
+                                                      _openMessageFromMediaFilter,
                                                 ),
                                             onSearchTap: _onSearchTap,
                                           ),
@@ -905,6 +976,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         child: ChatInputArea(
                           key: const ValueKey('chat_input_area'),
                           chat: _currentChat,
+                          serverId: _channelServerId,
                           inputKey: _inputKey,
                           textController: _textController,
                           hasEdit: _hasEdit,

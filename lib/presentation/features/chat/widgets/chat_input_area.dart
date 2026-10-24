@@ -1,19 +1,31 @@
 import 'dart:io';
 
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/channel_server.dart';
+import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/repositories/channel_server_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/presentation/features/chat/channel_mention.dart';
+import 'package:disalive/presentation/features/chat/user_mention.dart';
 import 'package:disalive/presentation/features/chat/widgets/attachments/attachment_container.dart';
 import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
 import 'package:disalive/presentation/features/chat/widgets/voice/voice_record_overlay.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
+import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
+import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
 const double _kFloatingPanelMargin = 8;
 
 class ChatInputArea extends StatefulWidget {
   final Chat chat;
+  final int? serverId;
   final bool isReconnect;
   final bool canSendMessages;
   final FocusNode inputFocusNode;
@@ -38,6 +50,7 @@ class ChatInputArea extends StatefulWidget {
   const ChatInputArea({
     super.key,
     required this.chat,
+    this.serverId,
     required this.isReconnect,
     this.canSendMessages = true,
     required this.inputKey,
@@ -69,6 +82,110 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   final GlobalKey<VoiceRecordOverlayState> _voiceRecorderKey = GlobalKey();
   final GlobalKey _micButtonKey = GlobalKey();
   OverlayEntry? _voiceOverlayEntry;
+  ChannelMentionQuery? _mentionQuery;
+  UserMentionQuery? _userMentionQuery;
+  bool _loadingChannels = false;
+  List<Member> _mentionMembers = const [];
+  EntityKey? _loadedMembersKey;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.textController.addListener(_updateMentionQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatInputArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.textController != widget.textController) {
+      oldWidget.textController.removeListener(_updateMentionQuery);
+      widget.textController.addListener(_updateMentionQuery);
+    }
+    if (oldWidget.serverId != widget.serverId ||
+        oldWidget.chat.id != widget.chat.id ||
+        oldWidget.canSendMessages != widget.canSendMessages) {
+      _loadedMembersKey = null;
+      _mentionMembers = const [];
+      _updateMentionQuery();
+      if (_userMentionQuery != null) _loadMentionMembers();
+    }
+  }
+
+  void _updateMentionQuery() {
+    final userQuery = widget.canSendMessages
+        ? UserMention.queryAtCaret(widget.textController.value)
+        : null;
+    final query = widget.serverId == null || !widget.canSendMessages
+        ? null
+        : ChannelMention.queryAtCaret(widget.textController.value);
+    if (query?.start == _mentionQuery?.start &&
+        query?.end == _mentionQuery?.end &&
+        query?.text == _mentionQuery?.text &&
+        userQuery?.start == _userMentionQuery?.start &&
+        userQuery?.end == _userMentionQuery?.end &&
+        userQuery?.text == _userMentionQuery?.text) {
+      return;
+    }
+    setState(() {
+      _mentionQuery = query;
+      _userMentionQuery = userQuery;
+    });
+    if (userQuery != null) _loadMentionMembers();
+    final serverId = widget.serverId;
+    if (query != null &&
+        serverId != null &&
+        !_loadingChannels &&
+        sl<ChannelServerRepository>().getCached(serverId).isEmpty) {
+      _loadingChannels = true;
+      sl<ChannelServerRepository>().get(serverId).then((_) {
+        _loadingChannels = false;
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  Future<void> _loadMentionMembers() async {
+    final entityId = widget.serverId ?? widget.chat.id;
+    final key = EntityKey(
+      entityId: entityId,
+      entityType: widget.serverId == null ? EntityType.chat : EntityType.server,
+    );
+    if (_loadedMembersKey == key) return;
+    _loadedMembersKey = key;
+    final repository = sl<MembersRepository>();
+    var members = await repository.getCached(key);
+    if (members.isEmpty || members.every((member) => member.user == null)) {
+      final result = await repository.get(key.entityId, key.entityType);
+      result.fold((_) {
+        if (_loadedMembersKey == key) _loadedMembersKey = null;
+      }, (loaded) => members = loaded);
+    }
+    if (!mounted || _loadedMembersKey != key) return;
+    setState(() => _mentionMembers = members);
+  }
+
+  void _insertUser(Member member) {
+    final query = _userMentionQuery;
+    final user = member.user;
+    if (query == null || user == null) return;
+    widget.textController.value = UserMention.insert(
+      widget.textController.value,
+      query,
+      user,
+    );
+    widget.inputFocusNode.requestFocus();
+  }
+
+  void _insertChannel(ChannelServer channel) {
+    final query = _mentionQuery;
+    if (query == null) return;
+    widget.textController.value = ChannelMention.insert(
+      widget.textController.value,
+      query,
+      channel,
+    );
+    widget.inputFocusNode.requestFocus();
+  }
 
   bool get _isRecording => _voiceOverlayEntry != null;
 
@@ -76,6 +193,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
 
   @override
   void dispose() {
+    widget.textController.removeListener(_updateMentionQuery);
     _removeVoiceOverlay();
     super.dispose();
   }
@@ -128,6 +246,114 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     });
   }
 
+  Widget _buildChannelSuggestions(int serverId, ChannelMentionQuery query) {
+    final channels = sl<ChannelServerRepository>()
+        .getCached(serverId)
+        .where(
+          (channel) =>
+              channel.chatId != null &&
+              (channel.chatName ?? '').toLowerCase().contains(
+                query.text.toLowerCase(),
+              ),
+        )
+        .take(6)
+        .toList();
+    if (channels.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      constraints: const BoxConstraints(maxHeight: 224),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        itemCount: channels.length,
+        itemBuilder: (context, index) {
+          final channel = channels[index];
+          return CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            onPressed: () => _insertChannel(channel),
+            child: Row(
+              children: [
+                Icon(
+                  channel.type == 'voice'
+                      ? CupertinoIcons.speaker_2_fill
+                      : CupertinoIcons.number,
+                  size: 18,
+                  color: AppColors.greyple,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    channel.chatName ?? 'Канал',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.mediumTextStyle.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUserSuggestions(UserMentionQuery query) {
+    final members = _mentionMembers
+        .where((member) {
+          final username = member.user?.username;
+          return username != null &&
+              username.toLowerCase().contains(query.text.toLowerCase());
+        })
+        .take(6)
+        .toList();
+    if (members.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      constraints: const BoxConstraints(maxHeight: 224),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.08)),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        itemCount: members.length,
+        itemBuilder: (context, index) {
+          final member = members[index];
+          final user = member.user!;
+          return CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            onPressed: () => _insertUser(member),
+            child: Row(
+              children: [
+                BuildAvatar(url: user.urlAvatar, wh: 28, size: 14),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${user.getDisplayName}  @${user.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.mediumTextStyle.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _removeVoiceOverlay() {
     if (_voiceOverlayEntry != null) {
       _voiceOverlayEntry!.remove();
@@ -171,6 +397,10 @@ class _ChatInputAreaState extends State<ChatInputArea> {
               onRemove: widget.onRemoveAttachment,
               onUpdate: widget.onUpdateAttachment,
             ),
+          if (_mentionQuery != null && widget.serverId != null)
+            _buildChannelSuggestions(widget.serverId!, _mentionQuery!),
+          if (_userMentionQuery != null)
+            _buildUserSuggestions(_userMentionQuery!),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -220,6 +450,9 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                           )
                         : CupertinoTextField(
                             controller: widget.textController,
+                            inputFormatters: const [
+                              EmojiAtomicDeletionFormatter(),
+                            ],
                             focusNode: widget.inputFocusNode,
                             readOnly: !isInputAllowed,
                             minLines: 1,

@@ -24,6 +24,7 @@ final class MediaFilterFile extends MediaFilterMessageItem {
     this.unit,
     this.objectKey,
     this.thumbnailUrl,
+    this.time,
   });
 
   final int idFilesMessage;
@@ -33,16 +34,18 @@ final class MediaFilterFile extends MediaFilterMessageItem {
   final String? unit;
   final String? objectKey;
   final String? thumbnailUrl;
+  final String? time;
 
   factory MediaFilterFile.fromMap(Map<String, dynamic> map) => MediaFilterFile(
     idFilesMessage: _requiredInt(map, 'idFilesMessage'),
     pathFile: map['pathFile'] as String,
-    idMessage: _requiredInt(map, 'idMessage'),
+    idMessage: _requiredInt(map, 'messageId'),
     originalName: map['originalName'] as String?,
     size: _optionalDouble(map['size']),
     unit: map['unit'] as String?,
     objectKey: map['objectKey'] as String?,
     thumbnailUrl: map['thumbnailUrl'] as String?,
+    time: map['time'] as String?,
   );
 
   Map<String, dynamic> toMap() => {
@@ -52,8 +55,9 @@ final class MediaFilterFile extends MediaFilterMessageItem {
     if (size != null) 'size': size,
     if (unit != null) 'unit': unit,
     if (objectKey != null) 'objectKey': objectKey,
-    'idMessage': idMessage,
+    'messageId': idMessage,
     if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
+    if (time != null) 'time': time,
   };
 
   @override
@@ -66,6 +70,7 @@ final class MediaFilterFile extends MediaFilterMessageItem {
     objectKey,
     idMessage,
     thumbnailUrl,
+    time,
   ];
 }
 
@@ -91,7 +96,7 @@ final class MediaFilterLink extends MediaFilterMessageItem {
 
   factory MediaFilterLink.fromMap(Map<String, dynamic> map) => MediaFilterLink(
     link: map['link'] as String,
-    idMessage: _requiredInt(map, 'idMessage'),
+    idMessage: _requiredInt(map, 'messageId'),
     time: map['time'] as String,
     fkSender: _requiredInt(map, 'fkSender'),
     domain: map['domain'] as String,
@@ -102,7 +107,7 @@ final class MediaFilterLink extends MediaFilterMessageItem {
 
   Map<String, dynamic> toMap() => {
     'link': link,
-    'idMessage': idMessage,
+    'messageId': idMessage,
     'time': time,
     'fkSender': fkSender,
     'domain': domain,
@@ -154,6 +159,31 @@ final class MediaFilterMutualGroup extends MediaFilterItem {
 
   @override
   List<Object?> get props => [idChat, name, pathImage, memberCount];
+}
+
+final class MediaFilterMutualServer extends MediaFilterItem {
+  const MediaFilterMutualServer({
+    required this.idServer,
+    required this.name,
+    required this.memberCount,
+    this.pathAvatar,
+  });
+
+  final int idServer;
+  final String name;
+  final String? pathAvatar;
+  final int memberCount;
+
+  factory MediaFilterMutualServer.fromMap(Map<String, dynamic> map) =>
+      MediaFilterMutualServer(
+        idServer: _requiredInt(map, 'idServer'),
+        name: map['name'] as String,
+        pathAvatar: map['pathAvatar'] as String?,
+        memberCount: _requiredInt(map, 'memberCount'),
+      );
+
+  @override
+  List<Object?> get props => [idServer, name, pathAvatar, memberCount];
 }
 
 int _requiredInt(Map<String, dynamic> map, String key) {

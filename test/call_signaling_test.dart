@@ -101,7 +101,7 @@ void main() {
     await tester.tap(find.text('Открыть'));
     await tester.pumpAndSettle();
     expect(find.text('Алиса'), findsOneWidget);
-    await tester.tap(find.text('Отклонить'));
+    await tester.tap(find.byIcon(CupertinoIcons.phone_down_fill));
     await tester.pumpAndSettle();
     expect(accepted, isFalse);
   });

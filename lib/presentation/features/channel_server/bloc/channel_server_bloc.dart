@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:disalive/app/di/di.dart';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
@@ -8,6 +9,7 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
@@ -21,6 +23,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
   StreamSubscription<WsEvent>? _subscription;
   StreamSubscription<WsEvent>? _memberSubscription;
   StreamSubscription<WsEvent>? _messageSubscription;
+  StreamSubscription<WsEvent>? _messageDeleteSubscription;
   Timer? _refreshTimer;
   final Map<int, int> _latestMessageIds = {};
   final List<ChannelServerEvent> _changesDuringLoad = [];
@@ -35,6 +38,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     on<ServerChannelRemoved>(_onRemoved);
     on<ServerChannelReadUpdated>(_onReadUpdated);
     on<ServerChannelMessageAdded>(_onMessageAdded);
+    on<ServerChannelMessageRemoved>(_onMessageRemoved);
     setupListeners();
   }
 
@@ -128,6 +132,32 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
         );
       },
     );
+    _messageDeleteSubscription?.cancel();
+    _messageDeleteSubscription = _eventBus.subscribe(
+      table: 'Message',
+      action: ActionType.delete,
+      onData: (event) {
+        final serverId = _serverId;
+        final chatId = DataParser.parseInt(event.data['chatId']);
+        final messageId = DataParser.parseInt(event.data['messageId']);
+        final messageUserId = DataParser.parseInt(event.data['messageUserId']);
+        final currentUserId = sl.isRegistered<UserRepository>()
+            ? sl<UserRepository>().getCurrentUser()?.id
+            : null;
+        if (serverId == null ||
+            chatId == null ||
+            messageId == null ||
+            messageUserId == null ||
+            currentUserId == null ||
+            messageUserId == currentUserId) {
+          return;
+        }
+        if (!_repository.getCached(serverId).any((c) => c.chatId == chatId)) {
+          return;
+        }
+        add(ServerChannelMessageRemoved(serverId, chatId, messageId));
+      },
+    );
   }
 
   void _scheduleRefresh() {
@@ -182,6 +212,8 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
             _applyReadUpdate(channels, change);
           } else if (change is ServerChannelMessageAdded) {
             _applyMessageAdded(channels, change);
+          } else if (change is ServerChannelMessageRemoved) {
+            _applyMessageRemoved(channels, change);
           }
         }
         _repository.updateCache(event.serverId, channels);
@@ -265,6 +297,20 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(channels)));
   }
 
+  void _onMessageRemoved(
+    ServerChannelMessageRemoved event,
+    Emitter<ChannelServerState> emit,
+  ) {
+    if (event.serverId != _serverId) return;
+    if (_isLoading) _changesDuringLoad.add(event);
+    final channels = List<ChannelServer>.from(
+      _repository.getCached(event.serverId),
+    );
+    if (!_applyMessageRemoved(channels, event)) return;
+    _repository.updateCache(event.serverId, channels);
+    emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(channels)));
+  }
+
   bool _applyMessageAdded(
     List<ChannelServer> channels,
     ServerChannelMessageAdded event,
@@ -279,6 +325,24 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     channels[index] = ChannelServer.fromMap({
       ...previous.toMap(),
       'newMessagesCount': previous.newMessagesCount + 1,
+    });
+    return true;
+  }
+
+  bool _applyMessageRemoved(
+    List<ChannelServer> channels,
+    ServerChannelMessageRemoved event,
+  ) {
+    final index = channels.indexWhere((item) => item.chatId == event.chatId);
+    if (index < 0) return false;
+    final previous = channels[index];
+    if (event.messageId <= (previous.lastIdReadMessage ?? 0) ||
+        previous.newMessagesCount == 0) {
+      return false;
+    }
+    channels[index] = ChannelServer.fromMap({
+      ...previous.toMap(),
+      'newMessagesCount': previous.newMessagesCount - 1,
     });
     return true;
   }
@@ -315,6 +379,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     await _subscription?.cancel();
     await _memberSubscription?.cancel();
     await _messageSubscription?.cancel();
+    await _messageDeleteSubscription?.cancel();
     _refreshTimer?.cancel();
     _latestMessageIds.clear();
     if (_serverId != null) _repository.clear(_serverId);

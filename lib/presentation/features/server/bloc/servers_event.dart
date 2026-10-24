@@ -28,6 +28,17 @@ class ServerMessageAdded extends ServersEvent {
   List<Object?> get props => [serverId, chatId, messageId, isSelf];
 }
 
+class ServerMessageRemoved extends ServersEvent {
+  const ServerMessageRemoved(this.serverId, this.chatId, this.messageId);
+
+  final int serverId;
+  final int chatId;
+  final int messageId;
+
+  @override
+  List<Object?> get props => [serverId, chatId, messageId];
+}
+
 class SelectServer extends ServersEvent {
   const SelectServer(this.serverId);
 

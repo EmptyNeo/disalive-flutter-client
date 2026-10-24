@@ -128,6 +128,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
         generation != _generation ||
         state.status != CallStatus.connected ||
         state.chatId != chatId ||
+        _room?.remoteParticipants.isNotEmpty != false ||
         !_chatServerRepository.isConnected) {
       return;
     }
@@ -255,14 +256,19 @@ class CallBloc extends Bloc<CallEvent, CallState> {
       await _publishDeviceState('headset', true);
       await _publishDeviceState('microphone', micGranted);
       if (event.announceCall && event.entityKey.entityType == EntityType.chat) {
-        unawaited(
-          _announceOutgoingCall(event.chatId, generation).catchError((
-            Object error,
-            StackTrace stackTrace,
-          ) {
-            debugPrint('Не удалось отправить сигнал звонка: $error');
-          }),
-        );
+        // LiveKit уже синхронизировал состав комнаты к моменту завершения
+        // connect. При подключении к существующему звонку повторный сигнал
+        // входящего вызова другим участникам не нужен.
+        if (room.remoteParticipants.isEmpty) {
+          unawaited(
+            _announceOutgoingCall(event.chatId, generation).catchError((
+              Object error,
+              StackTrace stackTrace,
+            ) {
+              debugPrint('Не удалось отправить сигнал звонка: $error');
+            }),
+          );
+        }
       }
     } catch (error) {
       await _releaseRoom();

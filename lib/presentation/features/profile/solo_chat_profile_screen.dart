@@ -9,10 +9,12 @@ class SoloChatProfileScreen extends StatelessWidget {
     super.key,
     required this.chat,
     this.onMediaCategoryTap,
+    this.onMessageTap,
   });
 
   final Chat chat;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
+  final ValueChanged<int>? onMessageTap;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +41,7 @@ class SoloChatProfileScreen extends StatelessWidget {
                       MediaStatsSection(
                         chatId: chat.id,
                         onCategoryTap: onMediaCategoryTap,
+                        onMessageTap: onMessageTap,
                       ),
                     ],
                   ),

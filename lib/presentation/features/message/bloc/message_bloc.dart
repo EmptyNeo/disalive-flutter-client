@@ -37,6 +37,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   StreamSubscription? _historyUpdateSubscription;
   final Map<int, List<List<Message>>> _messagesDuringLoad = {};
   final Map<int, List<List<HistoryAction>>> _actionsDuringLoad = {};
+  int _loadEpoch = 0;
   int? _activeChatId;
   int? _activeEntityId;
   EntityType? _activeEntityType;
@@ -51,6 +52,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     this._eventBus,
   ) : super(MessageInitial()) {
     on<GetMessages>(_onGetMessages);
+    on<RestoreChatMessages>(_onRestoreChatMessages);
     on<CreateMessage>(_onCreateMessage);
     on<DeleteMessage>(_onDeleteMessage);
     on<UpdateMessage>(_onUpdateMessage);
@@ -141,7 +143,9 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final cached = _messageRepository.getCached(event.chatId);
     final merged = _mergeActions(cached?.actions ?? const [], [event.action]);
     _messageRepository.cacheActions(event.chatId, merged);
-    if (_activeChatId == event.chatId && state is MessageLoaded) {
+    if (_activeChatId == event.chatId &&
+        state is MessageLoaded &&
+        (state as MessageLoaded).chatId == event.chatId) {
       final loaded = state as MessageLoaded;
       emit(
         loaded.copyWith(actions: _mergeActions(loaded.actions, [event.action])),
@@ -235,13 +239,31 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     return sorted;
   }
 
+  void _onRestoreChatMessages(
+    RestoreChatMessages event,
+    Emitter<MessageState> emit,
+  ) {
+    ++_loadEpoch;
+    _activeChatId = event.chatId;
+    _activeEntityId = event.entityId;
+    _activeEntityType = event.entityType;
+    final cached = _messageRepository.getCached(event.chatId);
+    emit(
+      event.previousState.copyWith(
+        messages: _ensureDescendingOrder(
+          cached?.messages ?? event.previousState.messages,
+        ),
+        actions: cached?.actions ?? event.previousState.actions,
+        isLoadingMore: false,
+        isLoadingNewer: false,
+      ),
+    );
+  }
+
   Future<void> _onGetMessages(
     GetMessages event,
     Emitter<MessageState> emit,
   ) async {
-    _activeChatId = event.chatId;
-    _activeEntityId = event.entityId;
-    _activeEntityType = event.entityType;
     final bool isInitialLoad =
         event.lastIdMessage == 0 &&
         event.aroundId == null &&
@@ -252,8 +274,19 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final bool isNewerLoad = event.newerThanId != null;
     final bool isOlderLoad = event.lastIdMessage > 0;
 
+    if (!isInitialLoad && !isAroundLoad && _activeChatId != event.chatId) {
+      return;
+    }
     if (isInitialLoad || isAroundLoad) {
-      emit(MessageLoading());
+      _activeChatId = event.chatId;
+      _activeEntityId = event.entityId;
+      _activeEntityType = event.entityType;
+      ++_loadEpoch;
+    }
+    final loadEpoch = _loadEpoch;
+
+    if (isInitialLoad || isAroundLoad) {
+      emit(MessageLoading(event.chatId));
 
       if (isAroundLoad) {
         final cachedResponse = _messageRepository.getCached(event.chatId);
@@ -261,6 +294,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           if (cachedResponse.messages.any((m) => m.id == event.aroundId)) {
             emit(
               MessageLoaded(
+                chatId: event.chatId,
                 messages: _ensureDescendingOrder(cachedResponse.messages),
                 actions: cachedResponse.actions,
                 hasMoreMessages: true,
@@ -302,9 +336,11 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         _actionsDuringLoad.remove(event.chatId);
       }
 
+      if (_activeChatId != event.chatId || _loadEpoch != loadEpoch) return;
+
       result.fold(
         (failure) {
-          emit(MessageFailure(failure));
+          emit(MessageFailure(failure, event.chatId));
         },
         (response) {
           final serverMessages = _ensureDescendingOrder(
@@ -343,6 +379,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
           emit(
             MessageLoaded(
+              chatId: event.chatId,
               messages: finalMessages,
               actions: actions,
               hasMoreMessages: isAroundLoad
@@ -358,7 +395,8 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
       );
     } else {
       final currentState = state;
-      if (currentState is MessageLoaded) {
+      if (currentState is MessageLoaded &&
+          currentState.chatId == event.chatId) {
         if (isOlderLoad &&
             (currentState.isLoadingMore || !currentState.hasMoreMessages)) {
           return;
@@ -384,6 +422,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
               if (addedCount > 0) {
                 emit(
                   MessageLoaded(
+                    chatId: event.chatId,
                     messages: uniqueMessages,
                     actions: currentState.actions,
                     isLoadingMore: false,
@@ -400,6 +439,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
         emit(
           MessageLoaded(
+            chatId: event.chatId,
             messages: currentState.messages,
             actions: currentState.actions,
             isLoadingMore: isOlderLoad,
@@ -409,7 +449,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           ),
         );
       } else {
-        emit(MessageLoading());
+        emit(MessageLoading(event.chatId));
       }
 
       final result = await _messageRepository.get(
@@ -423,14 +463,18 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         event.searchQuery,
       );
 
+      if (_activeChatId != event.chatId || _loadEpoch != loadEpoch) return;
+
       result.fold(
         (failure) {
-          if (state is! MessageLoaded) {
-            emit(MessageFailure(failure));
+          if (state is! MessageLoaded ||
+              (state as MessageLoaded).chatId != event.chatId) {
+            emit(MessageFailure(failure, event.chatId));
           } else {
             final currentState = state as MessageLoaded;
             emit(
               MessageLoaded(
+                chatId: event.chatId,
                 messages: currentState.messages,
                 actions: currentState.actions,
                 isLoadingMore: false,
@@ -445,11 +489,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           final serverMessages = _ensureDescendingOrder(response.messages);
           final currentState = state;
 
-          if (currentState is! MessageLoaded) {
+          if (currentState is! MessageLoaded ||
+              currentState.chatId != event.chatId) {
             _messageRepository.cacheMessages(event.chatId, serverMessages);
             _messageRepository.cacheActions(event.chatId, response.actions);
             emit(
               MessageLoaded(
+                chatId: event.chatId,
                 messages: serverMessages,
                 actions: response.actions,
                 hasMoreMessages: serverMessages.length >= event.limit,
@@ -471,6 +517,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
             _messageRepository.cacheActions(event.chatId, actions);
             emit(
               MessageLoaded(
+                chatId: event.chatId,
                 messages: currentState.messages,
                 actions: actions,
                 isLoadingMore: false,
@@ -499,6 +546,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
 
           emit(
             MessageLoaded(
+              chatId: event.chatId,
               messages: uniqueMessages,
               actions: actions,
               isLoadingMore: false,
@@ -732,12 +780,14 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   void _emitFromCache(int chatId, Emitter<MessageState> emit) {
     if (state is! MessageLoaded) return;
     final currentState = state as MessageLoaded;
+    if (currentState.chatId != chatId) return;
     final cached = _messageRepository.getCached(chatId);
 
     if (!_chatRepository.isCurrentChat(chatId)) return;
 
     emit(
       MessageLoaded(
+        chatId: chatId,
         messages: cached?.messages ?? [],
         actions: cached?.actions ?? [],
         isLoadingMore: currentState.isLoadingMore,
@@ -845,10 +895,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     _messageRepository.cacheMessages(event.chatId, cached.messages);
 
     // 3. Мгновенно эмитим новое состояние, если мы в этом чате
-    if (_chatRepository.isCurrentChat(event.chatId) && state is MessageLoaded) {
+    if (_chatRepository.isCurrentChat(event.chatId) &&
+        state is MessageLoaded &&
+        (state as MessageLoaded).chatId == event.chatId) {
       final currentState = state as MessageLoaded;
       emit(
         MessageLoaded(
+          chatId: event.chatId,
           messages: List.from(cached.messages),
           actions: currentState.actions,
           isLoadingMore: currentState.isLoadingMore,
@@ -879,10 +932,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
         _messageRepository.cacheMessages(event.chatId, cached.messages);
 
         if (_chatRepository.isCurrentChat(event.chatId) &&
-            state is MessageLoaded) {
+            state is MessageLoaded &&
+            (state as MessageLoaded).chatId == event.chatId) {
           final currentState = state as MessageLoaded;
           emit(
             MessageLoaded(
+              chatId: event.chatId,
               messages: List.from(cached.messages),
               actions: currentState.actions,
               isLoadingMore: currentState.isLoadingMore,
@@ -1016,10 +1071,13 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     _messageRepository.cacheMessages(event.chatId, cached.messages);
 
     // Эмитим состояние ТОЛЬКО если мы сейчас находимся в этом чате
-    if (_chatRepository.isCurrentChat(event.chatId) && state is MessageLoaded) {
+    if (_chatRepository.isCurrentChat(event.chatId) &&
+        state is MessageLoaded &&
+        (state as MessageLoaded).chatId == event.chatId) {
       final currentState = state as MessageLoaded;
       emit(
         MessageLoaded(
+          chatId: event.chatId,
           messages: List.from(cached.messages),
           actions: currentState.actions,
           isLoadingMore: currentState.isLoadingMore,

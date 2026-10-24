@@ -105,4 +105,17 @@ class MediaFilterRepositoryImpl implements MediaFilterRepository {
     limit: limit,
     offset: offset,
   );
+
+  @override
+  Future<Either<Failure, List<MediaFilterMutualServer>>> getMutualServers(
+    int chatId, {
+    int limit = 25,
+    int offset = 0,
+  }) => _getItems(
+    'MutualServersFilter',
+    chatId,
+    MediaFilterMutualServer.fromMap,
+    limit: limit,
+    offset: offset,
+  );
 }

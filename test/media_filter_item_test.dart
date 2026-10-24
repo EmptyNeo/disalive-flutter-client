@@ -18,7 +18,8 @@ void main() {
         'size': size,
         'unit': unit,
         'objectKey': 'uploads/file.$extension',
-        'idMessage': 16717,
+        'messageId': 16717,
+        'time': '2026-10-23 10:20:30',
       });
 
       expect(file, isA<MediaFilterMessageItem>());
@@ -26,6 +27,7 @@ void main() {
       expect(file.originalName, name);
       expect(file.size, size);
       expect(file.thumbnailUrl, isNull);
+      expect(file.time, '2026-10-23 10:20:30');
       expect(MediaFilterFile.fromMap(file.toMap()), file);
     }
   });
@@ -35,7 +37,7 @@ void main() {
       'idFilesMessage': '3925',
       'pathFile': 'https://example.com/document.docx',
       'size': '3.55',
-      'idMessage': '14850',
+      'messageId': '14850',
       'thumbnailUrl': 'https://example.com/preview.jpg',
     });
 
@@ -48,7 +50,7 @@ void main() {
   test('link retains its message and preview metadata', () {
     final link = MediaFilterLink.fromMap({
       'link': 'https://xbox-dns.ru/#setup',
-      'idMessage': 16583,
+      'messageId': 16583,
       'time': '2026-09-05 00:48:50',
       'fkSender': 1,
       'domain': 'xbox-dns.ru',
@@ -77,11 +79,25 @@ void main() {
     expect(MediaFilterMutualGroup.fromMap(group.toMap()), group);
   });
 
+  test('mutual server parses camelCase response fields', () {
+    final server = MediaFilterMutualServer.fromMap({
+      'idServer': '12',
+      'name': 'Community',
+      'pathAvatar': '/resources/server.png',
+      'memberCount': '42',
+    });
+
+    expect(server.idServer, 12);
+    expect(server.name, 'Community');
+    expect(server.pathAvatar, '/resources/server.png');
+    expect(server.memberCount, 42);
+  });
+
   test('missing identifiers fail instead of becoming zero', () {
     expect(
       () => MediaFilterFile.fromMap({
         'pathFile': 'https://example.com/image.jpg',
-        'idMessage': 1,
+        'messageId': 1,
       }),
       throwsFormatException,
     );

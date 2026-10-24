@@ -24,6 +24,18 @@ class MemberItem extends StatefulWidget {
 class _MemberItemState extends State<MemberItem> {
   bool _isPressed = false;
 
+  int _textFlex(String text, TextStyle style, BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width.ceil().clamp(1, 10000);
+  }
+
   void _handlePressStart() {
     setState(() => _isPressed = true);
   }
@@ -52,6 +64,22 @@ class _MemberItemState extends State<MemberItem> {
     final roleEmoji = widget.member.role?.emoji?.trim() ?? '';
     final hasRole = roleName.isNotEmpty || roleEmoji.isNotEmpty;
     final badge = user.mainBadge;
+    final nameStyle = TextStyle(
+      color: AppColors.white,
+      fontSize: 15,
+      fontWeight: FontWeight.w600,
+    );
+    final roleStyle = TextStyle(
+      color: AppColors.greyple,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+    );
+    final nameFlex = _textFlex(user.getDisplayName, nameStyle, context);
+    final roleFlex = hasRole
+        ? _textFlex(roleName, roleStyle, context) +
+              14 +
+              (roleEmoji.isNotEmpty ? 16 + (roleName.isNotEmpty ? 4 : 0) : 0)
+        : 1;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -95,15 +123,11 @@ class _MemberItemState extends State<MemberItem> {
             ),
             const SizedBox(width: 12),
             Flexible(
-              flex: 3,
+              flex: nameFlex,
               fit: FlexFit.loose,
               child: Text(
                 user.getDisplayName,
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: nameStyle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -111,7 +135,7 @@ class _MemberItemState extends State<MemberItem> {
             if (hasRole) ...[
               const SizedBox(width: 5),
               Flexible(
-                flex: 2,
+                flex: roleFlex,
                 fit: FlexFit.loose,
                 child: Container(
                   key: const ValueKey('member_role'),
@@ -132,11 +156,7 @@ class _MemberItemState extends State<MemberItem> {
                             roleName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.greyple,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: roleStyle,
                           ),
                         ),
                       if (roleEmoji.isNotEmpty) ...[

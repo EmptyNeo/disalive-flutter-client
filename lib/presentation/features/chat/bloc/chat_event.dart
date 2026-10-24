@@ -39,6 +39,30 @@ class UpdateLastMessageInChat extends ChatEvent {
   });
 }
 
+class RemoveMessageFromChat extends ChatEvent {
+  final int chatId;
+  final int? messageId;
+  final int? messageUserId;
+  final int? currentUserId;
+  final bool hasLastMessagePreview;
+  final String? lastMessageText;
+  final int? lastMessageUserId;
+  final bool hasLastMessageId;
+  final int? lastMessageId;
+
+  RemoveMessageFromChat({
+    required this.chatId,
+    required this.messageId,
+    required this.messageUserId,
+    required this.currentUserId,
+    required this.hasLastMessagePreview,
+    required this.lastMessageText,
+    required this.lastMessageUserId,
+    required this.hasLastMessageId,
+    required this.lastMessageId,
+  });
+}
+
 class AddChat extends ChatEvent {
   final Chat chat;
 

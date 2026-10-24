@@ -7,6 +7,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/history_action.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
@@ -53,6 +54,13 @@ class _Messages implements MessageRepository {
   @override
   void cacheMessages(int chatId, List<Message> messages) =>
       cache[chatId] = MessagesResponse(messages: messages, actions: const []);
+
+  @override
+  void cacheActions(int chatId, List<HistoryAction> actions) => cache[chatId] =
+      MessagesResponse(
+        messages: cache[chatId]?.messages ?? const [],
+        actions: actions,
+      );
 
   @override
   void clearAllCache() => cache.clear();

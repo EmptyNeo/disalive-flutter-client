@@ -9,6 +9,7 @@ class MediaStats extends Equatable {
     this.audio = 0,
     this.links = 0,
     this.mutualChatsCount = 0,
+    this.mutualServersCount = 0,
   });
 
   final int chatId;
@@ -18,6 +19,7 @@ class MediaStats extends Equatable {
   final int audio;
   final int links;
   final int mutualChatsCount;
+  final int mutualServersCount;
 
   factory MediaStats.fromMap(int chatId, Map<String, dynamic> map) =>
       MediaStats(
@@ -28,6 +30,7 @@ class MediaStats extends Equatable {
         audio: _count(map['audio']),
         links: _count(map['links']),
         mutualChatsCount: _count(map['mutualChatsCount']),
+        mutualServersCount: _count(map['mutualServersCount']),
       );
 
   static int _count(dynamic value) {
@@ -45,5 +48,6 @@ class MediaStats extends Equatable {
     audio,
     links,
     mutualChatsCount,
+    mutualServersCount,
   ];
 }

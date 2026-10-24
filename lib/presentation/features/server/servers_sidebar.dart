@@ -1,7 +1,10 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/ui/action_item.dart';
+import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/widgets/server_item.dart';
+import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -35,109 +38,149 @@ class ServersSidebar extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: BlocBuilder<ServersBloc, ServersState>(
-          builder: (context, state) => CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    ServerItem(
-                      key: const ValueKey('dm_server_item'),
-                      icon: CupertinoIcons.chat_bubble_fill,
-                      isActive: selectedServerId == null && !isDiscovering,
-                      isSpecial: true,
-                      isAction: true,
-                      unreadCount: personalUnreadCount,
-                      onTap: onSelectDm,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+          builder: (context, state) {
+            final hasServerUnread =
+                state is ServersLoaded &&
+                state.servers.any(
+                  (server) => (server.newMessagesCount ?? 0) > 0,
+                );
+            final hasUnread = personalUnreadCount > 0 || hasServerUnread;
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      ServerItem(
+                        key: const ValueKey('dm_server_item'),
+                        icon: CupertinoIcons.chat_bubble_fill,
+                        isActive: selectedServerId == null && !isDiscovering,
+                        isSpecial: true,
+                        isAction: true,
+                        unreadCount: personalUnreadCount,
+                        onTap: onSelectDm,
+                        onLongPress: hasUnread
+                            ? () => ActionBottomSheet.show(
+                                context,
+                                actions: [
+                                  ActionItem(
+                                    icon: CupertinoIcons.checkmark_circle,
+                                    label: 'Пометить как прочитанное',
+                                    onTap: () =>
+                                        ReadStatusActions.markAllChatsAndServers(
+                                          context,
+                                        ),
+                                  ),
+                                ],
+                              )
+                            : null,
                       ),
-                      child: Container(
-                        height: 2,
-                        color: CupertinoColors.white.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    ServerItem(
-                      icon: CupertinoIcons.add,
-                      isActive: false,
-                      isAction: true,
-                      unreadCount: 0,
-                      onTap: onCreateServer,
-                    ),
-                    const SizedBox(height: 12),
-                    ServerItem(
-                      key: const ValueKey('discover_servers_item'),
-                      icon: CupertinoIcons.compass_fill,
-                      isActive: isDiscovering,
-                      isAction: true,
-                      unreadCount: 0,
-                      onTap: onDiscoverServers,
-                    ),
-                    const SizedBox(height: 12),
-                    ServerItem(
-                      key: const ValueKey('boosty_item'),
-                      icon: CupertinoIcons.heart_fill,
-                      actionIcon: SvgPicture.asset(
-                        'assets/icons/boosty.svg',
-                        width: 28,
-                        height: 28,
-                      ),
-                      name: 'Поддержать Disalive на Boosty',
-                      isActive: false,
-                      isAction: true,
-                      unreadCount: 0,
-                      onTap: () => launchUrl(
-                        Uri.parse('https://boosty.to/disalive'),
-                        mode: LaunchMode.externalApplication,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (state is ServersLoading || state is ServersInitial)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(child: CupertinoActivityIndicator()),
-                )
-              else if (state is ServersFailure)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () =>
-                          context.read<ServersBloc>().add(const GetServers()),
-                      child: const Icon(CupertinoIcons.refresh),
-                    ),
-                  ),
-                )
-              else if (state is ServersLoaded)
-                SliverPadding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 100),
-                  sliver: SliverList.builder(
-                    itemCount: state.servers.length,
-                    itemBuilder: (context, index) {
-                      final server = state.servers[index];
-                      return Padding(
-                        key: ValueKey(server.id),
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: ServerItem(
-                          icon: CupertinoIcons.group_solid,
-                          name: server.name,
-                          pathAvatar: server.pathAvatar,
-                          isActive: selectedServerId == server.id,
-                          unreadCount: server.newMessagesCount ?? 0,
-                          onTap: () => onSelectServer?.call(server),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                      );
-                    },
+                        child: Container(
+                          height: 2,
+                          color: CupertinoColors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      ServerItem(
+                        icon: CupertinoIcons.add,
+                        isActive: false,
+                        isAction: true,
+                        unreadCount: 0,
+                        onTap: onCreateServer,
+                      ),
+                      const SizedBox(height: 12),
+                      ServerItem(
+                        key: const ValueKey('discover_servers_item'),
+                        icon: CupertinoIcons.compass_fill,
+                        isActive: isDiscovering,
+                        isAction: true,
+                        unreadCount: 0,
+                        onTap: onDiscoverServers,
+                      ),
+                      const SizedBox(height: 12),
+                      ServerItem(
+                        key: const ValueKey('boosty_item'),
+                        icon: CupertinoIcons.heart_fill,
+                        actionIcon: SvgPicture.asset(
+                          'assets/icons/boosty.svg',
+                          width: 28,
+                          height: 28,
+                        ),
+                        name: 'Поддержать Disalive на Boosty',
+                        isActive: false,
+                        isAction: true,
+                        unreadCount: 0,
+                        onTap: () => launchUrl(
+                          Uri.parse('https://boosty.to/disalive'),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
-          ),
+                if (state is ServersLoading || state is ServersInitial)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CupertinoActivityIndicator()),
+                  )
+                else if (state is ServersFailure)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () =>
+                            context.read<ServersBloc>().add(const GetServers()),
+                        child: const Icon(CupertinoIcons.refresh),
+                      ),
+                    ),
+                  )
+                else if (state is ServersLoaded)
+                  SliverPadding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 100),
+                    sliver: SliverList.builder(
+                      itemCount: state.servers.length,
+                      itemBuilder: (context, index) {
+                        final server = state.servers[index];
+                        return Padding(
+                          key: ValueKey(server.id),
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ServerItem(
+                            icon: CupertinoIcons.group_solid,
+                            name: server.name,
+                            pathAvatar: server.pathAvatar,
+                            isActive: selectedServerId == server.id,
+                            unreadCount: server.newMessagesCount ?? 0,
+                            onTap: () => onSelectServer?.call(server),
+                            onLongPress: (server.newMessagesCount ?? 0) > 0
+                                ? () => ActionBottomSheet.show(
+                                    context,
+                                    title: server.name,
+                                    actions: [
+                                      ActionItem(
+                                        icon: CupertinoIcons.checkmark_circle,
+                                        label: 'Пометить как прочитанное',
+                                        onTap: () =>
+                                            ReadStatusActions.markServer(
+                                              context,
+                                              server,
+                                            ),
+                                      ),
+                                    ],
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );

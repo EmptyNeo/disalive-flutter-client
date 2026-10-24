@@ -1,17 +1,10 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
-import 'package:disalive/domain/enums/chat_type.dart';
-import 'package:disalive/domain/enums/entity_type.dart';
-import 'package:disalive/domain/models/chat.dart';
-import 'package:disalive/domain/models/entity_key.dart';
-import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/server.dart';
-import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
-import 'package:disalive/presentation/features/calls/call_screen.dart';
 import 'package:disalive/presentation/features/dm_sidebar/dm_sidebar.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/server_content_sidebar.dart';
@@ -64,39 +57,7 @@ class _ChatsViewState extends State<ChatsView> {
   }
 
   void _openChannel(ChannelServer channel) {
-    final chatId = channel.chatId;
-    if (chatId == null) return;
-    if (channel.type == 'voice') {
-      final serverId =
-          channel.serverId ?? sl<ServerRepository>().selectedServerId;
-      if (serverId == null) return;
-      CallScreen.open(
-        context,
-        chatId: chatId,
-        entityKey: EntityKey(entityId: serverId, entityType: EntityType.server),
-        title: channel.chatName ?? 'Голосовой канал',
-      );
-      return;
-    }
-    final cached = sl<ChatRepository>().getCached();
-    final cachedChat = cached.where((item) => item.id == chatId).firstOrNull;
-    final chat =
-        cachedChat?.copyWith(
-          type: ChatType.channel,
-          name: channel.chatName ?? cachedChat.name,
-          newMessagesCount: channel.newMessagesCount,
-          member: (cachedChat.member ?? const Member()).copyWith(
-            lastIdReadMessage: channel.lastIdReadMessage,
-          ),
-        ) ??
-        Chat(
-          id: chatId,
-          name: channel.chatName ?? 'Канал',
-          type: ChatType.channel,
-          newMessagesCount: channel.newMessagesCount,
-          member: Member(lastIdReadMessage: channel.lastIdReadMessage),
-        );
-    ChatScreen.open(context, chat, widget.isReconnect);
+    ChatScreen.openServerChannel(context, channel, widget.isReconnect);
   }
 
   @override

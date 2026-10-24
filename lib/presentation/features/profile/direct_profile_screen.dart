@@ -13,12 +13,16 @@ class DirectProfileScreen extends StatefulWidget {
   final Chat chat;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
   final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+  final ValueChanged<MediaFilterMutualServer>? onServerTap;
+  final ValueChanged<int>? onMessageTap;
 
   const DirectProfileScreen({
     super.key,
     required this.chat,
     this.onMediaCategoryTap,
     this.onGroupTap,
+    this.onServerTap,
+    this.onMessageTap,
   });
 
   @override
@@ -85,6 +89,8 @@ class DirectProfileScreenState extends State<DirectProfileScreen> {
                             chatId: _chat.id,
                             onMediaCategoryTap: widget.onMediaCategoryTap,
                             onGroupTap: widget.onGroupTap,
+                            onServerTap: widget.onServerTap,
+                            onMessageTap: widget.onMessageTap,
                           ),
                           const CustomBackButton(),
                         ],

@@ -1,7 +1,11 @@
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,7 +42,64 @@ class _FakeChatRepository implements ChatRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _CurrentUserRepository implements UserRepository {
+  @override
+  UserModel? getCurrentUser() => const UserModel(id: 42);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  test(
+    'deletion reduces only unread messages written by someone else',
+    () async {
+      await sl.reset();
+      sl.registerSingleton<UserRepository>(_CurrentUserRepository());
+      final repository = _FakeChatRepository();
+      repository.chats[0] = const Chat(
+        id: 2,
+        name: 'Chat',
+        idLastMessage: 23,
+        newMessagesCount: 2,
+        member: Member(lastIdReadMessage: 20),
+      );
+      final bus = WsEventBus();
+      final bloc = ChatBloc(repository, bus)..setupListeners();
+
+      void remove(int messageId, int authorId) => bus.dispatch(
+        WsEvent(
+          table: 'Message',
+          action: ActionType.delete,
+          data: {
+            'chatId': 2,
+            'messageId': messageId,
+            'messageUserId': authorId,
+          },
+          isSelf: true,
+        ),
+      );
+
+      remove(23, 9);
+      await bloc.stream.firstWhere(
+        (state) => state is ChatLoaded && state.chats.first.unreadCount == 1,
+      );
+      expect(repository.getAllUnredCount(), 3);
+
+      remove(20, 9);
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.chats.first.unreadCount, 1);
+
+      remove(22, 42);
+      await Future<void>.delayed(Duration.zero);
+      expect(repository.chats.first.unreadCount, 1);
+
+      await bloc.close();
+      bus.dispose();
+      await sl.reset();
+    },
+  );
+
   test('own message reorders chat without increasing unread count', () async {
     final repository = _FakeChatRepository();
     final bus = WsEventBus();

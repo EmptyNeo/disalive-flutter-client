@@ -44,6 +44,41 @@ class _MediaRepository implements MediaFilterRepository {
   ]);
 
   @override
+  Future<Either<Failure, List<MediaFilterMutualServer>>> getMutualServers(
+    int chatId, {
+    int limit = 25,
+    int offset = 0,
+  }) async => const Right([
+    MediaFilterMutualServer(
+      idServer: 12,
+      name: 'Общий сервер',
+      memberCount: 42,
+    ),
+  ]);
+
+  @override
+  Future<Either<Failure, List<MediaFilterLink>>> getLinks(
+    int chatId, {
+    int limit = 25,
+    int offset = 0,
+  }) async => const Right([
+    MediaFilterLink(
+      link: 'https://example.com/october',
+      idMessage: 2,
+      time: '2026-10-23 10:20:30',
+      fkSender: 1,
+      domain: 'example.com',
+    ),
+    MediaFilterLink(
+      link: 'https://example.com/september',
+      idMessage: 1,
+      time: '2026-09-14 08:10:00',
+      fkSender: 1,
+      domain: 'example.com',
+    ),
+  ]);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -104,5 +139,87 @@ void main() {
     expect(find.text('Общая группа'), findsOneWidget);
     await tester.tap(find.text('Общая группа'));
     expect(opened?.idChat, 7);
+  });
+
+  testWidgets('shows mutual servers and invokes its callback', (tester) async {
+    final bloc = MediaFiltersBloc(_MediaRepository())
+      ..add(
+        const LoadMediaFilter(
+          chatId: 42,
+          category: MediaFilterCategory.mutualServers,
+        ),
+      );
+    addTearDown(bloc.close);
+    MediaFilterMutualServer? opened;
+
+    await tester.pumpWidget(
+      BlocProvider.value(
+        value: bloc,
+        child: CupertinoApp(
+          home: MediaFilterScreen(
+            category: MediaFilterCategory.mutualServers,
+            onServerTap: (server) => opened = server,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Общие серверы'), findsOneWidget);
+    expect(find.text('Общий сервер'), findsOneWidget);
+    await tester.tap(find.text('Общий сервер'));
+    expect(opened?.idServer, 12);
+  });
+
+  testWidgets('groups dated links by month and shows each day', (tester) async {
+    final bloc = MediaFiltersBloc(_MediaRepository())
+      ..add(const LoadMediaFilter(
+        chatId: 42,
+        category: MediaFilterCategory.links,
+      ));
+    addTearDown(bloc.close);
+
+    await tester.pumpWidget(BlocProvider.value(
+      value: bloc,
+      child: const CupertinoApp(
+        home: MediaFilterScreen(category: MediaFilterCategory.links),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Октябрь 2026'), findsOneWidget);
+    expect(find.text('23 окт.'), findsOneWidget);
+    expect(find.text('Сентябрь 2026'), findsOneWidget);
+    expect(find.text('14 сент.'), findsOneWidget);
+  });
+
+  testWidgets('long press on a link offers only navigation to its message', (
+    tester,
+  ) async {
+    final bloc = MediaFiltersBloc(_MediaRepository())
+      ..add(const LoadMediaFilter(
+        chatId: 42,
+        category: MediaFilterCategory.links,
+      ));
+    addTearDown(bloc.close);
+    int? selectedMessageId;
+
+    await tester.pumpWidget(BlocProvider.value(
+      value: bloc,
+      child: CupertinoApp(
+        home: MediaFilterScreen(
+          category: MediaFilterCategory.links,
+          onMessageTap: (id) => selectedMessageId = id,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('https://example.com/october'));
+    await tester.pumpAndSettle();
+    expect(find.text('Перейти к сообщению'), findsOneWidget);
+    await tester.tap(find.text('Перейти к сообщению'));
+    await tester.pumpAndSettle();
+    expect(selectedMessageId, 2);
   });
 }

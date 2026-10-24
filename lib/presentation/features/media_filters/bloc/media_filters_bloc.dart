@@ -109,6 +109,10 @@ class MediaFiltersBloc extends Bloc<MediaFiltersEvent, MediaFiltersState> {
         chatId,
         offset: offset,
       ),
+      MediaFilterCategory.mutualServers => await _repository.getMutualServers(
+        chatId,
+        offset: offset,
+      ),
     };
     return result.fold(
       (failure) => (error: failure.message, items: null),

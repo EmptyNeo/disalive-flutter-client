@@ -1,6 +1,7 @@
 // lib/presentation/features/chat/bloc/chat_bloc.dart
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:disalive/app/di/di.dart';
 import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
@@ -11,6 +12,7 @@ import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:disalive/presentation/utils/ui/chat_sorter.dart';
@@ -40,6 +42,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<GetChats>(_onGetChats);
     on<AddMessageToChat>(_onAddMessageToChat);
     on<UpdateLastMessageInChat>(_onUpdateLastMessageInChat);
+    on<RemoveMessageFromChat>(_onRemoveMessageFromChat);
     on<SearchChats>(_onSearchChats);
     on<AddChat>(_onAddChat);
     on<UpdateChat>(_onUpdateChat);
@@ -100,12 +103,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       table: 'Message',
       action: ActionType.delete,
       onData: (event) {
-        if (!event.data.containsKey('lastMessageText')) return;
         final chatId = DataParser.parseInt(event.data['chatId']);
         if (chatId == null) return;
         add(
-          UpdateLastMessageInChat(
+          RemoveMessageFromChat(
             chatId: chatId,
+            messageId: DataParser.parseInt(event.data['messageId']),
+            messageUserId: DataParser.parseInt(event.data['messageUserId']),
+            currentUserId: sl.isRegistered<UserRepository>()
+                ? sl<UserRepository>().getCurrentUser()?.id
+                : null,
+            hasLastMessagePreview: event.data.containsKey('lastMessageText'),
             lastMessageText: event.data['lastMessageText'] as String?,
             lastMessageUserId: DataParser.parseInt(
               event.data['lastMessageUserId'],
@@ -370,6 +378,39 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       clearIdLastMessage: event.hasLastMessageId && event.lastMessageId == null,
     );
     emit(ChatLoaded(cachedChats, _chatRepository.getAllUnredCount()));
+  }
+
+  void _onRemoveMessageFromChat(
+    RemoveMessageFromChat event,
+    Emitter<ChatState> emit,
+  ) {
+    final chats = _chatRepository.getCached();
+    final index = chats.indexWhere((chat) => chat.id == event.chatId);
+    if (index == -1) return;
+    final chat = chats[index];
+    final isUnread =
+        event.messageId != null &&
+        event.messageUserId != null &&
+        event.currentUserId != null &&
+        event.messageUserId != event.currentUserId &&
+        event.messageId! > (chat.member?.lastIdReadMessage ?? 0) &&
+        chat.unreadCount > 0;
+    chats[index] = chat.copyWith(
+      newMessagesCount: isUnread ? math.max(0, chat.unreadCount - 1) : null,
+      lastMessageText: event.hasLastMessagePreview
+          ? event.lastMessageText
+          : null,
+      clearLastMessageText:
+          event.hasLastMessagePreview && event.lastMessageText == null,
+      lastMessageUserId: event.hasLastMessagePreview
+          ? event.lastMessageUserId
+          : null,
+      clearLastMessageUserId:
+          event.hasLastMessagePreview && event.lastMessageUserId == null,
+      idLastMessage: event.lastMessageId,
+      clearIdLastMessage: event.hasLastMessageId && event.lastMessageId == null,
+    );
+    emit(ChatLoaded(chats, _chatRepository.getAllUnredCount()));
   }
 
   void _onUpdateMemberInChat(

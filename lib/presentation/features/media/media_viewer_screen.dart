@@ -11,6 +11,7 @@ import 'package:disalive/presentation/features/media/bloc/media_viewer_bloc.dart
 import 'package:disalive/presentation/features/media/media_attachment_locator.dart';
 import 'package:disalive/presentation/features/media/media_viewer_route.dart';
 import 'package:disalive/presentation/features/media/widgets/media_page.dart';
+import 'package:disalive/presentation/features/media/widgets/media_save_button.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -113,9 +114,20 @@ class _FilteredMediaViewerState extends State<_FilteredMediaViewer> {
         Positioned(
           top: MediaQuery.of(context).padding.top + 18,
           right: 22,
-          child: GlassIconButton(
-            icon: CupertinoIcons.xmark,
-            onTap: () => Navigator.of(context).pop(),
+          child: Row(
+            children: [
+              MediaSaveButton(
+                key: ValueKey(
+                  'save_filtered_${widget.files[_index].id}_$_index',
+                ),
+                attachment: widget.files[_index],
+              ),
+              const SizedBox(width: 10),
+              GlassIconButton(
+                icon: CupertinoIcons.xmark,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
         ),
       ],
@@ -296,6 +308,25 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     Navigator.of(context).pop();
   }
 
+  FileMessage? _attachmentAt(List<Message> messages, int page) {
+    if (page < 0 || page >= _positions.length) return null;
+    final position = _positions[page];
+    final messageIndex = messages.indexWhere(
+      (message) =>
+          (message.id ?? message.localGeneratedId) == position.messageId,
+    );
+    if (messageIndex < 0) return null;
+    final content =
+        messages[messageIndex].forwardMessage ?? messages[messageIndex];
+    final attachments =
+        content.attachments
+            ?.where((file) => file.isImageFile || file.isVideoFile)
+            .toList() ??
+        const <FileMessage>[];
+    if (position.attachmentIndex >= attachments.length) return null;
+    return attachments[position.attachmentIndex];
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<MediaViewerBloc, MediaViewerState>(
@@ -337,6 +368,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           }
 
           final messages = state.messages;
+          final currentAttachment = _attachmentAt(messages, _currentPage);
 
           return CupertinoPageScaffold(
             backgroundColor: CupertinoColors.transparent,
@@ -345,7 +377,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                 PageView.builder(
                   controller: _pageController,
                   itemCount: _positions.length,
-                  onPageChanged: (index) => _ensureMoreData(messages, index),
+                  onPageChanged: (index) {
+                    setState(() => _currentPage = index);
+                    _ensureMoreData(messages, index);
+                  },
                   itemBuilder: (context, index) {
                     if (index < 0 || index >= _positions.length) {
                       return const SizedBox.shrink();
@@ -408,9 +443,22 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                   right: 12,
                   child: Padding(
                     padding: EdgeInsets.all(10),
-                    child: GlassIconButton(
-                      icon: CupertinoIcons.xmark,
-                      onTap: _handleClose,
+                    child: Row(
+                      children: [
+                        if (currentAttachment != null) ...[
+                          MediaSaveButton(
+                            key: ValueKey(
+                              'save_${_positions[_currentPage].messageId}_${_positions[_currentPage].attachmentIndex}',
+                            ),
+                            attachment: currentAttachment,
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        GlassIconButton(
+                          icon: CupertinoIcons.xmark,
+                          onTap: _handleClose,
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -21,6 +21,7 @@ import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/direct_profile_content.dart';
+import 'package:disalive/presentation/features/profile/widgets/profile_comments_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_qr_sheet.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
@@ -324,6 +325,22 @@ class _UserProfileViewState extends State<_UserProfileView> {
                                   user: state.user,
                                   isSoloChat: false,
                                   actions: _actions(state.user, requestsState),
+                                  footer: state.user.id == null
+                                      ? null
+                                      : ProfileCommentsSection(
+                                          key: ValueKey(state.user.id),
+                                          profileUserId: state.user.id!,
+                                          canComment:
+                                              state.user.id ==
+                                                  sl<UserRepository>()
+                                                      .getCurrentUser()
+                                                      ?.id ||
+                                              (state.user.allowComments !=
+                                                      false &&
+                                                  (state.user.allowOnlyFriendsComments !=
+                                                          true ||
+                                                      state.user.isFriend)),
+                                        ),
                                 ),
                           ),
 

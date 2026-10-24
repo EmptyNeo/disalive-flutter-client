@@ -10,6 +10,7 @@ import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
@@ -23,6 +24,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
   StreamSubscription<WsEvent>? _subscription;
   StreamSubscription<WsEvent>? _memberSubscription;
   StreamSubscription<WsEvent>? _messageSubscription;
+  StreamSubscription<WsEvent>? _messageDeleteSubscription;
   Timer? _refreshTimer;
   final Map<int, int> _latestMessageIds = {};
   final Map<(int, int), int> _lastReadByChannel = {};
@@ -40,6 +42,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
     on<ServerRemoved>(_onServerRemoved);
     on<ServerMemberUpdated>(_onServerMemberUpdated);
     on<ServerMessageAdded>(_onServerMessageAdded);
+    on<ServerMessageRemoved>(_onServerMessageRemoved);
     setupListeners();
   }
 
@@ -157,6 +160,44 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
         add(ServerMessageAdded(serverId, chatId, messageId, event.isSelf));
       },
     );
+    _messageDeleteSubscription?.cancel();
+    _messageDeleteSubscription = _eventBus.subscribe(
+      table: 'Message',
+      action: ActionType.delete,
+      onData: (event) {
+        final chatId = DataParser.parseInt(event.data['chatId']);
+        final messageId = DataParser.parseInt(event.data['messageId']);
+        final messageUserId = DataParser.parseInt(event.data['messageUserId']);
+        final currentUserId = sl.isRegistered<UserRepository>()
+            ? sl<UserRepository>().getCurrentUser()?.id
+            : null;
+        if (chatId == null ||
+            messageId == null ||
+            messageUserId == null ||
+            currentUserId == null ||
+            messageUserId == currentUserId ||
+            !sl.isRegistered<ChannelServerRepository>()) {
+          return;
+        }
+        final channelRepository = sl<ChannelServerRepository>();
+        for (final server in _serverRepository.getCached()) {
+          final serverId = server.id;
+          if (serverId == null) continue;
+          final channels = channelRepository.getCached(serverId);
+          final channelIndex = channels.indexWhere((c) => c.chatId == chatId);
+          if (channelIndex < 0) continue;
+          final channel = channels[channelIndex];
+          final lastRead =
+              _lastReadByChannel[(serverId, chatId)] ??
+              channel.lastIdReadMessage ??
+              0;
+          if (messageId > lastRead && channel.newMessagesCount > 0) {
+            add(ServerMessageRemoved(serverId, chatId, messageId));
+          }
+          break;
+        }
+      },
+    );
   }
 
   void _scheduleRefresh() {
@@ -209,6 +250,8 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
             _applyMemberUpdate(servers, change);
           } else if (change is ServerMessageAdded) {
             _applyMessageAdded(servers, change);
+          } else if (change is ServerMessageRemoved) {
+            _applyMessageRemoved(servers, change);
           }
         }
         _serverRepository.updateCache(servers);
@@ -293,6 +336,28 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
     return true;
   }
 
+  void _onServerMessageRemoved(
+    ServerMessageRemoved event,
+    Emitter<ServersState> emit,
+  ) {
+    if (_isLoading) _changesDuringLoad.add(event);
+    final servers = List<Server>.from(_serverRepository.getCached());
+    if (!_applyMessageRemoved(servers, event)) return;
+    _serverRepository.updateCache(servers);
+    emit(_loaded(servers));
+  }
+
+  bool _applyMessageRemoved(List<Server> servers, ServerMessageRemoved event) {
+    final index = servers.indexWhere((server) => server.id == event.serverId);
+    if (index < 0) return false;
+    final server = servers[index];
+    if ((server.newMessagesCount ?? 0) == 0) return false;
+    servers[index] = server.copyWith(
+      newMessagesCount: math.max(0, server.newMessagesCount! - 1),
+    );
+    return true;
+  }
+
   bool _applyMemberUpdate(List<Server> servers, ServerMemberUpdated event) {
     final index = servers.indexWhere((server) => server.id == event.serverId);
     if (index < 0) return false;
@@ -314,6 +379,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
     await _subscription?.cancel();
     await _memberSubscription?.cancel();
     await _messageSubscription?.cancel();
+    await _messageDeleteSubscription?.cancel();
     _refreshTimer?.cancel();
     _latestMessageIds.clear();
     _lastReadByChannel.clear();

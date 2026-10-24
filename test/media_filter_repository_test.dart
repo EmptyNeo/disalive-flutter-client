@@ -21,7 +21,7 @@ http.Response _response(dynamic data) => http.Response(
 
 void main() {
   test(
-    'all six filters use their PHP routes and parse typed results',
+    'all seven filters use their PHP routes and parse typed results',
     () async {
       final requests = <http.Request>[];
       final client = MockClient((request) async {
@@ -30,7 +30,7 @@ void main() {
           return _response([
             {
               'link': 'https://example.com',
-              'idMessage': 9,
+              'messageId': 9,
               'time': '2026-10-17 10:00:00',
               'fkSender': 3,
               'domain': 'example.com',
@@ -50,6 +50,16 @@ void main() {
             },
           ]);
         }
+        if (request.url.path.endsWith('/MutualServersFilter.php')) {
+          return _response([
+            {
+              'idServer': '12',
+              'name': 'Community',
+              'pathAvatar': '/resources/server.png',
+              'memberCount': '42',
+            },
+          ]);
+        }
         return _response([
           {
             'idFilesMessage': 5,
@@ -58,7 +68,8 @@ void main() {
             'size': 1.5,
             'unit': 'MB',
             'objectKey': 'uploads/file',
-            'idMessage': 9,
+            'messageId': 9,
+            'time': '2026-10-23 10:20:30',
           },
         ]);
       });
@@ -75,13 +86,28 @@ void main() {
       final audio = await repository.getAudio(42);
       final links = await repository.getLinks(42);
       final groups = await repository.getMutualGroups(42);
+      final servers = await repository.getMutualServers(42);
 
-      for (final result in [photos, videos, files, audio, links, groups]) {
+      for (final result in [
+        photos,
+        videos,
+        files,
+        audio,
+        links,
+        groups,
+        servers,
+      ]) {
         expect(result.isRight(), isTrue);
       }
       expect(photos.getOrElse(() => []).single, isA<MediaFilterFile>());
+      expect(photos.getOrElse(() => []).single.time, '2026-10-23 10:20:30');
       expect(links.getOrElse(() => []).single, isA<MediaFilterLink>());
       expect(groups.getOrElse(() => []).single, isA<MediaFilterMutualGroup>());
+      expect(
+        servers.getOrElse(() => []).single,
+        isA<MediaFilterMutualServer>(),
+      );
+      expect(servers.getOrElse(() => []).single.idServer, 12);
       expect(requests.map((request) => request.url.path), [
         '/php/Filters/PhotoFilter.php',
         '/php/Filters/VideoFilter.php',
@@ -89,6 +115,7 @@ void main() {
         '/php/Filters/AudioFilter.php',
         '/php/Filters/LinkFilter.php',
         '/php/Filters/MutualGroupsFilter.php',
+        '/php/Filters/MutualServersFilter.php',
       ]);
       for (final request in requests) {
         expect(request.method, 'POST');

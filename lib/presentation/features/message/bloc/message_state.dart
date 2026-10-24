@@ -2,13 +2,25 @@
 part of 'message_bloc.dart';
 
 @immutable
-abstract class MessageState {}
+abstract class MessageState {
+  int? get chatId;
+}
 
-class MessageInitial extends MessageState {}
+class MessageInitial extends MessageState {
+  @override
+  int? get chatId => null;
+}
 
-class MessageLoading extends MessageState {}
+class MessageLoading extends MessageState {
+  MessageLoading(this.chatId);
+
+  @override
+  final int chatId;
+}
 
 class MessageLoaded extends MessageState {
+  @override
+  final int chatId;
   final List<Message> messages;
   final List<HistoryAction> actions;
   final bool isLoadingMore;
@@ -17,6 +29,7 @@ class MessageLoaded extends MessageState {
   final bool hasNewerMessages;
 
   MessageLoaded({
+    required this.chatId,
     required this.messages,
     required this.actions,
     this.isLoadingMore = false,
@@ -34,6 +47,7 @@ class MessageLoaded extends MessageState {
     bool? hasNewerMessages,
   }) {
     return MessageLoaded(
+      chatId: chatId,
       messages: messages ?? this.messages,
       actions: actions ?? this.actions,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
@@ -45,7 +59,9 @@ class MessageLoaded extends MessageState {
 }
 
 class MessageFailure extends MessageState {
+  @override
+  final int chatId;
   final Failure error;
 
-  MessageFailure(this.error);
+  MessageFailure(this.error, this.chatId);
 }

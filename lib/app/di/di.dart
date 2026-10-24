@@ -16,6 +16,8 @@ import 'package:disalive/data/repositories/media_stats_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/permission_repository_impl.dart';
 import 'package:disalive/data/repositories/preferred_reactions_repository_impl.dart';
+import 'package:disalive/data/repositories/profile_comments_repository_impl.dart';
+import 'package:disalive/data/repositories/profile_comment_likes_repository_impl.dart';
 import 'package:disalive/data/repositories/reactions_repository_impl.dart';
 import 'package:disalive/data/repositories/requests_repository_impl.dart';
 import 'package:disalive/data/repositories/role_member_repository_impl.dart';
@@ -44,6 +46,8 @@ import 'package:disalive/domain/repositories/media_stats_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
+import 'package:disalive/domain/repositories/profile_comments_repository.dart';
+import 'package:disalive/domain/repositories/profile_comment_likes_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
@@ -57,6 +61,7 @@ import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart'
 import 'package:disalive/domain/repositories/ws_repository.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
+import 'package:disalive/domain/services/read_status_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
@@ -70,6 +75,7 @@ import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
+import 'package:disalive/presentation/features/profile/bloc/profile_comments_bloc.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
@@ -99,6 +105,9 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<HttpClientService>(
     () => HttpClientService(secureStorage: sl()),
   );
+  sl.registerLazySingleton<ReadStatusService>(
+    () => ReadStatusService(sl(), sl(), sl()),
+  );
 
   sl.registerFactory(() => ThemeCubit(sl<SettingsRepository>()));
 
@@ -109,7 +118,9 @@ Future<void> setupDependencies() async {
     () => ChatServerRepositoryImpl(sl(), sl()),
   );
   sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl());
-  sl.registerLazySingleton<AppUpdateRepository>(() => AppUpdateRepositoryImpl());
+  sl.registerLazySingleton<AppUpdateRepository>(
+    () => AppUpdateRepositoryImpl(),
+  );
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ServerRepository>(() => ServerRepositoryImpl());
@@ -126,6 +137,12 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<MediaFilterRepository>(
     () => MediaFilterRepositoryImpl(),
+  );
+  sl.registerLazySingleton<ProfileCommentsRepository>(
+    () => ProfileCommentsRepositoryImpl(),
+  );
+  sl.registerLazySingleton<ProfileCommentLikesRepository>(
+    () => ProfileCommentLikesRepositoryImpl(),
   );
   sl.registerLazySingleton<MessageRepository>(() => MessageRepositoryImpl());
   sl.registerLazySingleton<PermissionRepository>(
@@ -157,6 +174,9 @@ Future<void> setupDependencies() async {
   // BLoC
   sl.registerFactory<AuthBloc>(() => AuthBloc(sl(), sl()));
   sl.registerFactory<ProfileBloc>(() => ProfileBloc(sl(), sl(), sl()));
+  sl.registerFactory<ProfileCommentsBloc>(
+    () => ProfileCommentsBloc(sl(), sl()),
+  );
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl()));

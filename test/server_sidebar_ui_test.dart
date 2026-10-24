@@ -213,6 +213,7 @@ class _Members implements MembersRepository {
 
 class _ServerRepository implements ServerRepository {
   int? updatedMainChannel;
+  bool clearedMainChannel = false;
   List<Server> servers = [const Server(id: 2, name: 'Team', isOwner: true)];
 
   @override
@@ -229,7 +230,12 @@ class _ServerRepository implements ServerRepository {
     File? avatar,
   }) async {
     updatedMainChannel = fkMainChannel;
-    return Right(servers.first.copyWith(fkMainChannel: fkMainChannel));
+    clearedMainChannel = isSetNullMainChannel;
+    return Right(
+      isSetNullMainChannel
+          ? Server.fromMap({...servers.first.toMap(), 'fkMainChannel': null})
+          : servers.first.copyWith(fkMainChannel: fkMainChannel),
+    );
   }
 
   @override
@@ -287,6 +293,32 @@ void main() {
     await sl.reset();
   });
 
+  testWidgets('server header hides read action without unread messages', (
+    tester,
+  ) async {
+    await _pumpSidebar(
+      tester,
+      server: const Server(id: 2, name: 'Team', newMessagesCount: 0),
+    );
+    await tester.tap(find.byKey(const ValueKey('server_header')));
+    await tester.pumpAndSettle();
+    expect(find.text('Пометить как прочитанное'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('server header shows read action with unread messages', (
+    tester,
+  ) async {
+    await _pumpSidebar(
+      tester,
+      server: const Server(id: 2, name: 'Team', newMessagesCount: 3),
+    );
+    await tester.tap(find.byKey(const ValueKey('server_header')));
+    await tester.pumpAndSettle();
+    expect(find.text('Пометить как прочитанное'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('channel action sets main channel on server', (tester) async {
     await sl.reset();
     final bus = WsEventBus();
@@ -325,6 +357,63 @@ void main() {
     await tester.pumpAndSettle();
     expect(repository.updatedMainChannel, 11);
     expect(repository.servers.first.fkMainChannel, 11);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await bloc.close();
+      bus.dispose();
+    });
+  });
+
+  testWidgets('main channel action clears the server main channel', (
+    tester,
+  ) async {
+    await sl.reset();
+    final bus = WsEventBus();
+    final repository = _ServerRepository()
+      ..servers = [
+        const Server(id: 2, name: 'Team', isOwner: true, fkMainChannel: 11),
+      ];
+    final bloc = ServersBloc(repository, bus);
+    sl.registerSingleton<WsEventBus>(bus);
+    sl.registerSingleton<CallsRepository>(_Calls());
+    sl.registerSingleton<ServerRepository>(repository);
+    sl.registerSingleton<ChannelServerRepository>(
+      _Channels(const [
+        ChannelServer(id: 11, serverId: 2, chatId: 90, chatName: 'General'),
+      ]),
+    );
+    sl.registerSingleton<CategoryChannelRepository>(_Categories(const []));
+
+    await tester.pumpWidget(
+      BlocProvider.value(
+        value: bloc,
+        child: const CupertinoApp(
+          home: CupertinoPageScaffold(
+            child: SizedBox(
+              width: 390,
+              child: ServerContentSidebar(
+                server: Server(
+                  id: 2,
+                  name: 'Team',
+                  isOwner: true,
+                  fkMainChannel: 11,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.longPress(find.text('General'));
+    await tester.pumpAndSettle();
+    expect(find.text('Сделать главным каналом'), findsNothing);
+    await tester.tap(find.text('Убрать основной канал'));
+    await tester.pumpAndSettle();
+    expect(repository.clearedMainChannel, isTrue);
+    expect(repository.servers.first.fkMainChannel, isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.runAsync(() async {
@@ -534,6 +623,8 @@ void main() {
     final repository = sl<CategoryChannelRepository>() as _Categories;
 
     await tester.tap(find.byKey(const ValueKey('server_header')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Создать категорию'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Создать категорию'));
     await tester.pump();

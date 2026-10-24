@@ -18,12 +18,14 @@ class GroupProfileScreen extends StatefulWidget {
   final Chat chat;
   final ValueChanged<MediaStatsCategory>? onMediaCategoryTap;
   final ValueChanged<MediaFilterMutualGroup>? onGroupTap;
+  final ValueChanged<int>? onMessageTap;
 
   const GroupProfileScreen({
     super.key,
     required this.chat,
     this.onMediaCategoryTap,
     this.onGroupTap,
+    this.onMessageTap,
   });
 
   @override
@@ -148,6 +150,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
             child: MediaStatsSection(
               chatId: widget.chat.id,
               onCategoryTap: widget.onMediaCategoryTap,
+              onMessageTap: widget.onMessageTap,
               onGroupTap: widget.onGroupTap,
             ),
           ),

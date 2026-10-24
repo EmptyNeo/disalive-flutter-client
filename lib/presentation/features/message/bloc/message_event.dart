@@ -4,6 +4,20 @@ part of 'message_bloc.dart';
 @immutable
 abstract class MessageEvent {}
 
+class RestoreChatMessages extends MessageEvent {
+  RestoreChatMessages({
+    required this.chatId,
+    required this.entityId,
+    required this.entityType,
+    required this.previousState,
+  });
+
+  final int chatId;
+  final int entityId;
+  final EntityType entityType;
+  final MessageLoaded previousState;
+}
+
 class UpsertHistoryAction extends MessageEvent {
   final int chatId;
   final HistoryAction action;

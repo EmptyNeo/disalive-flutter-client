@@ -3,6 +3,7 @@ import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/dm_sidebar/widgets/dm_list_area.dart';
 import 'package:disalive/presentation/features/dm_sidebar/widgets/dm_normal_header.dart';
 import 'package:disalive/presentation/features/dm_sidebar/widgets/dm_search_bar.dart';
+import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -105,6 +106,10 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
                           key: const ValueKey('header'),
                           isReconnect: widget.isReconnect,
                           onSearchTap: () => _toggleSearch(true),
+                          onReadAllTap:
+                              widget.chats.any((chat) => chat.unreadCount > 0)
+                              ? () => ReadStatusActions.markAllChats(context)
+                              : null,
                         ),
                 ),
 
@@ -114,7 +119,7 @@ class _DirectMessagesSidebarState extends State<DirectMessagesSidebar> {
                 Container(
                   width: double.infinity,
                   height: 1,
-                  color: AppColors.white.withOpacity(0.10),
+                  color: AppColors.white.withValues(alpha: 0.10),
                 ),
 
                 Expanded(

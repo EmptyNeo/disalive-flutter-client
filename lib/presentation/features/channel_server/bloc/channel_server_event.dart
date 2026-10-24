@@ -74,3 +74,14 @@ class ServerChannelMessageAdded extends ChannelServerEvent {
   @override
   List<Object?> get props => [serverId, chatId, messageId, isSelf];
 }
+
+class ServerChannelMessageRemoved extends ChannelServerEvent {
+  const ServerChannelMessageRemoved(this.serverId, this.chatId, this.messageId);
+
+  final int serverId;
+  final int chatId;
+  final int messageId;
+
+  @override
+  List<Object?> get props => [serverId, chatId, messageId];
+}

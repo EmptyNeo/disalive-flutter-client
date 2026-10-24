@@ -38,4 +38,10 @@ abstract class MediaFilterRepository {
     int limit = 25,
     int offset = 0,
   });
+
+  Future<Either<Failure, List<MediaFilterMutualServer>>> getMutualServers(
+    int chatId, {
+    int limit = 25,
+    int offset = 0,
+  });
 }

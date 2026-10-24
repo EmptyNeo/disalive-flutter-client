@@ -1,1 +1,9 @@
-enum MediaFilterCategory { photos, videos, files, audio, links, mutualChats }
+enum MediaFilterCategory {
+  photos,
+  videos,
+  files,
+  audio,
+  links,
+  mutualChats,
+  mutualServers,
+}
