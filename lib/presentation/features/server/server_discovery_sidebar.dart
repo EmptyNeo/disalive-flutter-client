@@ -8,6 +8,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
@@ -271,16 +272,18 @@ class _ServerDiscoverySidebarState extends State<ServerDiscoverySidebar> {
                         ),
                       ),
                     )
-                  : SliverGrid.builder(
+                  : SliverList.builder(
                       key: ValueKey('public_servers_columns_$columns'),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        mainAxisExtent: 184,
-                        mainAxisSpacing: spacing,
-                        crossAxisSpacing: spacing,
-                      ),
                       itemCount: _servers.length,
-                      itemBuilder: (context, index) => cardAt(index),
+                      itemBuilder: (context, index) => Padding(
+                        padding: const EdgeInsets.only(bottom: spacing),
+                        child: SizedBox(
+                          height: _servers[index].pathBanner?.isNotEmpty == true
+                              ? 300
+                              : 184,
+                          child: cardAt(index),
+                        ),
+                      ),
                     ),
             ),
         ],
@@ -332,72 +335,137 @@ class _DiscoveryServerCard extends StatelessWidget {
   final VoidCallback onJoin;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    if (server.pathBanner?.isNotEmpty == true) return _bannerCard();
+    return Container(
+      key: ValueKey('public_server_${server.id}'),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(10, 10, 10, 8)
+          : const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.mainBackground.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (compact) ...[
+            Row(
+              children: [
+                _avatar(),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _compactCount(
+                        CupertinoColors.activeGreen,
+                        server.onlineMemberCount ?? 0,
+                      ),
+                      const SizedBox(height: 4),
+                      _compactCount(AppColors.greyple, server.memberCount ?? 0),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _name(),
+            const SizedBox(height: 8),
+            _actionButton(),
+          ] else ...[
+            Row(
+              children: [
+                _avatar(),
+                const SizedBox(width: 12),
+                Expanded(child: _name()),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 14,
+              runSpacing: 6,
+              children: [
+                _count(
+                  CupertinoColors.activeGreen,
+                  '${server.onlineMemberCount ?? 0} в сети',
+                ),
+                _count(
+                  AppColors.greyple,
+                  '${server.memberCount ?? 0} участников',
+                ),
+              ],
+            ),
+            const Spacer(),
+            _actionButton(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _bannerCard() => Container(
     key: ValueKey('public_server_${server.id}'),
-    padding: compact
-        ? const EdgeInsets.fromLTRB(10, 10, 10, 8)
-        : const EdgeInsets.all(14),
+    clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       color: AppColors.mainBackground.withValues(alpha: 0.82),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: AppColors.white.withValues(alpha: 0.10)),
     ),
     child: Column(
-      mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (compact) ...[
-          Row(
-            children: [
-              _avatar(),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _compactCount(
-                      CupertinoColors.activeGreen,
-                      server.onlineMemberCount ?? 0,
-                    ),
-                    const SizedBox(height: 4),
-                    _compactCount(AppColors.greyple, server.memberCount ?? 0),
-                  ],
-                ),
-              ),
-            ],
+        ServerBannerImage(path: server.pathBanner!, height: compact ? 72 : 112),
+        if (compact)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+            child: _bannerDetails(),
+          )
+        else
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: _bannerDetails(),
+            ),
           ),
-          const SizedBox(height: 8),
-          _name(),
-          const SizedBox(height: 8),
-          _actionButton(),
-        ] else ...[
-          Row(
-            children: [
-              _avatar(),
-              const SizedBox(width: 12),
-              Expanded(child: _name()),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              _count(
-                CupertinoColors.activeGreen,
-                '${server.onlineMemberCount ?? 0} в сети',
-              ),
-              _count(
-                AppColors.greyple,
-                '${server.memberCount ?? 0} участников',
-              ),
-            ],
-          ),
-          const Spacer(),
-          _actionButton(),
-        ],
       ],
     ),
+  );
+
+  Widget _bannerDetails() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Transform.translate(offset: const Offset(0, -20), child: _avatar()),
+      if (!compact) const Spacer(),
+      _name(),
+      const SizedBox(height: 8),
+      if (compact)
+        Row(
+          children: [
+            _compactCount(
+              CupertinoColors.activeGreen,
+              server.onlineMemberCount ?? 0,
+            ),
+            const SizedBox(width: 12),
+            _compactCount(AppColors.greyple, server.memberCount ?? 0),
+          ],
+        )
+      else
+        Wrap(
+          spacing: 14,
+          children: [
+            _count(
+              CupertinoColors.activeGreen,
+              '${server.onlineMemberCount ?? 0} в сети',
+            ),
+            _count(AppColors.greyple, '${server.memberCount ?? 0} участников'),
+          ],
+        ),
+      if (!compact) const Spacer() else const SizedBox(height: 8),
+      _actionButton(),
+    ],
   );
 
   Widget _actionButton() {

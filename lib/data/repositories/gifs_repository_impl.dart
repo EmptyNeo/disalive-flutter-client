@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import "package:dartz/dartz.dart";
 import "package:disalive/app/di/di.dart";
 import "package:disalive/domain/enums/api_type.dart";
@@ -10,6 +12,23 @@ import "package:disalive/domain/services/http_client_service.dart";
 class GifsRepositoryImpl extends GifsRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
   final List<Gif> _gifs = [];
+
+  @override
+  Future<Either<Failure, Uint8List>> crop(
+    File image, {
+    required int x,
+    required int y,
+    required int width,
+    required int height,
+  }) => _httpClient.postMultipartBytes(
+    endpoint: 'gifs/crop/',
+    data: {'x': x, 'y': y, 'width': width, 'height': height},
+    files: {
+      'image': [image],
+    },
+    apiType: ApiType.v1,
+    requireAuth: true,
+  );
 
   @override
   Future<Either<Failure, List<Gif>>> get(

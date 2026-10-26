@@ -28,6 +28,7 @@ import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
 import 'package:disalive/presentation/features/server/server_form_screen.dart';
+import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/app_text_input_sheet.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
@@ -147,6 +148,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       context,
       title: 'Новая категория',
       actionLabel: 'Создать категорию',
+      enableEmojis: true,
     );
     if (!mounted || name == null) return;
     final result = await sl<CategoryChannelRepository>().create(
@@ -279,6 +281,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       context,
       title: 'Переименовать категорию',
       initialValue: category.name ?? '',
+      enableEmojis: true,
     );
     if (!mounted || name == null || category.id == null) return;
     final result = await sl<CategoryChannelRepository>().update(
@@ -545,8 +548,10 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+    final banner = widget.server.pathBanner;
+    final hasBanner = banner != null && banner.isNotEmpty;
+    final content = Padding(
+      padding: EdgeInsets.fromLTRB(16, hasBanner ? 8 : 18, 16, hasBanner ? 8 : 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -576,7 +581,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: hasBanner ? 8 : 14),
           Row(
             children: [
               if (_rights.canOpenSettings) ...[
@@ -631,6 +636,32 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ],
             ],
           ),
+        ],
+      ),
+    );
+    if (!hasBanner) return content;
+
+    return SizedBox(
+      height: 110,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ServerBannerImage(path: banner),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.35, 1],
+                colors: [
+                  CupertinoColors.transparent,
+                  AppColors.mainBackground.withValues(alpha: 0.38),
+                  AppColors.mainBackground.withValues(alpha: 0.94),
+                ],
+              ),
+            ),
+          ),
+          Align(alignment: Alignment.bottomCenter, child: content),
         ],
       ),
     );
@@ -767,6 +798,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             ChannelServerItem(
               key: ValueKey('channel_${channel.id}'),
               channel: channel,
+              participantCount: participants.length,
               onTap: () => widget.onChannelTap?.call(channel),
               onLongPress: () => _showChannelActions(channel),
             ),
@@ -774,6 +806,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ChannelCallParticipants(
                 key: ValueKey('channel_call_$chatId'),
                 participants: participants,
+                maxParticipants: channel.maxParticipants,
                 isCollapsed: _collapsedCalls.contains(chatId),
                 onToggle: () => setState(() {
                   if (!_collapsedCalls.add(chatId)) {

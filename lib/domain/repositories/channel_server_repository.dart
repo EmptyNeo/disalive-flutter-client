@@ -11,6 +11,7 @@ abstract class ChannelServerRepository {
     String type = 'text',
     int? categoryId,
     bool isPrivate = false,
+    int? maxParticipants,
     List<int> userIds = const [],
     List<int> roleIds = const [],
   });
@@ -18,6 +19,7 @@ abstract class ChannelServerRepository {
     int id, {
     String? name,
     int? categoryId,
+    int? maxParticipants,
   });
   Future<Either<Failure, int>> delete(int id);
   List<ChannelServer> getCached(int serverId);

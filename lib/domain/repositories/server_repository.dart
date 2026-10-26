@@ -18,6 +18,7 @@ abstract class ServerRepository {
     int isPrivate = 0,
     ServerType? category,
     File? avatar,
+    File? banner,
   });
 
   Future<Either<Failure, Server>> update(
@@ -31,6 +32,8 @@ abstract class ServerRepository {
     int? fkMainRole,
     bool isSetNullMainRole = false,
     File? avatar,
+    File? banner,
+    bool deleteBanner = false,
   });
 
   List<Server> getCached();

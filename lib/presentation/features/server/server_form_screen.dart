@@ -18,6 +18,7 @@ import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/app_selection_sheet.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/screens/avatar_crop_screen.dart';
+import 'package:disalive/presentation/widgets/screens/banner_crop_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -48,6 +49,8 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
   late bool _canInvite;
   late bool _isPrivate;
   File? _avatar;
+  File? _banner;
+  bool _deleteBanner = false;
   int? _mainRoleId;
   RoleMember? _mainRole;
   bool _choosingRole = false;
@@ -65,6 +68,21 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
         ? transformed
         : Uri.parse(Domain.imageDomain).resolve(transformed).toString();
   }
+
+  String? get _currentBannerUrl {
+    if (_deleteBanner || _banner != null) return null;
+    final path = widget.server?.pathBanner;
+    if (path == null || path.isEmpty) return null;
+    final transformed = Domain.transformUrl(path);
+    final uri = Uri.tryParse(transformed);
+    return uri == null
+        ? null
+        : uri.hasScheme
+        ? transformed
+        : Uri.parse(Domain.imageDomain).resolve(transformed).toString();
+  }
+
+  bool get _hasBanner => _banner != null || _currentBannerUrl != null;
 
   @override
   void initState() {
@@ -88,12 +106,193 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     final files = await MediaPickerBottomSheet.open(
       context: context,
       onlyInitialType: true,
+      convertToJpg: false,
     );
     if (!mounted || files == null || files.isEmpty) return;
     final cropped = await AvatarCropScreen.open(context, file: files.first);
     if (!mounted || cropped == null) return;
     setState(() => _avatar = cropped);
   }
+
+  Future<void> _pickBanner() async {
+    final files = await MediaPickerBottomSheet.open(
+      context: context,
+      onlyInitialType: true,
+      convertToJpg: false,
+    );
+    if (!mounted || files == null || files.isEmpty) return;
+    final file = files.first;
+    final inputSize = await file.length();
+    if (!mounted) return;
+    if (inputSize > 10 * 1024 * 1024) {
+      CustomToast.open(
+        context: context,
+        message: 'Баннер должен быть не больше 10 мб',
+      );
+      return;
+    }
+    final cropped = await BannerCropModal.open(context, file: file);
+    if (!mounted || cropped == null) return;
+    final outputSize = await cropped.length();
+    if (!mounted) return;
+    if (outputSize > 10 * 1024 * 1024) {
+      CustomToast.open(
+        context: context,
+        message: 'Баннер должен быть не больше 10 мб',
+      );
+      return;
+    }
+    setState(() {
+      _banner = cropped;
+      _deleteBanner = false;
+    });
+  }
+
+  Widget _bannerImage() {
+    final local = _banner;
+    if (local != null) {
+      return Image.file(
+        local,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+    final url = _currentBannerUrl;
+    if (url != null) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, _, _) => Container(color: AppColors.actionGrey),
+      );
+    }
+    return Container(
+      color: AppColors.actionGrey,
+      alignment: Alignment.center,
+      child: Icon(
+        CupertinoIcons.photo_on_rectangle,
+        color: AppColors.greyple,
+        size: 28,
+      ),
+    );
+  }
+
+  Widget _identityPreview() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _sectionTitle('Предпросмотр'),
+      const SizedBox(height: 8),
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.mainBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.white.withValues(alpha: 0.10)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            AspectRatio(
+              aspectRatio: BannerCropModal.aspectRatio,
+              child: CupertinoButton(
+                key: const ValueKey('server_banner_picker'),
+                padding: EdgeInsets.zero,
+                onPressed: _pickBanner,
+                child: _bannerImage(),
+              ),
+            ),
+            SizedBox(
+              height: 58,
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Transform.translate(
+                    offset: const Offset(0, -20),
+                    child: CupertinoButton(
+                      key: const ValueKey('server_avatar_picker'),
+                      padding: EdgeInsets.zero,
+                      onPressed: _pickAvatar,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          BuildAvatar(
+                            file: _avatar,
+                            url: _avatar == null ? _currentAvatarUrl : null,
+                            isGroup: true,
+                            wh: 62,
+                            size: 30,
+                          ),
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: AppColors.actionGrey,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                CupertinoIcons.pencil,
+                                size: 13,
+                                color: AppColors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _nameController.text.trim().isEmpty
+                          ? 'Название сервера'
+                          : _nameController.text.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+              ),
+            ),
+            if (_hasBanner)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: CupertinoButton(
+                    key: const ValueKey('server_banner_remove'),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    color: CupertinoColors.destructiveRed.withValues(
+                      alpha: 0.12,
+                    ),
+                    onPressed: () => setState(() {
+                      _banner = null;
+                      _deleteBanner = true;
+                    }),
+                    child: const Text(
+                      'Удалить баннер',
+                      style: TextStyle(color: CupertinoColors.destructiveRed),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'Баннер до 10 мб',
+        style: TextStyle(color: AppColors.greyple, fontSize: 12),
+      ),
+    ],
+  );
 
   Future<void> _chooseCategory() async {
     final selected = await AppSelectionSheet.show<ServerType>(
@@ -165,6 +364,8 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             fkMainRole: _mainRoleId,
             isSetNullMainRole: _mainRoleId == null,
             avatar: _avatar,
+            banner: _banner,
+            deleteBanner: _deleteBanner,
           )
         : await repository.create(
             name,
@@ -172,6 +373,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             isPrivate: _isPrivate ? 1 : 0,
             category: _category,
             avatar: _avatar,
+            banner: _banner,
           );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -237,41 +439,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     child: ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        Center(
-          child: CupertinoButton(
-            key: const ValueKey('server_avatar_picker'),
-            padding: EdgeInsets.zero,
-            onPressed: _pickAvatar,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                BuildAvatar(
-                  file: _avatar,
-                  url: _avatar == null ? _currentAvatarUrl : null,
-                  isGroup: true,
-                  wh: 88,
-                  size: 42,
-                ),
-                Positioned(
-                  right: -3,
-                  bottom: -3,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.actionGrey,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      CupertinoIcons.pencil,
-                      size: 17,
-                      color: AppColors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        _identityPreview(),
         const SizedBox(height: 24),
         _sectionTitle('Название сервера'),
         const SizedBox(height: 8),

@@ -7,6 +7,7 @@ class ChannelServer extends Equatable {
   final String? type;
   final int? categoryId;
   final bool isPrivate;
+  final int? maxParticipants;
   final String? chatName;
   final int newMessagesCount;
   final int? lastIdReadMessage;
@@ -20,6 +21,7 @@ class ChannelServer extends Equatable {
     this.type,
     this.categoryId,
     this.isPrivate = false,
+    this.maxParticipants,
     this.chatName,
     this.newMessagesCount = 0,
     this.lastIdReadMessage,
@@ -34,6 +36,7 @@ class ChannelServer extends Equatable {
     type: map['type'] as String?,
     categoryId: (map['categoryId'] as num?)?.toInt(),
     isPrivate: map['isPrivate'] == true || map['isPrivate'] == 1,
+    maxParticipants: (map['maxParticipants'] as num?)?.toInt(),
     chatName: map['chatName'] as String?,
     newMessagesCount: (map['newMessagesCount'] as num?)?.toInt() ?? 0,
     lastIdReadMessage: (map['lastIdReadMessage'] as num?)?.toInt(),
@@ -52,6 +55,7 @@ class ChannelServer extends Equatable {
     'type': type,
     'categoryId': categoryId,
     'isPrivate': isPrivate,
+    'maxParticipants': maxParticipants,
     'chatName': chatName,
     'newMessagesCount': newMessagesCount,
     'lastIdReadMessage': lastIdReadMessage,
@@ -67,6 +71,7 @@ class ChannelServer extends Equatable {
     type,
     categoryId,
     isPrivate,
+    maxParticipants,
     chatName,
     newMessagesCount,
     lastIdReadMessage,

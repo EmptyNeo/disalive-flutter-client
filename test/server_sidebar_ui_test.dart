@@ -19,13 +19,17 @@ import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/category_channel/widgets/category_channel_item.dart';
 import 'package:disalive/presentation/features/channel_server/widgets/channel_server_item.dart';
+import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/server_content_sidebar.dart';
+import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/presentation/widgets/app_text_input_sheet.dart';
+import 'package:disalive/presentation/widgets/emoji_widget.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -48,12 +52,14 @@ class _Channels implements ChannelServerRepository {
   final Map<int, List<ChannelServer>> cache = {};
   String? lastCreatedName;
   String? lastCreatedType;
+  int? lastCreatedMaxParticipants;
   int? lastCreatedCategoryId;
   bool? lastCreatedPrivate;
   List<int> lastCreatedUserIds = [];
   List<int> lastCreatedRoleIds = [];
   String? lastUpdatedName;
   int? lastUpdatedCategoryId;
+  int? lastUpdatedMaxParticipants;
 
   @override
   Future<Either<Failure, ChannelServer>> create(
@@ -62,11 +68,13 @@ class _Channels implements ChannelServerRepository {
     String type = 'text',
     int? categoryId,
     bool isPrivate = false,
+    int? maxParticipants,
     List<int> userIds = const [],
     List<int> roleIds = const [],
   }) async {
     lastCreatedName = name;
     lastCreatedType = type;
+    lastCreatedMaxParticipants = maxParticipants;
     lastCreatedCategoryId = categoryId;
     lastCreatedPrivate = isPrivate;
     lastCreatedUserIds = List.of(userIds);
@@ -79,6 +87,7 @@ class _Channels implements ChannelServerRepository {
         type: type,
         categoryId: categoryId,
         isPrivate: isPrivate,
+        maxParticipants: maxParticipants,
         allowedUsers: userIds,
         allowedRoles: roleIds,
       ),
@@ -90,15 +99,18 @@ class _Channels implements ChannelServerRepository {
     int id, {
     String? name,
     int? categoryId,
+    int? maxParticipants,
   }) async {
     lastUpdatedName = name;
     lastUpdatedCategoryId = categoryId;
+    lastUpdatedMaxParticipants = maxParticipants;
     final previous = source.firstWhere((channel) => channel.id == id);
     return Right(
       ChannelServer.fromMap({
         ...previous.toMap(),
         'chatName': name,
         'categoryId': categoryId == 0 ? null : categoryId,
+        'maxParticipants': maxParticipants,
       }),
     );
   }
@@ -228,6 +240,8 @@ class _ServerRepository implements ServerRepository {
     int? fkMainRole,
     bool isSetNullMainRole = false,
     File? avatar,
+    File? banner,
+    bool deleteBanner = false,
   }) async {
     updatedMainChannel = fkMainChannel;
     clearedMainChannel = isSetNullMainChannel;
@@ -291,6 +305,32 @@ Future<void> _pumpSidebar(
 void main() {
   tearDown(() async {
     await sl.reset();
+  });
+
+  testWidgets('название и кнопки находятся поверх баннера сервера', (
+    tester,
+  ) async {
+    await _pumpSidebar(
+      tester,
+      server: const Server(
+        id: 2,
+        name: 'Команда',
+        pathBanner: '/images/banner.gif',
+        isOwner: true,
+      ),
+    );
+    final bannerRect = tester.getRect(find.byType(ServerBannerImage));
+    expect(bannerRect.height, 110);
+    for (final key in ['server_header', 'server_settings', 'invite_server']) {
+      final itemRect = tester.getRect(find.byKey(ValueKey(key)));
+      expect(
+        bannerRect.contains(itemRect.topLeft) &&
+            bannerRect.contains(itemRect.bottomRight),
+        isTrue,
+      );
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('server header hides read action without unread messages', (
@@ -498,6 +538,52 @@ void main() {
     expect(longPresses, 2);
   });
 
+  testWidgets('category and channel names render custom emoji tokens', (
+    tester,
+  ) async {
+    await tester.runAsync(() => EmojisHandler.instance.initialize());
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: Column(
+            children: [
+              CategoryChannelItem(
+                category: CategoryChannel(id: 1, name: 'News [people:0]'),
+              ),
+              ChannelServerItem(
+                channel: ChannelServer(id: 2, chatName: 'Talk [people:0]'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(EmojiWidget), findsNWidgets(2));
+    expect(find.textContaining('[people:0]'), findsNothing);
+  });
+
+  testWidgets('voice channel shows current and maximum participants', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: ChannelServerItem(
+            channel: ChannelServer(
+              id: 1,
+              type: 'voice',
+              chatName: 'Разговоры',
+              maxParticipants: 10,
+            ),
+            participantCount: 3,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('3/10'), findsOneWidget);
+  });
+
   testWidgets('sidebar groups channels and collapses category', (tester) async {
     await _pumpSidebar(
       tester,
@@ -615,6 +701,7 @@ void main() {
   testWidgets('создание и редактирование категории открывают своё окно ввода', (
     tester,
   ) async {
+    await tester.runAsync(() => EmojisHandler.instance.initialize());
     await _pumpSidebar(
       tester,
       server: const Server(id: 2, name: 'Team', isOwner: true),
@@ -635,10 +722,21 @@ void main() {
       'Новая',
     );
     await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('app_text_input_emoji_button')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatExtraPanel), findsOneWidget);
+    await tester.tap(find.byType(EmojiWidget).first);
+    await tester.pump();
+    final createdField = tester.widget<CupertinoTextField>(
+      find.byKey(const ValueKey('app_text_input_sheet_field')),
+    );
+    expect(createdField.controller!.text, contains('[people:0]'));
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('app_text_input_sheet_save')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(repository.createdName, 'Новая');
+    expect(repository.createdName, 'Новая[people:0]');
 
     await tester.longPress(find.text('NEWS'));
     await tester.pumpAndSettle();
@@ -745,16 +843,22 @@ void main() {
       find.byKey(const ValueKey('channel_name_field')),
       'Voice room',
     );
+    await tester.enterText(
+      find.byKey(const ValueKey('channel_max_participants_field')),
+      '12',
+    );
     await tester.tap(find.text('Сохранить'));
     await tester.pumpAndSettle();
     expect(repository.lastUpdatedName, 'Voice room');
     expect(repository.lastUpdatedCategoryId, 0);
+    expect(repository.lastUpdatedMaxParticipants, 12);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('private channel creation passes selected roles and users', (
     tester,
   ) async {
+    await tester.runAsync(() => EmojisHandler.instance.initialize());
     await _pumpSidebar(
       tester,
       server: const Server(
@@ -776,8 +880,28 @@ void main() {
       find.byKey(const ValueKey('channel_name_field')),
       'Private talk',
     );
+    await tester.tap(find.byKey(const ValueKey('channel_name_emoji_button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(EmojiWidget).first);
+    await tester.pump();
+    final channelNameField = tester.widget<CupertinoTextField>(
+      find.byKey(const ValueKey('channel_name_field')),
+    );
+    expect(channelNameField.controller!.text, 'Private talk[people:0]');
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('channel_type_voice')));
+    await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('private_channel_switch')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('private_channel_switch')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('channel_max_participants_field')),
+      '8',
+    );
     await tester.pump();
     expect(find.text('Далее'), findsOneWidget);
     await tester.tap(find.text('Далее'));
@@ -793,8 +917,9 @@ void main() {
     await tester.tap(find.text('Alice'));
     await tester.tap(find.text('Создать'));
     await tester.pumpAndSettle();
-    expect(repository.lastCreatedName, 'Private talk');
+    expect(repository.lastCreatedName, 'Private talk[people:0]');
     expect(repository.lastCreatedType, 'voice');
+    expect(repository.lastCreatedMaxParticipants, 8);
     expect(repository.lastCreatedCategoryId, 7);
     expect(repository.lastCreatedPrivate, isTrue);
     expect(repository.lastCreatedUserIds, [8]);

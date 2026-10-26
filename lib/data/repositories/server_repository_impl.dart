@@ -50,6 +50,7 @@ class ServerRepositoryImpl implements ServerRepository {
     int isPrivate = 0,
     ServerType? category,
     File? avatar,
+    File? banner,
   }) async {
     final data = <String, dynamic>{
       'name': name,
@@ -58,7 +59,7 @@ class ServerRepositoryImpl implements ServerRepository {
       'category': ?category?.value,
     };
 
-    final result = avatar == null
+    final result = avatar == null && banner == null
         ? await _httpClient.postFormData<Server>(
             endpoint: 'servers/create.php',
             data: data,
@@ -70,7 +71,8 @@ class ServerRepositoryImpl implements ServerRepository {
             endpoint: 'servers/create.php',
             data: data,
             files: {
-              'avatar': [avatar],
+              if (avatar != null) 'avatar': [avatar],
+              if (banner != null) 'banner': [banner],
             },
             apiType: ApiType.v1,
             requireAuth: true,
@@ -97,6 +99,8 @@ class ServerRepositoryImpl implements ServerRepository {
     int? fkMainRole,
     bool isSetNullMainRole = false,
     File? avatar,
+    File? banner,
+    bool deleteBanner = false,
   }) async {
     final data = <String, dynamic>{
       'id': id,
@@ -106,10 +110,11 @@ class ServerRepositoryImpl implements ServerRepository {
       'category': ?category?.value,
       'fkMainChannel': ?fkMainChannel,
       if (isSetNullMainChannel) 'isSetNullMainChannel': 1,
+      if (deleteBanner && banner == null) 'deleteBanner': 1,
       if (isSetNullMainRole) 'fkMainRole': '' else 'fkMainRole': ?fkMainRole,
     };
 
-    final result = avatar == null
+    final result = avatar == null && banner == null
         ? await _httpClient.postFormData<Map<String, dynamic>>(
             endpoint: 'servers/update.php',
             data: data,
@@ -121,7 +126,8 @@ class ServerRepositoryImpl implements ServerRepository {
             endpoint: 'servers/update.php',
             data: data,
             files: {
-              'avatar': [avatar],
+              if (avatar != null) 'avatar': [avatar],
+              if (banner != null) 'banner': [banner],
             },
             apiType: ApiType.v1,
             requireAuth: true,

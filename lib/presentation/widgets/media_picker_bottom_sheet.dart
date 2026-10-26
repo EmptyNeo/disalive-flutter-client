@@ -149,7 +149,9 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: widget.allowMultiple,
-      type: FileType.any,
+      type: widget.onlyInitialType && widget.initialType == RequestType.image
+          ? FileType.image
+          : FileType.any,
     );
     if (result != null && mounted) {
       final files = result.paths
@@ -166,7 +168,11 @@ class _MediaPickerBottomSheetState extends State<MediaPickerBottomSheet>
     if (!widget.convertToJpg) return original;
 
     final lower = original.path.toLowerCase();
-    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return original;
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif')) {
+      return original;
+    }
 
     try {
       final targetPath = original.path.replaceAll(RegExp(r'\.[^.]+$'), '.jpg');

@@ -1,5 +1,6 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/channel_server.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:flutter/cupertino.dart';
 
 class ChannelServerItem extends StatelessWidget {
@@ -7,6 +8,7 @@ class ChannelServerItem extends StatelessWidget {
   final bool isSelected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final int participantCount;
 
   const ChannelServerItem({
     super.key,
@@ -14,6 +16,7 @@ class ChannelServerItem extends StatelessWidget {
     this.isSelected = false,
     this.onTap,
     this.onLongPress,
+    this.participantCount = 0,
   });
 
   @override
@@ -44,10 +47,16 @@ class ChannelServerItem extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  channel.chatName?.isNotEmpty == true
-                      ? channel.chatName!
-                      : 'Без названия',
+                child: Text.rich(
+                  TextSpan(
+                    children: EmojiTextParser.parse(
+                      channel.chatName?.isNotEmpty == true
+                          ? channel.chatName!
+                          : 'Без названия',
+                      emojiSize: 17,
+                      animateEmoji: false,
+                    ),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppText.mediumTextStyle.copyWith(
@@ -69,6 +78,26 @@ class ChannelServerItem extends StatelessWidget {
                     color: AppColors.greyple,
                   ),
                 ),
+              if (isVoice) ...[
+                const SizedBox(width: 7),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.divider, width: 0.5),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '$participantCount/${channel.maxParticipants ?? '∞'}',
+                    style: AppText.lowTextStyle.copyWith(
+                      color: AppColors.greyple,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ],
               if (unread > 0) ...[
                 const SizedBox(width: 7),
                 Container(

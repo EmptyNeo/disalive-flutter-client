@@ -8,11 +8,13 @@ class ChannelCallParticipants extends StatelessWidget {
   const ChannelCallParticipants({
     super.key,
     required this.participants,
+    this.maxParticipants,
     required this.isCollapsed,
     required this.onToggle,
   });
 
   final List<CallParticipant> participants;
+  final int? maxParticipants;
   final bool isCollapsed;
   final VoidCallback onToggle;
 
@@ -37,7 +39,7 @@ class ChannelCallParticipants extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'В звонке · ${participants.length}',
+                  'В звонке · ${participants.length}/${maxParticipants ?? '∞'}',
                   style: AppText.lowTextStyle.copyWith(
                     color: AppColors.greyple,
                     fontSize: 11,

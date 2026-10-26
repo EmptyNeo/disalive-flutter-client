@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/app/di/di.dart';
+import 'package:disalive/domain/repositories/gifs_repository.dart';
+import 'package:disalive/presentation/widgets/screens/bloc/gif_crop_bloc.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -17,8 +21,6 @@ class BannerCropModal extends StatefulWidget {
   const BannerCropModal({super.key, required this.file});
 
   static Future<File?> open(BuildContext context, {required File file}) {
-    final sliderKey = GlobalKey();
-    final cropAreaKey = GlobalKey();
     return SwipeToDismissRoute.push<File>(
       context,
       (context) => BannerCropModal(file: file),
@@ -30,6 +32,9 @@ class BannerCropModal extends StatefulWidget {
 }
 
 class _BannerCropModalState extends State<BannerCropModal> {
+  late final GifCropBloc _gifCropBloc;
+  StreamSubscription<GifCropState>? _cropSubscription;
+  bool get _isGif => widget.file.path.toLowerCase().endsWith('.gif');
   ui.Image? _image;
   bool _isLoading = true;
 
@@ -50,7 +55,28 @@ class _BannerCropModalState extends State<BannerCropModal> {
   @override
   void initState() {
     super.initState();
+    _gifCropBloc = GifCropBloc(sl<GifsRepository>());
+    _cropSubscription = _gifCropBloc.stream.listen((state) {
+      if (!mounted) return;
+      if (state.status == GifCropStatus.success) {
+        Navigator.of(context).pop(state.file);
+      }
+      if (state.status == GifCropStatus.failure) {
+        CustomToast.open(
+          context: context,
+          message: state.error ?? 'Ошибка обрезки GIF',
+        );
+      }
+    });
     _loadImage();
+  }
+
+  @override
+  void dispose() {
+    _cropSubscription?.cancel();
+    _gifCropBloc.close();
+    _image?.dispose();
+    super.dispose();
   }
 
   Future<void> _loadImage() async {
@@ -138,6 +164,29 @@ class _BannerCropModalState extends State<BannerCropModal> {
   }
 
   Future<void> _applyCrop() async {
+    if (_isGif) {
+      if (_gifCropBloc.state.status == GifCropStatus.loading) return;
+      final cropX = (_containerWidth - _cropWidth) / 2;
+      final cropY = (_containerHeight - _cropHeight) / 2;
+      final x = ((cropX - _tx) / _scale).floor().clamp(
+        0,
+        _naturalWidth.toInt() - 1,
+      );
+      final y = ((cropY - _ty) / _scale).floor().clamp(
+        0,
+        _naturalHeight.toInt() - 1,
+      );
+      final width = (_cropWidth / _scale).ceil().clamp(
+        1,
+        _naturalWidth.toInt() - x,
+      );
+      final height = (_cropHeight / _scale).ceil().clamp(
+        1,
+        _naturalHeight.toInt() - y,
+      );
+      _gifCropBloc.add(GifCropRequested(widget.file, x, y, width, height));
+      return;
+    }
     try {
       final RenderRepaintBoundary boundary =
           _cropKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -258,11 +307,18 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                       Positioned(
                                         left: _tx,
                                         top: _ty,
-                                        child: RawImage(
-                                          image: _image,
-                                          width: _naturalWidth * _scale,
-                                          height: _naturalHeight * _scale,
-                                        ),
+                                        child: _isGif
+                                            ? Image.file(
+                                                widget.file,
+                                                width: _naturalWidth * _scale,
+                                                height: _naturalHeight * _scale,
+                                                fit: BoxFit.fill,
+                                              )
+                                            : RawImage(
+                                                image: _image,
+                                                width: _naturalWidth * _scale,
+                                                height: _naturalHeight * _scale,
+                                              ),
                                       ),
 
                                       // 2. RepaintBoundary для захвата только нужной области
@@ -272,7 +328,7 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                         child: RepaintBoundary(
                                           key: _cropKey,
                                           child: ClipRect(
-                                            child: Container(
+                                            child: SizedBox(
                                               width: _cropWidth,
                                               height: _cropHeight,
                                               child: Stack(
@@ -280,15 +336,26 @@ class _BannerCropModalState extends State<BannerCropModal> {
                                                   Positioned(
                                                     left: _tx - cropX,
                                                     top: _ty - cropY,
-                                                    child: RawImage(
-                                                      image: _image,
-                                                      width:
-                                                          _naturalWidth *
-                                                          _scale,
-                                                      height:
-                                                          _naturalHeight *
-                                                          _scale,
-                                                    ),
+                                                    child: _isGif
+                                                        ? Image.file(
+                                                            widget.file,
+                                                            width:
+                                                                _naturalWidth *
+                                                                _scale,
+                                                            height:
+                                                                _naturalHeight *
+                                                                _scale,
+                                                            fit: BoxFit.fill,
+                                                          )
+                                                        : RawImage(
+                                                            image: _image,
+                                                            width:
+                                                                _naturalWidth *
+                                                                _scale,
+                                                            height:
+                                                                _naturalHeight *
+                                                                _scale,
+                                                          ),
                                                   ),
                                                 ],
                                               ),
@@ -364,16 +431,25 @@ class _BannerCropModalState extends State<BannerCropModal> {
                     left: 24,
                     right: 24,
                     bottom: 24,
-                    child: CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      borderRadius: BorderRadius.circular(16),
-                      onPressed: _applyCrop,
-                      child: const Text(
-                        'Применить',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: StreamBuilder<GifCropState>(
+                      stream: _gifCropBloc.stream,
+                      initialData: _gifCropBloc.state,
+                      builder: (context, snapshot) => CupertinoButton.filled(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        borderRadius: BorderRadius.circular(16),
+                        onPressed:
+                            snapshot.data?.status == GifCropStatus.loading
+                            ? null
+                            : _applyCrop,
+                        child: snapshot.data?.status == GifCropStatus.loading
+                            ? const CupertinoActivityIndicator()
+                            : const Text(
+                                'Применить',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                   ),

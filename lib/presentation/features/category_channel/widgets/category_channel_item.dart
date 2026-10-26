@@ -1,5 +1,6 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/category_channel.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:flutter/cupertino.dart';
 
 class CategoryChannelItem extends StatelessWidget {
@@ -45,8 +46,14 @@ class CategoryChannelItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 7),
                       Expanded(
-                        child: Text(
-                          (category.name ?? 'Без названия').toUpperCase(),
+                        child: Text.rich(
+                          TextSpan(
+                            children: EmojiTextParser.parse(
+                              (category.name ?? 'Без названия').toUpperCase(),
+                              emojiSize: 14,
+                              animateEmoji: false,
+                            ),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppText.lowTextStyle.copyWith(

@@ -48,6 +48,7 @@ class _Servers implements ServerRepository {
   ServerType? savedCategory;
   int? savedMainRoleId;
   bool savedClearMainRole = false;
+  bool savedDeleteBanner = false;
 
   @override
   Future<Either<Failure, Server>> create(
@@ -56,6 +57,7 @@ class _Servers implements ServerRepository {
     int isPrivate = 0,
     ServerType? category,
     File? avatar,
+    File? banner,
   }) async {
     _save(null, name, canInvite, isPrivate, category);
     return Right(
@@ -81,10 +83,13 @@ class _Servers implements ServerRepository {
     int? fkMainRole,
     bool isSetNullMainRole = false,
     File? avatar,
+    File? banner,
+    bool deleteBanner = false,
   }) async {
     _save(id, name, canInvite, isPrivate, category);
     savedMainRoleId = fkMainRole;
     savedClearMainRole = isSetNullMainRole;
+    savedDeleteBanner = deleteBanner;
     return Right(
       Server(
         id: id,
@@ -163,12 +168,70 @@ Future<({ServersBloc bloc, WsEventBus bus, _Servers repository})> _pump(
   return (bloc: bloc, bus: bus, repository: repository);
 }
 
+Future<void> _reveal(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    150,
+    scrollable: find
+        .descendant(
+          of: find.byType(ServerFormScreen),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.pump(const Duration(milliseconds: 350));
+}
+
 void main() {
+  test(
+    'баннер читается из ответа и nullable поля передаются при обновлении состояния',
+    () {
+      final server = Server.fromMap(const {
+        'id': 4,
+        'name': 'Команда',
+        'pathBanner': '/images/banner.gif',
+        'pathBannerKey': 'server/banner.gif',
+      });
+      expect(server.pathBanner, '/images/banner.gif');
+      expect(server.pathBannerKey, 'server/banner.gif');
+      expect(server.toMap()['pathBanner'], '/images/banner.gif');
+      expect(
+        Server.fromMap({...server.toMap(), 'pathBanner': null}).pathBanner,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets('удаление баннера передаёт deleteBanner в репозиторий', (
+    tester,
+  ) async {
+    final setup = await _pump(
+      tester,
+      server: const Server(
+        id: 4,
+        name: 'Команда',
+        pathBanner: '/images/banner.gif',
+      ),
+    );
+    expect(find.byKey(const ValueKey('server_banner_picker')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('server_banner_remove')));
+    await tester.pump();
+    await tester.tap(find.text('Сохранить').last);
+    await tester.pumpAndSettle();
+    expect(setup.repository.savedDeleteBanner, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      await setup.bloc.close();
+      setup.bus.dispose();
+      await sl.reset();
+    });
+  });
   testWidgets('создание передаёт имя, категорию и настройки в репозиторий', (
     tester,
   ) async {
     final setup = await _pump(tester);
     expect(find.byType(ServerFormScreen), findsOneWidget);
+    await _reveal(tester, find.byKey(const ValueKey('server_name_field')));
     await tester.enterText(
       find.byKey(const ValueKey('server_name_field')),
       'Команда',
@@ -181,7 +244,12 @@ void main() {
     );
     await tester.tap(find.text('Игры').last);
     await tester.pumpAndSettle();
+    await _reveal(
+      tester,
+      find.byKey(const ValueKey('server_can_invite_switch')),
+    );
     await tester.tap(find.byKey(const ValueKey('server_can_invite_switch')));
+    await _reveal(tester, find.byKey(const ValueKey('server_private_switch')));
     await tester.tap(find.byKey(const ValueKey('server_private_switch')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Создать сервер').last);
@@ -213,16 +281,21 @@ void main() {
           private: 1,
         ),
       );
-      final nameField = tester.widget<CupertinoTextField>(
-        find.byKey(const ValueKey('server_name_field')),
-      );
-      expect(nameField.controller!.text, 'Старое');
       expect(
         tester.widget<BuildAvatar>(find.byType(BuildAvatar)).url,
         'https://disalive.ru/uploads/server.png',
       );
       expect(find.byIcon(CupertinoIcons.pencil), findsOneWidget);
+      await _reveal(tester, find.byKey(const ValueKey('server_name_field')));
+      final nameField = tester.widget<CupertinoTextField>(
+        find.byKey(const ValueKey('server_name_field')),
+      );
+      expect(nameField.controller!.text, 'Старое');
       expect(find.text('Музыка'), findsOneWidget);
+      await _reveal(
+        tester,
+        find.byKey(const ValueKey('server_can_invite_switch')),
+      );
       expect(
         tester
             .widget<CupertinoSwitch>(
@@ -231,8 +304,10 @@ void main() {
             .value,
         isFalse,
       );
-      await tester.drag(find.byType(ListView).last, const Offset(0, -160));
-      await tester.pump(const Duration(milliseconds: 300));
+      await _reveal(
+        tester,
+        find.byKey(const ValueKey('server_private_switch')),
+      );
       expect(
         tester
             .widget<CupertinoSwitch>(
@@ -273,6 +348,10 @@ void main() {
         mainRole: RoleMember(id: 7, name: 'Модератор'),
       ),
     );
+    await _reveal(
+      tester,
+      find.byKey(const ValueKey('server_main_role_picker')),
+    );
     expect(find.text('Модератор'), findsOneWidget);
     final picker = find.byKey(const ValueKey('server_main_role_picker'));
     final chevron = find.descendant(
@@ -307,6 +386,10 @@ void main() {
         fkMainRole: 7,
         mainRole: RoleMember(id: 7, name: 'Модератор'),
       ),
+    );
+    await _reveal(
+      tester,
+      find.byKey(const ValueKey('server_main_role_picker')),
     );
     await tester.tap(find.byKey(const ValueKey('server_main_role_picker')));
     await tester.pumpAndSettle();

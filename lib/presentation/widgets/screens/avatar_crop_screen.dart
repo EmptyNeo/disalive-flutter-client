@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/app/di/di.dart';
+import 'package:disalive/domain/repositories/gifs_repository.dart';
+import 'package:disalive/presentation/widgets/screens/bloc/gif_crop_bloc.dart';
+import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -18,7 +22,7 @@ class AvatarCropScreen extends StatefulWidget {
   static Future<File?> open(BuildContext context, {required File file}) {
     return SwipeToDismissRoute.push<File>(
       context,
-          (context) => AvatarCropScreen(file: file),
+      (context) => AvatarCropScreen(file: file),
     );
   }
 
@@ -27,6 +31,9 @@ class AvatarCropScreen extends StatefulWidget {
 }
 
 class _AvatarCropScreenState extends State<AvatarCropScreen> {
+  late final GifCropBloc _gifCropBloc;
+  StreamSubscription<GifCropState>? _cropSubscription;
+  bool get _isGif => widget.file.path.toLowerCase().endsWith('.gif');
   ui.Image? _image;
   bool _isLoading = true;
 
@@ -44,7 +51,28 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
   @override
   void initState() {
     super.initState();
+    _gifCropBloc = GifCropBloc(sl<GifsRepository>());
+    _cropSubscription = _gifCropBloc.stream.listen((state) {
+      if (!mounted) return;
+      if (state.status == GifCropStatus.success) {
+        Navigator.of(context).pop(state.file);
+      }
+      if (state.status == GifCropStatus.failure) {
+        CustomToast.open(
+          context: context,
+          message: state.error ?? 'Ошибка обрезки GIF',
+        );
+      }
+    });
     _loadImage();
+  }
+
+  @override
+  void dispose() {
+    _cropSubscription?.cancel();
+    _gifCropBloc.close();
+    _image?.dispose();
+    super.dispose();
   }
 
   Future<void> _loadImage() async {
@@ -67,7 +95,10 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
   void _initTransform(double containerSize) {
     if (_naturalWidth == 0 || _naturalHeight == 0) return;
     _containerSize = containerSize;
-    _coverScale = math.max(containerSize / _naturalWidth, containerSize / _naturalHeight);
+    _coverScale = math.max(
+      containerSize / _naturalWidth,
+      containerSize / _naturalHeight,
+    );
     _scale = _coverScale;
     final dispW = _naturalWidth * _scale;
     final dispH = _naturalHeight * _scale;
@@ -113,14 +144,32 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
   }
 
   Future<void> _applyCrop() async {
+    if (_isGif) {
+      if (_gifCropBloc.state.status == GifCropStatus.loading) return;
+      final x = (-_tx / _scale).floor().clamp(0, _naturalWidth.toInt() - 1);
+      final y = (-_ty / _scale).floor().clamp(0, _naturalHeight.toInt() - 1);
+      final width = (_containerSize / _scale).ceil().clamp(
+        1,
+        _naturalWidth.toInt() - x,
+      );
+      final height = (_containerSize / _scale).ceil().clamp(
+        1,
+        _naturalHeight.toInt() - y,
+      );
+      _gifCropBloc.add(GifCropRequested(widget.file, x, y, width, height));
+      return;
+    }
     try {
-      final RenderRepaintBoundary boundary = _cropKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final RenderRepaintBoundary boundary =
+          _cropKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       ui.Image image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       final pngBytes = byteData!.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/cropped_avatar_${DateTime.now().millisecondsSinceEpoch}.png');
+      final tempFile = File(
+        '${tempDir.path}/cropped_avatar_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
       await tempFile.writeAsBytes(pngBytes);
 
       if (mounted) Navigator.of(context).pop(tempFile);
@@ -148,14 +197,17 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
               color: AppColors.mainBackground,
-              border: Border.all(color: AppColors.white.withValues(alpha: 0.12), width: 1),
+              border: Border.all(
+                color: AppColors.white.withValues(alpha: 0.12),
+                width: 1,
+              ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
                 children: [
                   // 🎯 Кнопка назад вынесена в отдельный переиспользуемый виджет
-                  const CustomBackButton(positioned: 10,),
+                  const CustomBackButton(positioned: 10),
 
                   Column(
                     children: [
@@ -209,12 +261,27 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                                                 Positioned(
                                                   left: _tx,
                                                   top: _ty,
-                                                  child: RawImage(
-                                                    image: _image,
-                                                    width: _naturalWidth * _scale,
-                                                    height: _naturalHeight * _scale,
-                                                    fit: BoxFit.fill,
-                                                  ),
+                                                  child: _isGif
+                                                      ? Image.file(
+                                                          widget.file,
+                                                          width:
+                                                              _naturalWidth *
+                                                              _scale,
+                                                          height:
+                                                              _naturalHeight *
+                                                              _scale,
+                                                          fit: BoxFit.fill,
+                                                        )
+                                                      : RawImage(
+                                                          image: _image,
+                                                          width:
+                                                              _naturalWidth *
+                                                              _scale,
+                                                          height:
+                                                              _naturalHeight *
+                                                              _scale,
+                                                          fit: BoxFit.fill,
+                                                        ),
                                                 ),
                                               ],
                                             ),
@@ -244,14 +311,18 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 32.0,
+                                ),
                                 child: CupertinoSlider(
                                   value: _scale,
                                   min: _coverScale,
                                   max: _coverScale * 3.0,
                                   activeColor: AppColors.blurple,
                                   thumbColor: CupertinoColors.white,
-                                  onChanged: (val) => setState(() => _setScaleKeepingCenter(val)),
+                                  onChanged: (val) => setState(
+                                    () => _setScaleKeepingCenter(val),
+                                  ),
                                 ),
                               ),
                               CupertinoButton(
@@ -275,13 +346,25 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
                     left: 24,
                     right: 24,
                     bottom: 24,
-                    child: CupertinoButton.filled(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      borderRadius: BorderRadius.circular(16),
-                      onPressed: _applyCrop,
-                      child: const Text(
-                        'Применить',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    child: StreamBuilder<GifCropState>(
+                      stream: _gifCropBloc.stream,
+                      initialData: _gifCropBloc.state,
+                      builder: (context, snapshot) => CupertinoButton.filled(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        borderRadius: BorderRadius.circular(16),
+                        onPressed:
+                            snapshot.data?.status == GifCropStatus.loading
+                            ? null
+                            : _applyCrop,
+                        child: snapshot.data?.status == GifCropStatus.loading
+                            ? const CupertinoActivityIndicator()
+                            : const Text(
+                                'Применить',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -304,7 +387,13 @@ class HolePainter extends CustomPainter {
 
     final path = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..addOval(Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: size.width, height: size.height))
+      ..addOval(
+        Rect.fromCenter(
+          center: Offset(size.width / 2, size.height / 2),
+          width: size.width,
+          height: size.height,
+        ),
+      )
       ..fillType = PathFillType.evenOdd;
 
     canvas.drawPath(path, paint);
@@ -314,7 +403,14 @@ class HolePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
-    canvas.drawOval(Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: size.width, height: size.height), borderPaint);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.width / 2, size.height / 2),
+        width: size.width,
+        height: size.height,
+      ),
+      borderPaint,
+    );
   }
 
   @override

@@ -49,6 +49,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     String type = 'text',
     int? categoryId,
     bool isPrivate = false,
+    int? maxParticipants,
     List<int> userIds = const [],
     List<int> roleIds = const [],
   }) async {
@@ -59,6 +60,8 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
       'type': type,
       'categoryId': ?categoryId,
       'isPrivate': isPrivate ? 1 : 0,
+      if (type == 'voice' && maxParticipants != null)
+        'maxParticipants': maxParticipants,
       for (var i = 0; i < userIds.length; i++) 'userIds[$i]': userIds[i],
       for (var i = 0; i < roleIds.length; i++) 'roleIds[$i]': roleIds[i],
     };
@@ -78,10 +81,16 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     int id, {
     String? name,
     int? categoryId,
+    int? maxParticipants,
   }) async {
     final result = await _httpClient.postFormData<Map<String, dynamic>>(
       endpoint: 'channelsServer/update.php',
-      data: {'id': id, 'name': ?name, 'categoryId': ?categoryId},
+      data: {
+        'id': id,
+        'name': ?name,
+        'categoryId': ?categoryId,
+        'maxParticipants': maxParticipants?.toString() ?? '',
+      },
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) => json as Map<String, dynamic>,

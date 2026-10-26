@@ -8,6 +8,8 @@ class Server extends Equatable {
   final int? fkOwner;
   final String? name;
   final String? pathAvatar;
+  final String? pathBanner;
+  final String? pathBannerKey;
   final int? canInvite;
   final int? private;
   final ServerType? category;
@@ -31,6 +33,8 @@ class Server extends Equatable {
     this.fkOwner,
     this.name,
     this.pathAvatar,
+    this.pathBanner,
+    this.pathBannerKey,
     this.canInvite,
     this.private,
     this.category,
@@ -77,6 +81,8 @@ class Server extends Equatable {
       fkOwner: map['fkOwner'],
       name: map['name'],
       pathAvatar: map['pathAvatar'],
+      pathBanner: map['pathBanner'],
+      pathBannerKey: map['pathBannerKey'],
       canInvite: map['canInvite'],
       private: map['private'],
       category: map['category'] == null
@@ -113,6 +119,8 @@ class Server extends Equatable {
       if (fkOwner != null) 'fkOwner': fkOwner,
       if (name != null) 'name': name,
       if (pathAvatar != null) 'pathAvatar': pathAvatar,
+      'pathBanner': pathBanner,
+      'pathBannerKey': pathBannerKey,
       if (canInvite != null) 'canInvite': canInvite,
       if (private != null) 'private': private,
       if (category != null) 'category': category!.value,
@@ -138,6 +146,8 @@ class Server extends Equatable {
     int? fkOwner,
     String? name,
     String? pathAvatar,
+    String? pathBanner,
+    String? pathBannerKey,
     int? canInvite,
     int? private,
     ServerType? category,
@@ -161,6 +171,8 @@ class Server extends Equatable {
       fkOwner: fkOwner ?? this.fkOwner,
       name: name ?? this.name,
       pathAvatar: pathAvatar ?? this.pathAvatar,
+      pathBanner: pathBanner ?? this.pathBanner,
+      pathBannerKey: pathBannerKey ?? this.pathBannerKey,
       canInvite: canInvite ?? this.canInvite,
       private: private ?? this.private,
       category: category ?? this.category,
@@ -199,6 +211,8 @@ class Server extends Equatable {
     fkOwner,
     name,
     pathAvatar,
+    pathBanner,
+    pathBannerKey,
     canInvite,
     private,
     category,

@@ -1,4 +1,6 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
+import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:flutter/cupertino.dart';
 
 /// Поле ввода в нижней шторке с оформлением приложения.
@@ -10,6 +12,7 @@ class AppTextInputSheet extends StatefulWidget {
     this.placeholder = 'Название',
     this.actionLabel = 'Сохранить',
     this.maxLength = 30,
+    this.enableEmojis = false,
   });
 
   final String title;
@@ -17,6 +20,7 @@ class AppTextInputSheet extends StatefulWidget {
   final String placeholder;
   final String actionLabel;
   final int maxLength;
+  final bool enableEmojis;
 
   static Future<String?> show(
     BuildContext context, {
@@ -25,6 +29,7 @@ class AppTextInputSheet extends StatefulWidget {
     String placeholder = 'Название',
     String actionLabel = 'Сохранить',
     int maxLength = 30,
+    bool enableEmojis = false,
   }) => showCupertinoModalPopup<String>(
     context: context,
     builder: (_) => AppTextInputSheet(
@@ -33,6 +38,7 @@ class AppTextInputSheet extends StatefulWidget {
       placeholder: placeholder,
       actionLabel: actionLabel,
       maxLength: maxLength,
+      enableEmojis: enableEmojis,
     ),
   );
 
@@ -46,8 +52,12 @@ class _AppTextInputSheetState extends State<AppTextInputSheet> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialValue)
-      ..addListener(_refresh);
+    _controller =
+        (widget.enableEmojis
+              ? EmojiTextEditingController()
+              : TextEditingController())
+          ..text = widget.initialValue
+          ..addListener(_refresh);
   }
 
   void _refresh() => setState(() {});
@@ -147,6 +157,9 @@ class _AppTextInputSheetState extends State<AppTextInputSheet> {
                 CupertinoTextField(
                   key: const ValueKey('app_text_input_sheet_field'),
                   controller: _controller,
+                  inputFormatters: widget.enableEmojis
+                      ? const [EmojiAtomicDeletionFormatter()]
+                      : null,
                   autofocus: true,
                   maxLength: widget.maxLength,
                   placeholder: widget.placeholder,
@@ -157,6 +170,21 @@ class _AppTextInputSheetState extends State<AppTextInputSheet> {
                     color: AppColors.actionGrey,
                     borderRadius: BorderRadius.circular(13),
                   ),
+                  suffix: widget.enableEmojis
+                      ? CupertinoButton(
+                          key: const ValueKey('app_text_input_emoji_button'),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          onPressed: () => ChatExtraPanel.showEmojiPicker(
+                            context,
+                            controller: _controller,
+                            maxLength: widget.maxLength,
+                          ),
+                          child: Icon(
+                            CupertinoIcons.smiley,
+                            color: AppColors.greyple,
+                          ),
+                        )
+                      : null,
                   onSubmitted: (_) => _save(),
                 ),
                 const SizedBox(height: 16),

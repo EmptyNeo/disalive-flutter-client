@@ -12,6 +12,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Servers implements ServerRepository {
+  List<Server>? records;
   bool? publicRequested;
   ServerType? selectedCategory;
   String? selectedQuery;
@@ -29,7 +30,7 @@ class _Servers implements ServerRepository {
     selectedCategory = category;
     selectedQuery = query;
     if (fail) return const Left(ServerFailure('Не удалось загрузить серверы'));
-    return const Right([
+    return Right(records ?? const [
       Server(
         id: 1,
         name: 'Open',
@@ -69,6 +70,29 @@ class _Members implements MembersRepository {
 }
 
 void main() {
+  testWidgets('banner server card lays out in list and compact grid', (tester) async {
+    await sl.reset();
+    final servers = _Servers()..records = const [
+      Server(id: 1, name: 'Команда', pathBanner: '/images/banner.gif', memberId: 7,
+        memberCount: 10, onlineMemberCount: 2),
+    ];
+    sl.registerSingleton<ServerRepository>(servers);
+    await tester.pumpWidget(CupertinoApp(home: CupertinoPageScaffold(
+      child: ServerDiscoverySidebar(gridView: false, onOpenServer: (_) {}, onJoinedServer: (_) {}),
+    )));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(CupertinoApp(home: CupertinoPageScaffold(
+      child: ServerDiscoverySidebar(gridView: true, onOpenServer: (_) {}, onJoinedServer: (_) {}),
+    )));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await sl.reset();
+  });
   testWidgets('discovery shows ErrorStateView and retries loading', (
     tester,
   ) async {

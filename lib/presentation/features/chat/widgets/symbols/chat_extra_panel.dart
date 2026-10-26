@@ -1,19 +1,19 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/gif_type_search.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/gif.dart';
-import 'package:disalive/domain/models/preferred_reaction.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
-import 'package:disalive/domain/models/sticker_pack.dart';
+import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/emojis_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/gifs_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/stickers_tab.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
+import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 
 class ChatExtraPanel extends StatefulWidget {
   final double height;
@@ -22,6 +22,7 @@ class ChatExtraPanel extends StatefulWidget {
   final Function(StickerContent sticker) onTapSticker;
   final Function(Gif gif) onTapGif;
   final VoidCallback onBackspace;
+  final bool emojiOnly;
 
   const ChatExtraPanel({
     super.key,
@@ -31,7 +32,56 @@ class ChatExtraPanel extends StatefulWidget {
     required this.onTapSticker,
     required this.onTapGif,
     required this.onBackspace,
+    this.emojiOnly = false,
   });
+
+  static Future<void> showEmojiPicker(
+    BuildContext context, {
+    required TextEditingController controller,
+    int maxLength = 30,
+  }) async {
+    await EmojisHandler.instance.initialize();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    if (!context.mounted) return;
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (popupContext) => Align(
+        alignment: Alignment.bottomCenter,
+        child: SafeArea(
+          top: false,
+          child: ChatExtraPanel(
+            height: MediaQuery.sizeOf(popupContext).height * 0.45,
+            emojiOnly: true,
+            onClose: () => Navigator.of(popupContext).pop(),
+            onTapEmoji: (emoji) {
+              final token = '[${emoji.categoryName}:${emoji.id}]';
+              final value = controller.value;
+              final start = value.selection.isValid
+                  ? value.selection.start
+                  : value.text.length;
+              final end = value.selection.isValid
+                  ? value.selection.end
+                  : value.text.length;
+              final updated = value.text.replaceRange(start, end, token);
+              if (updated.runes.length > maxLength) return;
+              controller.value = TextEditingValue(
+                text: updated,
+                selection: TextSelection.collapsed(
+                  offset: start + token.length,
+                ),
+              );
+            },
+            onTapSticker: (_) {},
+            onTapGif: (_) {},
+            onBackspace: () {
+              controller.value = const EmojiAtomicDeletionFormatter()
+                  .deleteBackward(controller.value);
+            },
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   State<ChatExtraPanel> createState() => _ChatExtraPanelState();
@@ -57,10 +107,19 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
     _animationController.forward();
 
     // Инициализация BLoC при открытии
-    context.read<StickersPackBloc>().add(const LoadStickerPacks(skip: 0, take: 10));
-    context.read<GifBloc>().add(
-      const LoadGifs(type: GifTypeSearch.popular, tags: '', skip: 0, take: 20),
-    );
+    if (!widget.emojiOnly) {
+      context.read<StickersPackBloc>().add(
+        const LoadStickerPacks(skip: 0, take: 10),
+      );
+      context.read<GifBloc>().add(
+        const LoadGifs(
+          type: GifTypeSearch.popular,
+          tags: '',
+          skip: 0,
+          take: 20,
+        ),
+      );
+    }
   }
 
   @override
@@ -110,11 +169,13 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                   ),
                 ),
                 // Табы
-                Padding(
-                  padding: EdgeInsets.only(bottom: 5),
-                  child: _buildTabBar(),
-                ),
-                const Divider(height: 1, color: Colors.white10),
+                if (!widget.emojiOnly) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: _buildTabBar(),
+                  ),
+                  const Divider(height: 1, color: Colors.white10),
+                ],
                 // Контент
                 Expanded(
                   child: IndexedStack(
@@ -124,10 +185,10 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                         onTap: widget.onTapEmoji,
                         onBackspace: widget.onBackspace,
                       ),
-                      StickersTab(
-                        onTap: widget.onTapSticker,
-                      ),
-                      GifsTab(onTap: widget.onTapGif),
+                      if (!widget.emojiOnly) ...[
+                        StickersTab(onTap: widget.onTapSticker),
+                        GifsTab(onTap: widget.onTapGif),
+                      ],
                     ],
                   ),
                 ),

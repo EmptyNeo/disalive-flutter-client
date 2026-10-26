@@ -133,6 +133,64 @@ class HttpClientService {
     }
   }
 
+  Future<Either<Failure, Uint8List>> postMultipartBytes({
+    required String endpoint,
+    required Map<String, dynamic> data,
+    required Map<String, List<File?>> files,
+    ApiType apiType = ApiType.v1,
+    bool requireAuth = true,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${_getBaseUrl(apiType)}$endpoint'),
+      );
+      if (requireAuth) {
+        final keySession = await _secureStorage.getKeySession();
+        if (keySession == null) return const Left(UnauthorizedFailure());
+        request.fields['keySession'] = keySession;
+      }
+      for (final entry in data.entries) {
+        request.fields[entry.key] = entry.value.toString();
+      }
+      for (final entry in files.entries) {
+        for (final file in entry.value) {
+          if (file == null) continue;
+          request.files.add(
+            await http.MultipartFile.fromPath(entry.key, file.path),
+          );
+        }
+      }
+      final response = await http.Response.fromStream(
+        await _client.send(request),
+      );
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300 &&
+          response.headers['content-type']?.toLowerCase().startsWith(
+                'image/gif',
+              ) ==
+              true) {
+        return Right(response.bodyBytes);
+      }
+      try {
+        final payload = jsonDecode(response.body) as Map<String, dynamic>;
+        final error = payload['error']?.toString() ?? 'Ошибка обрезки GIF';
+        return Left(
+          response.statusCode >= 500
+              ? ServerFailure(error)
+              : ClientFailure(error),
+        );
+      } catch (_) {
+        return const Left(ParsingFailure('Некорректный ответ обрезки GIF'));
+      }
+    } catch (_) {
+      return const Left(NetworkFailure());
+    }
+  }
+
   Future<Either<Failure, T>> get<T>({
     required String endpoint,
     Map<String, dynamic>? queryParams,
