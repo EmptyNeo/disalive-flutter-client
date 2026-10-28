@@ -551,8 +551,14 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     final banner = widget.server.pathBanner;
     final hasBanner = banner != null && banner.isNotEmpty;
     final content = Padding(
-      padding: EdgeInsets.fromLTRB(16, hasBanner ? 8 : 18, 16, hasBanner ? 8 : 14),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        hasBanner ? 8 : 18,
+        16,
+        hasBanner ? 4 : 14,
+      ),
       child: Column(
+        mainAxisSize: hasBanner ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
@@ -581,7 +587,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ],
             ),
           ),
-          SizedBox(height: hasBanner ? 8 : 14),
+          if (hasBanner) const Spacer() else const SizedBox(height: 14),
           Row(
             children: [
               if (_rights.canOpenSettings) ...[
@@ -661,7 +667,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ),
             ),
           ),
-          Align(alignment: Alignment.bottomCenter, child: content),
+          Positioned.fill(child: content),
         ],
       ),
     );

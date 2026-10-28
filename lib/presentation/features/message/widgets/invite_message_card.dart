@@ -1,7 +1,18 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
+import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/invite_data.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/invite_repository.dart';
+import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/presentation/features/calls/call_screen.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/message/widgets/invite_message_meta.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
@@ -27,22 +38,82 @@ class InviteMessageCard extends StatefulWidget {
 
 class _InviteMessageCardState extends State<InviteMessageCard> {
   bool _joining = false;
+  bool _checking = false;
+  InviteMembership? _membership;
   InvalidInviteReason? _invalidOverride;
+  int _checkGeneration = 0;
+
+  EntityType get _entityType =>
+      widget.invite.entityType == EntityType.chat.value
+      ? EntityType.chat
+      : EntityType.server;
+
+  bool get _isCallInvite => widget.invite.targetChatId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (sl.isRegistered<InviteRepository>()) _checkMembership();
+  }
+
+  @override
+  void didUpdateWidget(covariant InviteMessageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.code != widget.code) {
+      _membership = null;
+      _invalidOverride = null;
+      if (sl.isRegistered<InviteRepository>()) _checkMembership();
+    }
+  }
 
   // В данных приглашения из сообщения ID сервера приходит как `id`.
   // Ответы API приглашений содержат `entityId` и собственный ID приглашения.
-  int? get _serverId => widget.invite.entityId ?? widget.invite.id;
+  int? get _entityId => widget.invite.entityId ?? widget.invite.id;
+
+  Future<InviteMembership?> _checkMembership() async {
+    if (!sl.isRegistered<InviteRepository>()) return null;
+    final generation = ++_checkGeneration;
+    final code = widget.code;
+    setState(() => _checking = true);
+    final result = await sl<InviteRepository>().checkMembership(code);
+    if (!mounted || generation != _checkGeneration || code != widget.code) {
+      return null;
+    }
+    setState(() => _checking = false);
+    return result.fold((_) => null, (membership) {
+      setState(() => _membership = membership);
+      return membership;
+    });
+  }
 
   InvalidInviteReason? get _invalidReason =>
       _invalidOverride ?? invalidInviteReason(widget.invite, DateTime.now());
 
   Future<void> _join() async {
     if (_joining) return;
-    final invitesBloc = context.read<InvitesBloc>();
-    if (invitesBloc.state.isPending(InviteOperation.accept)) return;
     setState(() => _joining = true);
-    invitesBloc.add(AcceptInvite(widget.code));
     try {
+      final membership = await _checkMembership();
+      if (!mounted) return;
+      if (sl.isRegistered<InviteRepository>() && membership == null) {
+        CustomToast.open(
+          context: context,
+          message: 'Не удалось проверить приглашение',
+        );
+        return;
+      }
+      if (membership?.isMember == true ||
+          (membership == null && _isMemberLocally())) {
+        await _openDestination(
+          membership?.entityId ?? _entityId,
+          membership?.entityType ?? _entityType,
+          membership?.targetChatId ?? widget.invite.targetChatId,
+        );
+        return;
+      }
+      final invitesBloc = context.read<InvitesBloc>();
+      if (invitesBloc.state.isPending(InviteOperation.accept)) return;
+      invitesBloc.add(AcceptInvite(widget.code));
       final result = await invitesBloc.stream.firstWhere(
         (state) =>
             state.lastCompleted == InviteOperation.accept ||
@@ -59,14 +130,27 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
         }
         return;
       }
-      final server = result.acceptance?.server;
-      final serverId = server?.id ?? _serverId;
+      final acceptance = result.acceptance;
+      final server = acceptance?.server;
       if (server != null) {
         context.read<ServersBloc>().add(ServerUpserted(server.toMap()));
       }
-      if (serverId != null) {
-        _openServer(serverId);
+      final conversation = acceptance?.conversation;
+      if (conversation != null) {
+        context.read<ChatBloc>().add(AddChat(conversation));
       }
+      _membership = InviteMembership(
+        isMember: true,
+        entityId: acceptance?.entityId ?? _entityId ?? 0,
+        entityType: acceptance?.entityType ?? _entityType,
+        targetChatId: acceptance?.targetChatId ?? widget.invite.targetChatId,
+      );
+      await _openDestination(
+        _membership!.entityId,
+        _membership!.entityType,
+        _membership!.targetChatId,
+        acceptedChat: conversation ?? acceptance?.chat,
+      );
     } finally {
       if (mounted) setState(() => _joining = false);
     }
@@ -90,16 +174,70 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
     return null;
   }
 
-  void _openServer(int serverId) {
-    context.read<ServersBloc>().add(SelectServer(serverId));
-    Navigator.of(context).popUntil((route) => route.isFirst);
+  bool _isMemberLocally() {
+    final id = _entityId;
+    if (id == null) return false;
+    if (_entityType == EntityType.server &&
+        context.read<ServersBloc>().state is ServersLoaded) {
+      return (context.read<ServersBloc>().state as ServersLoaded).servers.any(
+        (server) => server.id == id,
+      );
+    }
+    return _entityType == EntityType.chat &&
+        sl.isRegistered<ChatRepository>() &&
+        sl<ChatRepository>().getCached().any((chat) => chat.id == id);
+  }
+
+  Future<void> _openDestination(
+    int? entityId,
+    EntityType entityType,
+    int? targetChatId, {
+    Chat? acceptedChat,
+  }) async {
+    if (entityId == null || !mounted) return;
+    if (entityType == EntityType.server) {
+      if (sl.isRegistered<ServerRepository>() &&
+          sl<ServerRepository>().getByIdCached(entityId) == null) {
+        context.read<ServersBloc>().add(const GetServers());
+      }
+      context.read<ServersBloc>().add(SelectServer(entityId));
+      if (targetChatId == null) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+    }
+    if (targetChatId != null) {
+      await CallScreen.open(
+        context,
+        chatId: targetChatId,
+        entityKey: EntityKey(entityId: entityId, entityType: entityType),
+        title: widget.invite.targetChatName ?? widget.invite.name ?? 'Звонок',
+        announceCall: false,
+      );
+      return;
+    }
+    final cached = sl.isRegistered<ChatRepository>()
+        ? sl<ChatRepository>().getCached().where((chat) => chat.id == entityId)
+        : <Chat>[];
+    final chat =
+        acceptedChat ??
+        (cached.isEmpty ? null : cached.first) ??
+        Chat(
+          id: entityId,
+          name: widget.invite.name ?? 'Группа',
+          type: ChatType.group,
+        );
+    await ChatScreen.open(context, chat, false);
   }
 
   void _mention() {
     final displayName = widget.invite.user?.displayName ?? 'автора приглашения';
-    final serverName = widget.invite.name ?? 'сервер';
+    final destination = _entityType == EntityType.chat
+        ? 'в группу'
+        : 'на сервер';
+    final name = widget.invite.name ?? 'чат';
     widget.onMention?.call(
-      '@$displayName, не могли бы вы отправить новое приглашение на сервер $serverName? Ссылка недействительна.',
+      '@$displayName, не могли бы вы отправить новое приглашение $destination $name? Ссылка недействительна.',
     );
   }
 
@@ -119,7 +257,17 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
   }
 
   Widget _validCard() {
-    final serverId = _serverId;
+    final entityId = _entityId;
+    final isChat = _entityType == EntityType.chat;
+    final name = widget.invite.name?.isNotEmpty == true
+        ? widget.invite.name!
+        : isChat
+        ? 'Неизвестная группа'
+        : 'Неизвестный сервер';
+    final displayName =
+        _isCallInvite && widget.invite.targetChatName?.isNotEmpty == true
+        ? '$name · ${widget.invite.targetChatName}'
+        : name;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,9 +278,7 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                widget.invite.name?.isNotEmpty == true
-                    ? widget.invite.name!
-                    : 'Неизвестный сервер',
+                displayName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppText.highTextStyle.copyWith(color: AppColors.white),
@@ -141,45 +287,55 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
           ],
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            _count(
-              CupertinoColors.activeGreen,
-              '${widget.invite.onlineMemberCount ?? 0} в сети',
-            ),
-            _count(
-              AppColors.greyple,
-              '${widget.invite.memberCount ?? 0} участников',
-            ),
-          ],
-        ),
+        if (widget.invite.memberCount != null ||
+            widget.invite.onlineMemberCount != null)
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _count(
+                CupertinoColors.activeGreen,
+                '${widget.invite.onlineMemberCount ?? 0} в сети',
+              ),
+              _count(
+                AppColors.greyple,
+                '${widget.invite.memberCount ?? 0} участников',
+              ),
+            ],
+          ),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
-          child: BlocBuilder<ServersBloc, ServersState>(
-            builder: (context, state) {
-              final hasServer =
-                  serverId != null &&
-                  state is ServersLoaded &&
-                  state.servers.any((server) => server.id == serverId);
-              return CupertinoButton.filled(
-                key: const ValueKey('invite_card_action'),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                onPressed: _joining
-                    ? null
-                    : hasServer
-                    ? () => _openServer(serverId)
-                    : _join,
-                child: _joining
-                    ? const CupertinoActivityIndicator()
-                    : Text(hasServer ? 'Перейти на сервер' : 'Присоединиться'),
-              );
-            },
-          ),
+          child: isChat
+              ? _actionButton(_isMemberLocally())
+              : BlocBuilder<ServersBloc, ServersState>(
+                  builder: (context, state) => _actionButton(
+                    entityId != null &&
+                        state is ServersLoaded &&
+                        state.servers.any((server) => server.id == entityId),
+                  ),
+                ),
         ),
       ],
+    );
+  }
+
+  Widget _actionButton(bool localMember) {
+    final isMember = _membership?.isMember ?? localMember;
+    final label = isMember
+        ? _isCallInvite
+              ? 'Перейти в звонок'
+              : _entityType == EntityType.chat
+              ? 'Перейти в группу'
+              : 'Перейти на сервер'
+        : 'Присоединиться';
+    return CupertinoButton.filled(
+      key: const ValueKey('invite_card_action'),
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      onPressed: _joining || _checking ? null : _join,
+      child: _joining || _checking
+          ? const CupertinoActivityIndicator()
+          : Text(label),
     );
   }
 

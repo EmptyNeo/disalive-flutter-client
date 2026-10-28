@@ -7,6 +7,7 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
@@ -25,6 +26,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
   StreamSubscription<WsEvent>? _memberSubscription;
   StreamSubscription<WsEvent>? _messageSubscription;
   StreamSubscription<WsEvent>? _messageDeleteSubscription;
+  StreamSubscription<WsEvent>? _roleSubscription;
   Timer? _refreshTimer;
   final Map<int, int> _latestMessageIds = {};
   final Map<(int, int), int> _lastReadByChannel = {};
@@ -39,6 +41,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
       emit(_loaded(_serverRepository.getCached()));
     });
     on<ServerUpserted>(_onServerUpserted);
+    on<ServerRoleUpdated>(_onServerRoleUpdated);
     on<ServerRemoved>(_onServerRemoved);
     on<ServerMemberUpdated>(_onServerMemberUpdated);
     on<ServerMessageAdded>(_onServerMessageAdded);
@@ -74,6 +77,23 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
           );
           if (id != null) add(ServerRemoved(id));
         }
+      },
+    );
+    _roleSubscription?.cancel();
+    _roleSubscription = _eventBus.subscribe(
+      table: 'RoleMembers',
+      action: ActionType.update,
+      onData: (event) {
+        if (event.data['entityType'] != EntityType.server.value) return;
+        final serverId = DataParser.parseInt(event.data['entityId']);
+        final rawRole = event.data['role'];
+        if (serverId == null || rawRole is! Map) return;
+        add(
+          ServerRoleUpdated(
+            serverId,
+            RoleMember.fromMap(Map<String, dynamic>.from(rawRole)),
+          ),
+        );
       },
     );
     _memberSubscription?.cancel();
@@ -252,6 +272,8 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
             _applyMessageAdded(servers, change);
           } else if (change is ServerMessageRemoved) {
             _applyMessageRemoved(servers, change);
+          } else if (change is ServerRoleUpdated) {
+            _applyRoleUpdate(servers, change);
           }
         }
         _serverRepository.updateCache(servers);
@@ -268,6 +290,33 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
     _applyUpsert(servers, event.serverData);
     _serverRepository.updateCache(servers);
     emit(_loaded(servers));
+  }
+
+  void _onServerRoleUpdated(
+    ServerRoleUpdated event,
+    Emitter<ServersState> emit,
+  ) {
+    if (_isLoading) _changesDuringLoad.add(event);
+    final servers = List<Server>.from(_serverRepository.getCached());
+    if (!_applyRoleUpdate(servers, event)) return;
+    _serverRepository.updateCache(servers);
+    emit(_loaded(servers));
+  }
+
+  bool _applyRoleUpdate(List<Server> servers, ServerRoleUpdated event) {
+    final index = servers.indexWhere((server) => server.id == event.serverId);
+    if (index < 0) return false;
+    final server = servers[index];
+    if (server.roleId != event.role.id && server.fkMainRole != event.role.id) {
+      return false;
+    }
+    servers[index] = server.copyWith(
+      mainRole: server.fkMainRole == event.role.id ? event.role : null,
+      permissions: !server.isServerOwner && server.roleId == event.role.id
+          ? event.role.permissions
+          : null,
+    );
+    return true;
   }
 
   void _applyUpsert(List<Server> servers, Map<String, dynamic> serverData) {
@@ -380,6 +429,7 @@ class ServersBloc extends Bloc<ServersEvent, ServersState> {
     await _memberSubscription?.cancel();
     await _messageSubscription?.cancel();
     await _messageDeleteSubscription?.cancel();
+    await _roleSubscription?.cancel();
     _refreshTimer?.cancel();
     _latestMessageIds.clear();
     _lastReadByChannel.clear();

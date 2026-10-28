@@ -329,6 +329,14 @@ void main() {
         isTrue,
       );
     }
+    final inviteBottom = tester
+        .getRect(find.byKey(const ValueKey('invite_server')))
+        .bottom;
+    final settingsBottom = tester
+        .getRect(find.byKey(const ValueKey('server_settings')))
+        .bottom;
+    expect(bannerRect.bottom - inviteBottom, closeTo(4, 1));
+    expect(settingsBottom, closeTo(inviteBottom, 1));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -462,7 +470,7 @@ void main() {
     });
   });
 
-  test('server action permissions combine owner, role and invite setting', () {
+  test('server invitation requires the manageInvites role permission', () {
     final none = ServerActionPermissions.fromServer(
       const Server(id: 1, canInvite: 0, permissions: {}),
     );
@@ -475,7 +483,7 @@ void main() {
     final invite = ServerActionPermissions.fromServer(
       const Server(id: 1, canInvite: 1),
     );
-    expect(invite.canInvite, isTrue);
+    expect(invite.canInvite, isFalse);
     expect(invite.canManageChannels, isFalse);
     expect(invite.canOpenSettings, isFalse);
 
@@ -635,7 +643,6 @@ void main() {
   testWidgets('empty sidebar and server actions respect permissions', (
     tester,
   ) async {
-    var invited = false;
     await _pumpSidebar(
       tester,
       server: const Server(
@@ -644,20 +651,14 @@ void main() {
         canInvite: 1,
         permissions: {'manageMembers': true},
       ),
-      onInvite: () => invited = true,
     );
     expect(find.text('Каналов пока нет'), findsOneWidget);
     expect(find.byKey(const ValueKey('empty_create_channel')), findsNothing);
     final settingsButton = find.byKey(const ValueKey('server_settings'));
     final inviteButton = find.byKey(const ValueKey('invite_server'));
     expect(tester.widget<GlassButton>(settingsButton).child, isA<Icon>());
-    expect(
-      tester.getSize(inviteButton).width,
-      greaterThan(tester.getSize(settingsButton).width),
-    );
+    expect(inviteButton, findsNothing);
     expect(find.text('Настройки'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('invite_server')));
-    expect(invited, isTrue);
     await tester.tap(settingsButton);
     await tester.pumpAndSettle();
     expect(find.text('Управлять участниками'), findsOneWidget);
@@ -674,10 +675,10 @@ void main() {
       server: const Server(id: 2, name: 'Team', canInvite: 1),
     );
     expect(find.byKey(const ValueKey('server_settings')), findsNothing);
-    expect(find.byKey(const ValueKey('invite_server')), findsOneWidget);
+    expect(find.byKey(const ValueKey('invite_server')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('server_header')));
     await tester.pumpAndSettle();
-    expect(find.text('Пригласить на сервер'), findsOneWidget);
+    expect(find.text('Пригласить на сервер'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

@@ -109,6 +109,13 @@ class UpdateMemberInChat extends ChatEvent {
   });
 }
 
+class UpdateRoleInChat extends ChatEvent {
+  final int chatId;
+  final RoleMember role;
+
+  UpdateRoleInChat(this.chatId, this.role);
+}
+
 class AddMembersToChat extends ChatEvent {
   final int? chatId;
   final List<Member> newMembers;

@@ -9,6 +9,7 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
@@ -37,6 +38,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   StreamSubscription<WsEvent>? _chatUpdateSubscription;
   StreamSubscription<WsEvent>? _chatDeleteSubscription;
   StreamSubscription<WsEvent>? _chatUpdateBlockStatusSubscription;
+  StreamSubscription<WsEvent>? _roleUpdateSubscription;
 
   ChatBloc(this._chatRepository, this._eventBus) : super(ChatInitial()) {
     on<GetChats>(_onGetChats);
@@ -49,6 +51,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<DeleteChat>(_onDeleteChat);
     on<UpdateUserInChat>(_onUpdateUserInChat);
     on<UpdateMemberInChat>(_onUpdateMemberInChat);
+    on<UpdateRoleInChat>(_onUpdateRoleInChat);
     on<AddMembersToChat>(_onAddMembersToChat);
     on<RemoveMemberFromChat>(_onRemoveMemberFromChat);
   }
@@ -207,6 +210,23 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           final user = UserModel.fromMap(map);
           add(UpdateUserInChat(user, true));
         }
+      },
+    );
+
+    _roleUpdateSubscription = _eventBus.subscribe(
+      table: 'RoleMembers',
+      action: ActionType.update,
+      onData: (event) {
+        if (event.data['entityType'] != EntityType.chat.value) return;
+        final chatId = DataParser.parseInt(event.data['entityId']);
+        final rawRole = event.data['role'];
+        if (chatId == null || rawRole is! Map) return;
+        add(
+          UpdateRoleInChat(
+            chatId,
+            RoleMember.fromMap(Map<String, dynamic>.from(rawRole)),
+          ),
+        );
       },
     );
 
@@ -431,6 +451,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         (chat.idLastMessage ?? 0) - (event.member.lastIdReadMessage ?? 0),
       );
       final updatedCurrentMember = chat.member?.copyWith(
+        fkRole: event.member.fkRole,
+        role: event.member.role,
         muted: event.member.muted,
         fixed: event.member.fixed,
         orderFixed: event.member.orderFixed,
@@ -438,6 +460,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       );
       updatedChat = chat.copyWith(
         member: updatedCurrentMember,
+        role: event.member.role,
+        roleId: event.member.fkRole,
         newMessagesCount: math.max(0, unreadCount),
       );
     } else {
@@ -450,7 +474,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           final updatedMembersList = List<Member>.from(chat.members!);
 
           updatedMembersList[memberIndex] = updatedMembersList[memberIndex]
-              .copyWith(lastIdReadMessage: event.member.lastIdReadMessage);
+              .copyWith(
+                lastIdReadMessage: event.member.lastIdReadMessage,
+                fkRole: event.member.fkRole,
+                role: event.member.role,
+              );
 
           updatedChat = chat.copyWith(members: updatedMembersList);
         } else {
@@ -474,6 +502,36 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         "✅ Chat members updated for chat ${event.chatId}, isSelf: ${event.isSelf}",
       );
     }
+  }
+
+  void _onUpdateRoleInChat(UpdateRoleInChat event, Emitter<ChatState> emit) {
+    final chats = _chatRepository.getCached();
+    final index = chats.indexWhere((chat) => chat.id == event.chatId);
+    if (index < 0) return;
+    final chat = chats[index];
+    final roleId = event.role.id;
+    if (roleId == null) return;
+    final selfRoleMatches =
+        chat.roleId == roleId ||
+        chat.member?.fkRole == roleId ||
+        chat.role?.id == roleId;
+    final members = chat.members
+        ?.map(
+          (member) => member.fkRole == roleId
+              ? member.copyWith(role: event.role)
+              : member,
+        )
+        .toList();
+    if (!selfRoleMatches &&
+        !(chat.members?.any((member) => member.fkRole == roleId) ?? false)) {
+      return;
+    }
+    chats[index] = chat.copyWith(
+      role: selfRoleMatches ? event.role : null,
+      member: selfRoleMatches ? chat.member?.copyWith(role: event.role) : null,
+      members: members,
+    );
+    emit(ChatLoaded(chats, _chatRepository.getAllUnredCount()));
   }
 
   void _onUpdateUserInChat(UpdateUserInChat event, Emitter<ChatState> emit) {
@@ -598,5 +656,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     _chatUpdateSubscription?.cancel();
     _chatDeleteSubscription?.cancel();
     _chatUpdateBlockStatusSubscription?.cancel();
+    _roleUpdateSubscription?.cancel();
   }
 }

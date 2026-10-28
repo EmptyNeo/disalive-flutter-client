@@ -214,6 +214,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Timer? _draftTimer;
   bool _restoringDraft = false;
   int? _initialPositionId;
+  ChatPosition? _initialPosition;
 
   late final MessageBloc _messageBloc;
   late final ChatBloc _chatBloc;
@@ -372,9 +373,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     if (_currentChat.type == ChatType.channel) _listenToChannelEvents();
     _restoreDraft();
-    final savedPositionId = sl<LocalChatStateRepository>()
-        .getFirstVisibleMessageId(_draftUserId, widget.chat.id);
-    _initialPositionId = initialPositionForChat(_currentChat, savedPositionId);
+    final savedPosition = sl<LocalChatStateRepository>().getChatPosition(
+      _draftUserId,
+      widget.chat.id,
+    );
+    _initialPosition = _currentChat.type == ChatType.channel
+        ? null
+        : savedPosition;
+    _initialPositionId = _initialPosition?.kind == ChatPositionKind.message
+        ? _initialPosition?.id
+        : _initialPosition?.kind == ChatPositionKind.historyAction
+        ? _initialPosition?.aroundMessageId
+        : null;
     _loadInitial();
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureInput());
     context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
@@ -550,19 +560,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       _saveDraft();
-      _savePosition();
     }
   }
 
-  void _savePosition() {
-    final id = _messagesListKey.currentState?.firstVisibleMessageId();
-    if (id != null) {
-      sl<LocalChatStateRepository>().saveFirstVisibleMessageId(
-        _draftUserId,
-        widget.chat.id,
-        id,
-      );
-    }
+  void _savePosition(ChatPosition position) {
+    sl<LocalChatStateRepository>().saveChatPosition(
+      _draftUserId,
+      widget.chat.id,
+      position,
+    );
   }
 
   void _onChangedNeedSend() {
@@ -707,7 +713,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _channelAccessSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
-    _savePosition();
     _inputFocusNode.removeListener(_handleFocusChange);
     _textController.removeListener(_onTextChanged);
     _textController.dispose();
@@ -727,7 +732,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       onPopInvokedWithResult: (bool didPop, Object? result) {
         if (didPop) {
           _saveDraft();
-          _savePosition();
           return;
         }
 
@@ -828,6 +832,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                             0)
                                       : null,
                                   initialPositionId: _initialPositionId,
+                                  initialPosition: _initialPosition,
+                                  onPositionSettled: _savePosition,
                                   inputReserve:
                                       _inputReserve +
                                       (_isExtraPanelOpen

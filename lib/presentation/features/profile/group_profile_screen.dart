@@ -3,8 +3,10 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/domain/models/permissions.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/add_members_screen.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
+import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/members/widgets/members_list.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_vertical_action_tile.dart';
@@ -64,7 +66,21 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: Stack(
-                children: [_buildUnifiedList(), const CustomBackButton()],
+                children: [
+                  BlocBuilder<ChatBloc, ChatState>(
+                    builder: (context, state) {
+                      final updated = state is ChatLoaded
+                          ? state.chats.where(
+                              (chat) => chat.id == widget.chat.id,
+                            )
+                          : <Chat>[];
+                      return _buildUnifiedList(
+                        updated.isEmpty ? widget.chat : updated.first,
+                      );
+                    },
+                  ),
+                  const CustomBackButton(),
+                ],
               ),
             ),
           ),
@@ -73,11 +89,15 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
     );
   }
 
-  Widget _buildUnifiedList() {
+  Widget _buildUnifiedList(Chat chat) {
     bool manageMembers =
-        widget.chat.role?.hasPermission(ChatPermissions.manageMembers) ?? false;
+        chat.role?.hasPermission(ChatPermissions.manageMembers) ?? false;
     bool manageChat =
-        widget.chat.role?.hasPermission(ChatPermissions.manageChat) ?? false;
+        chat.role?.hasPermission(ChatPermissions.manageChat) ?? false;
+    final canInvite =
+        chat.isOwner ||
+        chat.role?.hasPermission(ChatPermissions.manageInvites) == true ||
+        chat.member?.role?.hasPermission(ChatPermissions.manageInvites) == true;
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -95,7 +115,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    widget.chat.name,
+                    chat.name,
                     style: AppText.highTextStyle.copyWith(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -105,7 +125,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (manageChat || manageMembers) ...[
+                if (manageChat || manageMembers || canInvite) ...[
                   Padding(
                     padding: EdgeInsets.only(
                       right: 12,
@@ -113,26 +133,35 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                       top: 12,
                       bottom: 0,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
                       children: [
                         if (manageMembers) ...[
                           ProfileVerticalActionTile(
                             icon: CupertinoIcons.person_2_fill,
                             title: 'Добавить',
                             onTap: () {
-                              AddMembersScreen.open(context, widget.chat);
+                              AddMembersScreen.open(context, chat);
                             },
                           ),
                         ],
-                        SizedBox(width: 8),
+                        if (canInvite)
+                          ProfileVerticalActionTile(
+                            icon: CupertinoIcons.person_add,
+                            title: 'Пригласить',
+                            onTap: () => InviteServerScreen.openChat(
+                              context,
+                              chat: chat,
+                            ),
+                          ),
                         if (manageChat) ...[
                           ProfileVerticalActionTile(
                             icon: CupertinoIcons.pencil,
                             title: 'Редактировать',
                             onTap: () {
-                              EditGroupScreen.open(context, widget.chat);
+                              EditGroupScreen.open(context, chat);
                             },
                           ),
                         ],
@@ -148,7 +177,7 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: MediaStatsSection(
-              chatId: widget.chat.id,
+              chatId: chat.id,
               onCategoryTap: widget.onMediaCategoryTap,
               onMessageTap: widget.onMessageTap,
               onGroupTap: widget.onGroupTap,
@@ -156,14 +185,13 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
           ),
         ),
         MembersList(
-          entityId: widget.chat.id,
+          entityId: chat.id,
           entityType: EntityType.chat,
-          entityName: widget.chat.name,
-          initialMemberCount: widget.chat.memberCount,
+          entityName: chat.name,
+          initialMemberCount: chat.memberCount,
           canManageMembers: manageMembers,
           canManageRoles:
-              widget.chat.role?.hasPermission(ChatPermissions.manageRoles) ??
-              false,
+              chat.role?.hasPermission(ChatPermissions.manageRoles) ?? false,
         ),
 
         const SliverToBoxAdapter(child: SizedBox(height: 24)),

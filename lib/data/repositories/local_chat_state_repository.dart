@@ -101,6 +101,47 @@ class ChatDraft {
   }
 }
 
+enum ChatPositionKind { bottom, message, historyAction }
+
+class ChatPosition {
+  final ChatPositionKind kind;
+  final int? id;
+  final int? aroundMessageId;
+
+  const ChatPosition.bottom()
+    : kind = ChatPositionKind.bottom,
+      id = null,
+      aroundMessageId = null;
+
+  const ChatPosition.message(this.id)
+    : kind = ChatPositionKind.message,
+      aroundMessageId = null;
+
+  const ChatPosition.historyAction(this.id, this.aroundMessageId)
+    : kind = ChatPositionKind.historyAction;
+
+  Map<String, dynamic> toMap() => {
+    'kind': kind.name,
+    if (id != null) 'id': id,
+    if (aroundMessageId != null) 'aroundMessageId': aroundMessageId,
+  };
+
+  factory ChatPosition.fromMap(Map<String, dynamic> map) {
+    final id = (map['id'] as num?)?.toInt();
+    switch (map['kind']) {
+      case 'bottom':
+        return const ChatPosition.bottom();
+      case 'historyAction':
+        return ChatPosition.historyAction(
+          id,
+          (map['aroundMessageId'] as num?)?.toInt(),
+        );
+      default:
+        return ChatPosition.message(id);
+    }
+  }
+}
+
 class LocalChatStateRepository {
   LocalChatStateRepository(
     this._preferences, {
@@ -112,7 +153,7 @@ class LocalChatStateRepository {
   final ValueNotifier<int> revision = ValueNotifier(0);
   final Map<String, Future<void>> _pending = {};
   final Map<String, ChatDraft?> _latest = {};
-  final Map<String, int> _positions = {};
+  final Map<String, ChatPosition> _chatPositions = {};
   final Set<int> _clearedUsers = {};
   bool _notificationPending = false;
 
@@ -147,8 +188,23 @@ class LocalChatStateRepository {
   }
 
   int? getFirstVisibleMessageId(int? userId, int chatId) {
+    final position = getChatPosition(userId, chatId);
+    return position?.kind == ChatPositionKind.message ? position?.id : null;
+  }
+
+  ChatPosition? getChatPosition(int? userId, int chatId) {
     final key = _key(userId, chatId, 'position');
-    return _positions[key] ?? _preferences.getInt(key);
+    if (_chatPositions.containsKey(key)) return _chatPositions[key];
+    final stored = _preferences.get(key);
+    if (stored is int) return ChatPosition.message(stored);
+    if (stored is! String) return null;
+    try {
+      return ChatPosition.fromMap(
+        Map<String, dynamic>.from(jsonDecode(stored) as Map),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveFirstVisibleMessageId(
@@ -156,9 +212,17 @@ class LocalChatStateRepository {
     int chatId,
     int messageId,
   ) {
+    return saveChatPosition(userId, chatId, ChatPosition.message(messageId));
+  }
+
+  Future<void> saveChatPosition(
+    int? userId,
+    int chatId,
+    ChatPosition position,
+  ) {
     final key = _key(userId, chatId, 'position');
-    _positions[key] = messageId;
-    return _preferences.setInt(key, messageId);
+    _chatPositions[key] = position;
+    return _preferences.setString(key, jsonEncode(position.toMap()));
   }
 
   Future<void> saveDraft(int? userId, int chatId, ChatDraft draft) {

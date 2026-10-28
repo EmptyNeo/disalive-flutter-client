@@ -6,6 +6,7 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
@@ -134,6 +135,48 @@ class _CurrentUserRepository implements UserRepository {
 }
 
 void main() {
+  test('updated server role refreshes invitation permission', () async {
+    final repository = _FakeServerRepository();
+    final bus = WsEventBus();
+    final bloc = ServersBloc(repository, bus);
+    bloc.add(const GetServers());
+    await bloc.stream.firstWhere((state) => state is ServersLoaded);
+    repository.servers[0] = repository.servers[0].copyWith(
+      roleId: 5,
+      permissions: {ServerPermissions.manageInvites: false},
+    );
+
+    final updated = bloc.stream.firstWhere(
+      (state) =>
+          state is ServersLoaded &&
+          state.servers.first.hasPermission(ServerPermissions.manageInvites),
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'RoleMembers',
+        action: ActionType.update,
+        data: {
+          'entityId': 1,
+          'entityType': 'server',
+          'role': {
+            'id': 5,
+            'permissions': {'manageInvites': true},
+          },
+        },
+        isSelf: false,
+      ),
+    );
+    await updated;
+    expect(
+      repository
+          .getByIdCached(1)
+          ?.hasPermission(ServerPermissions.manageInvites),
+      isTrue,
+    );
+    await bloc.close();
+    bus.dispose();
+  });
+
   test(
     'deleting unread channel message updates channel and server counts',
     () async {

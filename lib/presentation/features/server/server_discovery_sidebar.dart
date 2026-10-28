@@ -277,12 +277,9 @@ class _ServerDiscoverySidebarState extends State<ServerDiscoverySidebar> {
                       itemCount: _servers.length,
                       itemBuilder: (context, index) => Padding(
                         padding: const EdgeInsets.only(bottom: spacing),
-                        child: SizedBox(
-                          height: _servers[index].pathBanner?.isNotEmpty == true
-                              ? 300
-                              : 184,
-                          child: cardAt(index),
-                        ),
+                        child: _servers[index].pathBanner?.isNotEmpty == true
+                            ? cardAt(index)
+                            : SizedBox(height: 184, child: cardAt(index)),
                       ),
                     ),
             ),
@@ -336,7 +333,9 @@ class _DiscoveryServerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (server.pathBanner?.isNotEmpty == true) return _bannerCard();
+    if (!compact && server.pathBanner?.isNotEmpty == true) {
+      return _bannerCard();
+    }
     return Container(
       key: ValueKey('public_server_${server.id}'),
       padding: compact
@@ -417,19 +416,11 @@ class _DiscoveryServerCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ServerBannerImage(path: server.pathBanner!, height: compact ? 72 : 112),
-        if (compact)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-            child: _bannerDetails(),
-          )
-        else
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: _bannerDetails(),
-            ),
-          ),
+        ServerBannerImage(path: server.pathBanner!, height: 112),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          child: _bannerDetails(),
+        ),
       ],
     ),
   );
@@ -437,33 +428,27 @@ class _DiscoveryServerCard extends StatelessWidget {
   Widget _bannerDetails() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Transform.translate(offset: const Offset(0, -20), child: _avatar()),
-      if (!compact) const Spacer(),
+      SizedBox(
+        height: 44,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [Positioned(left: 0, top: -20, child: _avatar())],
+        ),
+      ),
       _name(),
       const SizedBox(height: 8),
-      if (compact)
-        Row(
-          children: [
-            _compactCount(
-              CupertinoColors.activeGreen,
-              server.onlineMemberCount ?? 0,
-            ),
-            const SizedBox(width: 12),
-            _compactCount(AppColors.greyple, server.memberCount ?? 0),
-          ],
-        )
-      else
-        Wrap(
-          spacing: 14,
-          children: [
-            _count(
-              CupertinoColors.activeGreen,
-              '${server.onlineMemberCount ?? 0} в сети',
-            ),
-            _count(AppColors.greyple, '${server.memberCount ?? 0} участников'),
-          ],
-        ),
-      if (!compact) const Spacer() else const SizedBox(height: 8),
+      Wrap(
+        spacing: 14,
+        runSpacing: 6,
+        children: [
+          _count(
+            CupertinoColors.activeGreen,
+            '${server.onlineMemberCount ?? 0} в сети',
+          ),
+          _count(AppColors.greyple, '${server.memberCount ?? 0} участников'),
+        ],
+      ),
+      const SizedBox(height: 16),
       _actionButton(),
     ],
   );

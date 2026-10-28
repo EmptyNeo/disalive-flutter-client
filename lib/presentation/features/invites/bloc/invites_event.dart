@@ -26,6 +26,7 @@ class CreateInvite extends InvitesEvent {
     required this.entityType,
     required this.code,
     this.callEntity,
+    this.targetChatId,
     this.maxUsers = 0,
     this.expiresAt,
   });
@@ -34,6 +35,7 @@ class CreateInvite extends InvitesEvent {
   final EntityType entityType;
   final String code;
   final EntityKey? callEntity;
+  final int? targetChatId;
   final int maxUsers;
   final int? expiresAt;
 
@@ -43,6 +45,7 @@ class CreateInvite extends InvitesEvent {
     entityType,
     code,
     callEntity,
+    targetChatId,
     maxUsers,
     expiresAt,
   ];

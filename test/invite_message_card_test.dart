@@ -1,4 +1,6 @@
 import 'package:dartz/dartz.dart';
+import 'package:disalive/app/di/di.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/invite_data.dart';
@@ -6,6 +8,7 @@ import 'package:disalive/domain/models/link_data.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/invite_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/features/message/widgets/invite_message_card.dart';
@@ -46,6 +49,28 @@ class _ServerRepository implements ServerRepository {
 
   @override
   void clear() => _selectedServerId = null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _MembershipRepository implements InviteRepository {
+  _MembershipRepository({
+    this.membership = const InviteMembership(
+      isMember: true,
+      entityId: 42,
+      entityType: EntityType.server,
+    ),
+  });
+
+  final InviteMembership membership;
+  int checks = 0;
+
+  @override
+  Future<Either<Failure, InviteMembership>> checkMembership(String code) async {
+    checks++;
+    return Right(membership);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -178,5 +203,86 @@ void main() {
       await serversBloc.close();
       bus.dispose();
     });
+  });
+
+  testWidgets('membership check opens server without accepting invitation', (
+    tester,
+  ) async {
+    await sl.reset();
+    final membership = _MembershipRepository();
+    sl.registerSingleton<InviteRepository>(membership);
+    final bus = WsEventBus();
+    final serversBloc = ServersBloc(
+      _ServerRepository([const Server(id: 42, name: 'Сообщество')]),
+      bus,
+    )..add(const GetServers());
+
+    await tester.pumpWidget(
+      BlocProvider.value(
+        value: serversBloc,
+        child: const CupertinoApp(
+          home: Center(
+            child: InviteMessageCard(
+              invite: InviteData(
+                entityId: 42,
+                entityType: 'server',
+                name: 'Сообщество',
+              ),
+              code: 'Ab12',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Перейти на сервер'), findsOneWidget);
+    expect(membership.checks, 1);
+
+    await tester.tap(find.byKey(const ValueKey('invite_card_action')));
+    await tester.pumpAndSettle();
+    expect(membership.checks, 2);
+    expect((serversBloc.state as ServersLoaded).selectedServerId, 42);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() async {
+      await serversBloc.close();
+      bus.dispose();
+      await sl.reset();
+    });
+  });
+
+  testWidgets('group call invitation names both destinations', (tester) async {
+    await sl.reset();
+    sl.registerSingleton<InviteRepository>(
+      _MembershipRepository(
+        membership: const InviteMembership(
+          isMember: true,
+          entityId: 7,
+          entityType: EntityType.chat,
+          targetChatId: 7,
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: Center(
+          child: InviteMessageCard(
+            invite: InviteData(
+              entityId: 7,
+              entityType: 'chat',
+              targetChatId: 7,
+              targetChatName: 'Звонок',
+              name: 'Группа',
+            ),
+            code: 'GroupCall',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Группа · Звонок'), findsOneWidget);
+    expect(find.text('Перейти в звонок'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(() => sl.reset());
   });
 }

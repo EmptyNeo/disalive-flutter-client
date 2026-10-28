@@ -57,6 +57,16 @@ class ServerUpserted extends ServersEvent {
   List<Object?> get props => [serverData];
 }
 
+class ServerRoleUpdated extends ServersEvent {
+  const ServerRoleUpdated(this.serverId, this.role);
+
+  final int serverId;
+  final RoleMember role;
+
+  @override
+  List<Object?> get props => [serverId, role];
+}
+
 class ServerRemoved extends ServersEvent {
   final int id;
 

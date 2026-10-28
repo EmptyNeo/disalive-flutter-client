@@ -9,6 +9,8 @@ import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
 import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
+import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
+import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/profile/direct_profile_screen.dart';
 import 'package:disalive/presentation/features/profile/channel_profile_screen.dart';
@@ -95,6 +97,8 @@ class DeterminantProfileScreen {
       );
     } else {
       MembersBloc membersBloc = context.read<MembersBloc>();
+      final messageBloc = context.read<MessageBloc>();
+      final invitesBloc = context.read<InvitesBloc>();
       return SwipeToDismissRoute.push(
         context,
         (context) => MultiBlocProvider(
@@ -102,6 +106,8 @@ class DeterminantProfileScreen {
             BlocProvider.value(value: chatBloc),
             BlocProvider.value(value: membersBloc),
             BlocProvider.value(value: mediaStatsBloc),
+            BlocProvider.value(value: messageBloc),
+            BlocProvider.value(value: invitesBloc),
           ],
           child: GroupProfileScreen(
             chat: chat,

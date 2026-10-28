@@ -131,6 +131,7 @@ class InvitesBloc extends Bloc<InvitesEvent, InvitesState> {
       event.entityType,
       event.code,
       callEntity: event.callEntity,
+      targetChatId: event.targetChatId,
       maxUsers: event.maxUsers,
       expiresAt: event.expiresAt,
     );

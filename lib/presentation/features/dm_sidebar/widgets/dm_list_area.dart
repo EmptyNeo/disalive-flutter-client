@@ -11,6 +11,7 @@ import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_item.dart';
 import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
+import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
@@ -161,6 +162,14 @@ class DmListArea extends StatelessWidget {
         ),
       ],
       if (chat.isGroup) ...[
+        if (chat.isOwner ||
+            role?.hasPermission(ChatPermissions.manageInvites) == true ||
+            member.role?.hasPermission(ChatPermissions.manageInvites) == true)
+          ActionItem(
+            icon: CupertinoIcons.person_add,
+            label: 'Пригласить в группу',
+            onTap: () => InviteServerScreen.openChat(context, chat: chat),
+          ),
         if (chat.isOwner ||
             (role?.hasPermission(ChatPermissions.manageRoles) ?? false))
           ActionItem(

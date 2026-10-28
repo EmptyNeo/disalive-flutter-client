@@ -169,8 +169,15 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     final message = _messageFromWs(event);
     final chatId = message?.chatId;
     if (message == null || chatId == null) return;
+    final localGeneratedId = event.data['localGeneratedId'];
     for (final pending
         in _messagesDuringLoad[chatId] ?? const <List<Message>>[]) {
+      if (localGeneratedId is String && localGeneratedId.isNotEmpty) {
+        pending.removeWhere(
+          (item) =>
+              item.id == null && item.localGeneratedId == localGeneratedId,
+        );
+      }
       pending.add(message);
     }
 
@@ -234,9 +241,7 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   List<Message> _ensureDescendingOrder(List<Message> messages) {
-    final sorted = List<Message>.from(messages);
-    sorted.sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
-    return sorted;
+    return _removeDuplicates(messages);
   }
 
   void _onRestoreChatMessages(
@@ -351,9 +356,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
           if (isAroundLoad) {
             finalMessages = serverMessages;
           } else {
-            finalMessages = serverMessages.length > event.limit
-                ? serverMessages.sublist(0, event.limit)
-                : serverMessages;
+            finalMessages = [
+              ...serverMessages.where((message) => message.id == null),
+              ...serverMessages
+                  .where((message) => message.id != null)
+                  .take(event.limit),
+            ];
           }
 
           final cachedMessages = isAroundLoad
@@ -575,6 +583,20 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     }
 
     _addOptimisticLocalMessage(event);
+    final localMessage = _messageRepository
+        .getCached(event.chatId)
+        ?.messages
+        .where((m) => m.localGeneratedId == event.localGeneratedId)
+        .firstOrNull;
+    if (localMessage != null) {
+      for (final pending
+          in _messagesDuringLoad[event.chatId] ?? const <List<Message>>[]) {
+        pending.removeWhere(
+          (message) => message.localGeneratedId == event.localGeneratedId,
+        );
+        pending.add(localMessage);
+      }
+    }
     _emitFromCache(event.chatId, emit);
 
     final result = await _messageRepository.create(
@@ -591,6 +613,20 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
     result.fold((failure) {
       debugPrint('Failed to create message: ${failure.message}');
       _markLocalMessageAsFailed(event.chatId, event.localGeneratedId);
+      final failed = _messageRepository
+          .getCached(event.chatId)
+          ?.messages
+          .where((m) => m.localGeneratedId == event.localGeneratedId)
+          .firstOrNull;
+      if (failed != null) {
+        for (final pending
+            in _messagesDuringLoad[event.chatId] ?? const <List<Message>>[]) {
+          final index = pending.indexWhere(
+            (m) => m.localGeneratedId == event.localGeneratedId,
+          );
+          if (index != -1) pending[index] = failed;
+        }
+      }
       _emitFromCache(event.chatId, emit);
     }, (_) {});
   }
@@ -663,6 +699,12 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   ) async {
     if (event.localGeneratedId != null) {
       _removeLocalMessageFromCache(event.chatId, event.localGeneratedId!);
+      for (final pending
+          in _messagesDuringLoad[event.chatId] ?? const <List<Message>>[]) {
+        pending.removeWhere(
+          (message) => message.localGeneratedId == event.localGeneratedId,
+        );
+      }
       _emitFromCache(event.chatId, emit);
       return;
     }
@@ -811,13 +853,24 @@ class MessageBloc extends Bloc<MessageEvent, MessageState> {
   }
 
   List<Message> _removeDuplicates(List<Message> messages) {
-    final uniqueMap = <int, Message>{};
+    final confirmedLocalIds = messages
+        .where((message) => message.id != null)
+        .map((message) => message.localGeneratedId)
+        .whereType<String>()
+        .toSet();
+    final pendingByLocalId = <String, Message>{};
+    final confirmedById = <int, Message>{};
     for (final message in messages) {
       if (message.id != null) {
-        uniqueMap[message.id!] = message;
+        confirmedById[message.id!] = message;
+      } else if (message.localGeneratedId != null &&
+          !confirmedLocalIds.contains(message.localGeneratedId)) {
+        pendingByLocalId.putIfAbsent(message.localGeneratedId!, () => message);
       }
     }
-    return uniqueMap.values.toList();
+    final confirmed = confirmedById.values.toList()
+      ..sort((a, b) => b.id!.compareTo(a.id!));
+    return [...pendingByLocalId.values, ...confirmed];
   }
 
   void _removeMessageFromCache(int chatId, int messageId) {

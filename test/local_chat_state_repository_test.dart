@@ -88,4 +88,34 @@ void main() {
       'attachment',
     );
   });
+
+  test('persists bottom and history action positions across sessions', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = LocalChatStateRepository(prefs);
+
+    await storage.saveChatPosition(4, 10, const ChatPosition.bottom());
+    await storage.saveChatPosition(
+      4,
+      11,
+      const ChatPosition.historyAction(27, 145),
+    );
+
+    final reopened = LocalChatStateRepository(prefs);
+    expect(reopened.getChatPosition(4, 10)?.kind, ChatPositionKind.bottom);
+    final action = reopened.getChatPosition(4, 11);
+    expect(action?.kind, ChatPositionKind.historyAction);
+    expect(action?.id, 27);
+    expect(action?.aroundMessageId, 145);
+    expect(reopened.getFirstVisibleMessageId(4, 11), isNull);
+  });
+
+  test('reads older numeric message positions', () async {
+    SharedPreferences.setMockInitialValues({'chat_4_10_position': 91});
+    final prefs = await SharedPreferences.getInstance();
+    final storage = LocalChatStateRepository(prefs);
+
+    expect(storage.getChatPosition(4, 10)?.kind, ChatPositionKind.message);
+    expect(storage.getChatPosition(4, 10)?.id, 91);
+  });
 }

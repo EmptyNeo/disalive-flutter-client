@@ -27,9 +27,7 @@ class ServerActionPermissions {
     final isOwner = server.isServerOwner;
     return ServerActionPermissions._(
       canInvite:
-          isOwner ||
-          server.canInviteUsers ||
-          server.hasPermission(ServerPermissions.manageInvites),
+          isOwner || server.hasPermission(ServerPermissions.manageInvites),
       canManageServer:
           isOwner || server.hasPermission(ServerPermissions.manageServer),
       canManageChannels:

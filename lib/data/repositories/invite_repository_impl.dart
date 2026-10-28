@@ -29,6 +29,7 @@ class InviteRepositoryImpl implements InviteRepository {
     EntityType entityType,
     String code, {
     EntityKey? callEntity,
+    int? targetChatId,
     int maxUsers = 0,
     int? expiresAt,
   }) async {
@@ -40,6 +41,7 @@ class InviteRepositoryImpl implements InviteRepository {
         'code': code,
         'maxUsers': maxUsers,
         'expiresAt': ?expiresAt,
+        'targetChatId': ?targetChatId,
         if (callEntity != null) ...{
           'callEntity[id]': callEntity.entityId,
           'callEntity[type]': callEntity.entityType.value,
@@ -51,6 +53,7 @@ class InviteRepositoryImpl implements InviteRepository {
         'entityId': entityId,
         'entityType': entityType.value,
         'code': code,
+        'targetChatId': ?targetChatId,
         ...json as Map<String, dynamic>,
       }),
     );
@@ -75,6 +78,17 @@ class InviteRepositoryImpl implements InviteRepository {
         apiType: ApiType.v1,
         requireAuth: false,
         fromJson: (json) => InviteDetails.fromMap(json as Map<String, dynamic>),
+      );
+
+  @override
+  Future<Either<Failure, InviteMembership>> checkMembership(String code) =>
+      _httpClient.postFormData<InviteMembership>(
+        endpoint: 'invites/get.php',
+        data: {'code': code},
+        apiType: ApiType.v1,
+        requireAuth: true,
+        fromJson: (json) =>
+            InviteMembership.fromMap(json as Map<String, dynamic>),
       );
 
   @override

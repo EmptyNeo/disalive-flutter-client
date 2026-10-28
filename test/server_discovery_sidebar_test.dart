@@ -7,6 +7,7 @@ import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/server/server_discovery_sidebar.dart';
+import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,21 +31,24 @@ class _Servers implements ServerRepository {
     selectedCategory = category;
     selectedQuery = query;
     if (fail) return const Left(ServerFailure('Не удалось загрузить серверы'));
-    return Right(records ?? const [
-      Server(
-        id: 1,
-        name: 'Open',
-        memberId: 7,
-        memberCount: 12,
-        onlineMemberCount: 3,
-      ),
-      Server(
-        id: 2,
-        name: 'Long name of server',
-        memberCount: 8,
-        onlineMemberCount: 2,
-      ),
-    ]);
+    return Right(
+      records ??
+          const [
+            Server(
+              id: 1,
+              name: 'Open',
+              memberId: 7,
+              memberCount: 12,
+              onlineMemberCount: 3,
+            ),
+            Server(
+              id: 2,
+              name: 'Long name of server',
+              memberCount: 8,
+              onlineMemberCount: 2,
+            ),
+          ],
+    );
   }
 
   @override
@@ -70,25 +74,58 @@ class _Members implements MembersRepository {
 }
 
 void main() {
-  testWidgets('banner server card lays out in list and compact grid', (tester) async {
+  testWidgets('banner server card lays out in list and compact grid', (
+    tester,
+  ) async {
     await sl.reset();
-    final servers = _Servers()..records = const [
-      Server(id: 1, name: 'Команда', pathBanner: '/images/banner.gif', memberId: 7,
-        memberCount: 10, onlineMemberCount: 2),
-    ];
+    final servers = _Servers()
+      ..records = const [
+        Server(
+          id: 1,
+          name: 'Команда',
+          pathBanner: '/images/banner.gif',
+          memberId: 7,
+          memberCount: 10,
+          onlineMemberCount: 2,
+        ),
+      ];
     sl.registerSingleton<ServerRepository>(servers);
-    await tester.pumpWidget(CupertinoApp(home: CupertinoPageScaffold(
-      child: ServerDiscoverySidebar(gridView: false, onOpenServer: (_) {}, onJoinedServer: (_) {}),
-    )));
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: ServerDiscoverySidebar(
+            gridView: false,
+            onOpenServer: (_) {},
+            onJoinedServer: (_) {},
+          ),
+        ),
+      ),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
+    final bannerRect = tester.getRect(find.byType(ServerBannerImage));
+    final nameRect = tester.getRect(find.text('Команда'));
+    expect(nameRect.top - bannerRect.bottom, closeTo(44, 1));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('public_server_1'))).height,
+      lessThan(300),
+    );
     expect(tester.takeException(), isNull);
-    await tester.pumpWidget(CupertinoApp(home: CupertinoPageScaffold(
-      child: ServerDiscoverySidebar(gridView: true, onOpenServer: (_) {}, onJoinedServer: (_) {}),
-    )));
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: ServerDiscoverySidebar(
+            gridView: true,
+            onOpenServer: (_) {},
+            onJoinedServer: (_) {},
+          ),
+        ),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
+    expect(find.byType(ServerBannerImage), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await sl.reset();

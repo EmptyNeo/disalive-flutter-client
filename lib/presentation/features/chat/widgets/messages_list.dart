@@ -1,6 +1,7 @@
 import 'dart:async'; // 🎯 Для Timer
 
 import 'package:disalive/app/di/di.dart'; // 🎯 Для sl()
+import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/chat.dart';
@@ -47,6 +48,19 @@ String? _historyActionDayLabel(HistoryAction action) {
   return UtilDate.formatDayTime(action.startDate, true);
 }
 
+int? historyActionIndexInMessages(
+  List<Message> messages,
+  int? lastIdMessage, {
+  required bool hasMoreMessages,
+}) {
+  final lastId = lastIdMessage ?? 0;
+  final index = messages.indexWhere(
+    (message) => message.id != null && message.id! <= lastId,
+  );
+  if (index >= 0) return index;
+  return hasMoreMessages ? null : messages.length - 1;
+}
+
 class MessagesList extends StatefulWidget {
   final MessageBloc messageBloc;
   final ChatBloc chatBloc;
@@ -56,6 +70,8 @@ class MessagesList extends StatefulWidget {
   final double headerReserve;
   final int? initialAroundId;
   final int? initialPositionId;
+  final ChatPosition? initialPosition;
+  final ValueChanged<ChatPosition>? onPositionSettled;
 
   final Function(Message message) onSendMessage;
   final Function(Message message) onEditMessage;
@@ -76,6 +92,8 @@ class MessagesList extends StatefulWidget {
     required this.currentUserId,
     required this.initialAroundId,
     this.initialPositionId,
+    this.initialPosition,
+    this.onPositionSettled,
     required this.inputReserve,
     this.headerReserve = 64,
     required this.onSendMessage,
@@ -131,6 +149,9 @@ class MessagesListState extends State<MessagesList> {
   int? _highlightedMessageId;
   Timer? _highlightTimer;
   final Map<dynamic, GlobalKey> _messageKeys = {};
+  final Map<int, GlobalKey> _actionKeys = {};
+  Timer? _positionTimer;
+  double? _lastPositionPixels;
   bool _restoredPosition = false;
 
   static const double _kBottomThreshold = 200.0;
@@ -144,11 +165,15 @@ class MessagesListState extends State<MessagesList> {
     _fixedSeparatorId = widget.initialAroundId;
     _anchorKey = widget.initialPositionId;
     _hasScrolledToUnread = widget.initialPositionId != null;
+    _restoredPosition = widget.initialPosition?.kind == ChatPositionKind.bottom;
 
     _startTimeForNextState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _chatState is MessageLoaded) {
         _scheduleReadTracking();
+        if (_restoredPosition || widget.initialPosition == null) {
+          _schedulePositionSave(const Duration(seconds: 5));
+        }
       }
     });
   }
@@ -162,10 +187,15 @@ class MessagesListState extends State<MessagesList> {
       _hasUserScrolled = false;
       _hasScrolledToUnread = false;
       _messageKeys.clear();
+      _actionKeys.clear();
+      _positionTimer?.cancel();
+      _positionTimer = null;
+      _lastPositionPixels = null;
       _anchorKey = null;
       _newerBatchPending = false;
       _anchorKey = widget.initialPositionId;
-      _restoredPosition = false;
+      _restoredPosition =
+          widget.initialPosition?.kind == ChatPositionKind.bottom;
       _hasScrolledToUnread = widget.initialPositionId != null;
     } else if (oldWidget.initialAroundId != widget.initialAroundId) {
       if (_hasUserScrolled || _fixedSeparatorId == null) {
@@ -205,6 +235,7 @@ class MessagesListState extends State<MessagesList> {
     _separatorUpdateTimer?.cancel();
     _timeForNextSetState?.cancel();
     _highlightTimer?.cancel();
+    _positionTimer?.cancel();
     super.dispose();
   }
 
@@ -238,17 +269,20 @@ class MessagesListState extends State<MessagesList> {
     );
   }
 
-  int? firstVisibleMessageId() {
+  ChatPosition? visiblePosition() {
     if (!_scrollController.hasClients) return null;
     final state = _chatState;
     if (state is! MessageLoaded) return null;
+    if (_distanceFromBottom <= 24 && !state.hasNewerMessages) {
+      return const ChatPosition.bottom();
+    }
     final viewport = context.findRenderObject() as RenderBox?;
     if (viewport == null || !viewport.hasSize) return null;
     final top = viewport.localToGlobal(Offset.zero).dy + widget.headerReserve;
     final bottom =
         viewport.localToGlobal(Offset(0, viewport.size.height)).dy -
         widget.inputReserve;
-    int? firstId;
+    ChatPosition? firstPosition;
     double firstTop = double.infinity;
     for (final message in state.messages) {
       final id = message.id;
@@ -260,10 +294,33 @@ class MessagesListState extends State<MessagesList> {
       if (y + box.size.height <= top || y >= bottom) continue;
       if (y < firstTop) {
         firstTop = y;
-        firstId = id;
+        firstPosition = ChatPosition.message(id);
       }
     }
-    return firstId;
+    for (final action in state.actions) {
+      final id = action.id;
+      if (id == null) continue;
+      final box =
+          _actionKeys[id]?.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final y = box.localToGlobal(Offset.zero).dy;
+      if (y + box.size.height <= top || y >= bottom) continue;
+      if (y < firstTop) {
+        firstTop = y;
+        firstPosition = ChatPosition.historyAction(id, action.lastIdMessage);
+      }
+    }
+    return firstPosition;
+  }
+
+  void _schedulePositionSave(Duration delay) {
+    _positionTimer?.cancel();
+    _positionTimer = Timer(delay, () {
+      _positionTimer = null;
+      if (!mounted) return;
+      final position = visiblePosition();
+      if (position != null) widget.onPositionSettled?.call(position);
+    });
   }
 
   void _startTimeForNextState() {
@@ -280,6 +337,15 @@ class MessagesListState extends State<MessagesList> {
     final state = _chatState;
     if (state is! MessageLoaded) return;
     if (state.isLoadingMore || state.isLoadingNewer) return;
+
+    final pixels = _scrollController.position.pixels;
+    final moved =
+        _lastPositionPixels == null ||
+        (pixels - _lastPositionPixels!).abs() > 0.5;
+    _lastPositionPixels = pixels;
+    if (moved && (_restoredPosition || widget.initialPosition == null)) {
+      _schedulePositionSave(const Duration(seconds: 5));
+    }
 
     final pos = _scrollController.position;
 
@@ -353,6 +419,7 @@ class MessagesListState extends State<MessagesList> {
     } else {
       _scrollController.jumpTo(target);
     }
+    if (mounted) _schedulePositionSave(const Duration(seconds: 2));
   }
 
   void navigateToPublic(int? messageId, {bool highlight = false}) {
@@ -375,6 +442,7 @@ class MessagesListState extends State<MessagesList> {
         setState(() => _highlightedMessageId = targetMessageId);
         _startHighlightTimer();
       }
+      _schedulePositionSave(const Duration(seconds: 2));
       return; // Успех, выходим
     }
 
@@ -414,6 +482,7 @@ class MessagesListState extends State<MessagesList> {
       setState(() => _highlightedMessageId = targetMessageId);
       _startHighlightTimer();
     }
+    if (found && mounted) _schedulePositionSave(const Duration(seconds: 2));
   }
 
   Future<bool> _revealMessage(int messageId, {double alignment = 0.5}) async {
@@ -728,6 +797,10 @@ class MessagesListState extends State<MessagesList> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               _scheduleReadTracking();
+              if (_positionTimer == null &&
+                  (_restoredPosition || widget.initialPosition == null)) {
+                _schedulePositionSave(const Duration(seconds: 5));
+              }
               final loaded = _chatState;
               if (loaded is MessageLoaded &&
                   loaded.hasNewerMessages &&
@@ -764,6 +837,22 @@ class MessagesListState extends State<MessagesList> {
           final actions = state is MessageLoaded ? state.actions : const [];
           if (messages.isEmpty) {
             if (actions.isNotEmpty) {
+              if (widget.initialPosition?.kind ==
+                      ChatPositionKind.historyAction &&
+                  !_restoredPosition) {
+                _restoredPosition = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  if (!mounted) return;
+                  final actionContext =
+                      _actionKeys[widget.initialPosition!.id]?.currentContext;
+                  if (actionContext != null && actionContext.mounted) {
+                    await Scrollable.ensureVisible(
+                      actionContext,
+                      alignment: 0.1,
+                    );
+                  }
+                });
+              }
               final sortedActions = [...actions]
                 ..sort((a, b) => (b.id ?? 0).compareTo(a.id ?? 0));
               return ListView.builder(
@@ -787,7 +876,12 @@ class MessagesListState extends State<MessagesList> {
                       if (dayLabel != null && dayLabel != olderDayLabel)
                         DaySeparator(label: dayLabel),
                       HistoryActionItem(
-                        key: ValueKey('history-${action.id}'),
+                        key: action.id == null
+                            ? null
+                            : _actionKeys.putIfAbsent(
+                                action.id!,
+                                () => GlobalKey(),
+                              ),
                         action: action,
                       ),
                     ],
@@ -808,7 +902,26 @@ class MessagesListState extends State<MessagesList> {
             );
           }
 
-          if (widget.initialPositionId != null &&
+          if (widget.initialPosition?.kind == ChatPositionKind.historyAction &&
+              !_restoredPosition &&
+              state is MessageLoaded &&
+              !state.isLoadingMore) {
+            _restoredPosition = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!mounted) return;
+              final anchor = widget.initialPosition!;
+              if (anchor.aroundMessageId != null) {
+                await _revealMessage(anchor.aroundMessageId!, alignment: 0.1);
+              }
+              await WidgetsBinding.instance.endOfFrame;
+              if (!mounted) return;
+              final actionContext = _actionKeys[anchor.id]?.currentContext;
+              if (actionContext != null && actionContext.mounted) {
+                await Scrollable.ensureVisible(actionContext, alignment: 0.1);
+              }
+            });
+          }
+          if (widget.initialPosition?.kind == ChatPositionKind.message &&
               !_restoredPosition &&
               state is MessageLoaded &&
               !state.isLoadingMore) {
@@ -850,14 +963,14 @@ class MessagesListState extends State<MessagesList> {
           final anchorIndex = _resolveAnchorIndex(messages);
           final actionsByMessageIndex = <int, List<HistoryAction>>{};
           for (final action in actions) {
-            final lastId = action.lastIdMessage ?? 0;
-            final index = messages.indexWhere((m) => (m.id ?? 0) <= lastId);
-            if (index < 0 && state is MessageLoaded && state.hasMoreMessages) {
-              continue;
+            final index = historyActionIndexInMessages(
+              messages,
+              action.lastIdMessage,
+              hasMoreMessages: state is MessageLoaded && state.hasMoreMessages,
+            );
+            if (index != null) {
+              (actionsByMessageIndex[index] ??= []).add(action);
             }
-            (actionsByMessageIndex[index < 0 ? messages.length - 1 : index] ??=
-                    [])
-                .add(action);
           }
           for (final entries in actionsByMessageIndex.values) {
             entries.sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
@@ -964,7 +1077,9 @@ class MessagesListState extends State<MessagesList> {
               }
               actionWidgets.add(
                 HistoryActionItem(
-                  key: ValueKey('history-${action.id}'),
+                  key: action.id == null
+                      ? null
+                      : _actionKeys.putIfAbsent(action.id!, () => GlobalKey()),
                   action: action,
                 ),
               );
@@ -973,7 +1088,9 @@ class MessagesListState extends State<MessagesList> {
             return Column(
               key: ValueKey(messageId),
               mainAxisSize: MainAxisSize.min,
-              children: [finalWidget, ...actionWidgets],
+              children: message.id == null
+                  ? [...actionWidgets, finalWidget]
+                  : [finalWidget, ...actionWidgets],
             );
           }
 

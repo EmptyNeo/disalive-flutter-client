@@ -33,11 +33,15 @@ void main() {
       'revoked': 0,
       'maxInvite': '20',
       'callEntity': {'id': '9', 'type': 'chat'},
+      'targetChatId': '91',
+      'targetChatName': 'Голосовой канал',
     });
     expect(invite.id, 4);
     expect(invite.entityId, 2);
     expect(invite.memberCount, 12);
     expect(invite.maxInvite, 20);
+    expect(invite.targetChatId, 91);
+    expect(invite.targetChatName, 'Голосовой канал');
     expect(invite.isRevoked, isFalse);
     expect(
       invite.callEntity,
@@ -69,14 +73,31 @@ void main() {
             'maxInvite': 10,
           });
         case '/v1/invites/get.php':
+          if (request.method == 'POST') {
+            return _ok({
+              'isMember': true,
+              'entityId': 2,
+              'entityType': 'server',
+              'targetChatId': 91,
+            });
+          }
           return _ok({
-            'invite': {'id': 5, 'code': 'Ab12Cd34', 'entityId': 2},
+            'invite': {
+              'id': 5,
+              'code': 'Ab12Cd34',
+              'entityId': 2,
+              'targetChatId': 91,
+            },
             'server': {'id': 2, 'name': 'Team'},
+            'targetChatName': 'Голосовой канал',
           });
         case '/v1/invites/accept.php':
           return _ok({
             'message': 'Successfully joined server',
             'server': {'id': 2, 'name': 'Team'},
+            'entityId': 2,
+            'entityType': 'server',
+            'targetChatId': 91,
           });
         default:
           throw StateError('Unexpected path: ${request.url.path}');
@@ -99,6 +120,7 @@ void main() {
       EntityType.server,
       'Ab12Cd34',
       callEntity: const EntityKey(entityId: 9, entityType: EntityType.chat),
+      targetChatId: 91,
       maxUsers: 10,
       expiresAt: 1800,
     );
@@ -115,6 +137,7 @@ void main() {
     expect(requests[1].bodyFields, containsPair('expiresAt', '1800'));
     expect(requests[1].bodyFields, containsPair('callEntity[id]', '9'));
     expect(requests[1].bodyFields, containsPair('callEntity[type]', 'chat'));
+    expect(requests[1].bodyFields, containsPair('targetChatId', '91'));
 
     final details = await repository.getByCode('Ab12Cd34');
     expect(details.isRight(), isTrue);
@@ -125,13 +148,52 @@ void main() {
     expect(requests[2].method, 'GET');
     expect(requests[2].url.queryParameters['code'], 'Ab12Cd34');
     expect(requests[2].url.queryParameters.containsKey('keySession'), isFalse);
+    expect(
+      details.getOrElse(() => throw StateError('No details')).targetChatName,
+      'Голосовой канал',
+    );
+
+    final membership = await repository.checkMembership('Ab12Cd34');
+    expect(membership.isRight(), isTrue);
+    expect(
+      membership.getOrElse(() => throw StateError('No membership')).isMember,
+      isTrue,
+    );
+    expect(
+      membership
+          .getOrElse(() => throw StateError('No membership'))
+          .targetChatId,
+      91,
+    );
+    expect(requests[3].method, 'POST');
+    expect(requests[3].bodyFields, containsPair('code', 'Ab12Cd34'));
+    expect(requests[3].bodyFields, containsPair('keySession', 'session-key'));
 
     final accepted = await repository.accept('Ab12Cd34');
     expect(accepted.isRight(), isTrue);
     expect(accepted.getOrElse(() => const InviteAcceptance()).server?.id, 2);
-    expect(requests[3].method, 'POST');
-    expect(requests[3].bodyFields, containsPair('code', 'Ab12Cd34'));
-    expect(requests[3].bodyFields, containsPair('keySession', 'session-key'));
+    expect(accepted.getOrElse(() => const InviteAcceptance()).targetChatId, 91);
+    expect(requests[4].method, 'POST');
+    expect(requests[4].bodyFields, containsPair('code', 'Ab12Cd34'));
+    expect(requests[4].bodyFields, containsPair('keySession', 'session-key'));
+  });
+
+  test('group invitation parses chat and joined conversation', () {
+    final details = InviteDetails.fromMap({
+      'invite': {'id': 12, 'entityId': 7, 'entityType': 'chat'},
+      'chat': {'chatId': 7, 'name': 'Группа'},
+    });
+    expect(details.chat?.id, 7);
+    expect(details.chat?.name, 'Группа');
+
+    final acceptance = InviteAcceptance.fromMap({
+      'entityId': 7,
+      'entityType': 'chat',
+      'alreadyMember': false,
+      'conversation': {'chatId': 7, 'name': 'Группа'},
+    });
+    expect(acceptance.conversation?.id, 7);
+    expect(acceptance.entityType, EntityType.chat);
   });
 
   test(

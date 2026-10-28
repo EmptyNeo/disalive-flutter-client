@@ -3,12 +3,22 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/permissions.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/calls/pip_service.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
 import 'package:disalive/presentation/features/calls/call_pip_overlay.dart';
+import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
+import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
+import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
+import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -25,12 +35,24 @@ class CallScreen extends StatefulWidget {
     required this.entityKey,
     required this.title,
     this.lastIdMessage,
+    this.canOpenInvite = false,
   });
 
   final int chatId;
   final EntityKey entityKey;
   final String title;
   final int? lastIdMessage;
+  final bool canOpenInvite;
+
+  static T? _optionalBloc<T extends StateStreamableSource<Object?>>(
+    BuildContext context,
+  ) {
+    try {
+      return context.read<T>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
 
   static Future<void> open(
     BuildContext context, {
@@ -39,10 +61,21 @@ class CallScreen extends StatefulWidget {
     required String title,
     int? lastIdMessage,
     CallBloc? callBloc,
+    ChatBloc? chatBloc,
+    ServersBloc? serversBloc,
+    MessageBloc? messageBloc,
+    InvitesBloc? invitesBloc,
     bool announceCall = true,
   }) {
     final navigator = Navigator.of(context);
     final bloc = callBloc ?? context.read<CallBloc>();
+    final scopedChatBloc = chatBloc ?? _optionalBloc<ChatBloc>(context);
+    final scopedServersBloc =
+        serversBloc ?? _optionalBloc<ServersBloc>(context);
+    final scopedMessageBloc =
+        messageBloc ?? _optionalBloc<MessageBloc>(context);
+    final scopedInvitesBloc =
+        invitesBloc ?? _optionalBloc<InvitesBloc>(context);
     final active =
         bloc.state.status == CallStatus.connecting ||
         bloc.state.status == CallStatus.connected;
@@ -62,6 +95,10 @@ class CallScreen extends StatefulWidget {
           entityKey: state.entityKey ?? entityKey,
           title: state.title ?? title,
           callBloc: bloc,
+          chatBloc: scopedChatBloc,
+          serversBloc: scopedServersBloc,
+          messageBloc: scopedMessageBloc,
+          invitesBloc: scopedInvitesBloc,
         );
       },
     );
@@ -79,13 +116,29 @@ class CallScreen extends StatefulWidget {
     }
     return navigator.push(
       CupertinoPageRoute<void>(
-        builder: (_) => BlocProvider.value(
-          value: bloc,
+        builder: (_) => MultiBlocProvider(
+          providers: [
+            BlocProvider.value(value: bloc),
+            if (scopedChatBloc != null)
+              BlocProvider.value(value: scopedChatBloc),
+            if (scopedServersBloc != null)
+              BlocProvider.value(value: scopedServersBloc),
+            if (scopedMessageBloc != null)
+              BlocProvider.value(value: scopedMessageBloc),
+            if (scopedInvitesBloc != null)
+              BlocProvider.value(value: scopedInvitesBloc),
+          ],
           child: CallScreen(
             chatId: currentChatId,
             entityKey: currentEntityKey,
             title: currentTitle,
             lastIdMessage: lastIdMessage,
+            canOpenInvite:
+                scopedChatBloc != null &&
+                scopedMessageBloc != null &&
+                scopedInvitesBloc != null &&
+                (currentEntityKey.entityType != EntityType.server ||
+                    scopedServersBloc != null),
           ),
         ),
       ),
@@ -112,6 +165,48 @@ class _CallScreenState extends State<CallScreen> {
   Timer? _overlayTimer;
   late final int _ownSystemUiEpoch;
   Future<void>? _restoreSystemUiFuture;
+
+  bool get _canCreateCallInvite {
+    if (widget.entityKey.entityType == EntityType.server) {
+      if (!sl.isRegistered<ServerRepository>()) return false;
+      final server = sl<ServerRepository>().getByIdCached(
+        widget.entityKey.entityId,
+      );
+      return server != null &&
+          (server.isServerOwner ||
+              server.hasPermission(ServerPermissions.manageInvites));
+    }
+    if (!sl.isRegistered<ChatRepository>()) return false;
+    final chats = sl<ChatRepository>().getCached();
+    final chat = chats.where((item) => item.id == widget.chatId).firstOrNull;
+    return chat != null &&
+        (chat.isOwner ||
+            chat.role?.hasPermission(ChatPermissions.manageInvites) == true ||
+            chat.member?.role?.hasPermission(ChatPermissions.manageInvites) ==
+                true);
+  }
+
+  Widget _inviteButton() {
+    if (!widget.canOpenInvite || !_canCreateCallInvite) {
+      return const SizedBox.shrink();
+    }
+    return CupertinoButton(
+      key: const ValueKey('invite_to_call'),
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(40, 40),
+      onPressed: () => InviteServerScreen.openCall(
+        context,
+        entityKey: widget.entityKey,
+        targetChatId: widget.chatId,
+        title: widget.title,
+      ),
+      child: const Icon(
+        CupertinoIcons.person_add,
+        color: CupertinoColors.white,
+        size: 22,
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -684,6 +779,18 @@ class _CallScreenState extends State<CallScreen> {
                 ],
               ),
             ),
+            if (widget.canOpenInvite &&
+                widget.entityKey.entityType == EntityType.server &&
+                sl.isRegistered<ServerRepository>())
+              BlocBuilder<ServersBloc, ServersState>(
+                builder: (_, _) => _inviteButton(),
+              )
+            else if (widget.canOpenInvite &&
+                widget.entityKey.entityType == EntityType.chat &&
+                sl.isRegistered<ChatRepository>())
+              BlocBuilder<ChatBloc, ChatState>(
+                builder: (_, _) => _inviteButton(),
+              ),
             if (tileForFullscreen != null)
               CupertinoButton(
                 padding: EdgeInsets.zero,

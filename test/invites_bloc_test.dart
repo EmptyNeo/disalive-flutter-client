@@ -27,6 +27,7 @@ class _InvitesRepository implements InviteRepository {
     EntityType entityType,
     String code, {
     EntityKey? callEntity,
+    int? targetChatId,
     int maxUsers = 0,
     int? expiresAt,
   }) async => Right(
@@ -41,6 +42,17 @@ class _InvitesRepository implements InviteRepository {
   @override
   Future<Either<Failure, InviteDetails>> getByCode(String code) =>
       lookups.putIfAbsent(code, Completer.new).future;
+
+  @override
+  Future<Either<Failure, InviteMembership>> checkMembership(
+    String code,
+  ) async => const Right(
+    InviteMembership(
+      isMember: false,
+      entityId: 2,
+      entityType: EntityType.server,
+    ),
+  );
 
   @override
   Future<Either<Failure, List<InviteData>>> getForServer(int serverId) async {

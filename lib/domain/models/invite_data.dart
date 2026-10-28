@@ -3,6 +3,7 @@ import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
@@ -12,6 +13,8 @@ class InviteData extends Equatable {
   final int? entityId;
   final String? entityType;
   final EntityKey? callEntity;
+  final int? targetChatId;
+  final String? targetChatName;
   final int? fkCreator;
   final String? code;
   final String? name;
@@ -30,6 +33,8 @@ class InviteData extends Equatable {
     this.entityId,
     this.entityType,
     this.callEntity,
+    this.targetChatId,
+    this.targetChatName,
     this.fkCreator,
     this.code,
     this.name,
@@ -63,6 +68,8 @@ class InviteData extends Equatable {
       entityId: DataParser.parseInt(map['entityId']),
       entityType: map['entityType'] as String?,
       callEntity: callEntity,
+      targetChatId: DataParser.parseInt(map['targetChatId']),
+      targetChatName: map['targetChatName'] as String?,
       fkCreator: DataParser.parseInt(map['fkCreator']),
       code: map['code'] as String?,
       name: map['name'],
@@ -90,6 +97,8 @@ class InviteData extends Equatable {
           'id': callEntity!.entityId,
           'type': callEntity!.entityType.value,
         },
+      if (targetChatId != null) 'targetChatId': targetChatId,
+      if (targetChatName != null) 'targetChatName': targetChatName,
       if (fkCreator != null) 'fkCreator': fkCreator,
       if (code != null) 'code': code,
       if (name != null) 'name': name,
@@ -110,6 +119,8 @@ class InviteData extends Equatable {
     int? entityId,
     String? entityType,
     EntityKey? callEntity,
+    int? targetChatId,
+    String? targetChatName,
     int? fkCreator,
     String? code,
     String? name,
@@ -128,6 +139,8 @@ class InviteData extends Equatable {
       entityId: entityId ?? this.entityId,
       entityType: entityType ?? this.entityType,
       callEntity: callEntity ?? this.callEntity,
+      targetChatId: targetChatId ?? this.targetChatId,
+      targetChatName: targetChatName ?? this.targetChatName,
       fkCreator: fkCreator ?? this.fkCreator,
       code: code ?? this.code,
       name: name ?? this.name,
@@ -159,6 +172,8 @@ class InviteData extends Equatable {
     entityId,
     entityType,
     callEntity,
+    targetChatId,
+    targetChatName,
     fkCreator,
     code,
     name,
@@ -177,25 +192,76 @@ class InviteData extends Equatable {
 class InviteDetails extends Equatable {
   final InviteData invite;
   final Server? server;
+  final Chat? chat;
+  final String? targetChatName;
 
-  const InviteDetails({required this.invite, this.server});
+  const InviteDetails({
+    required this.invite,
+    this.server,
+    this.chat,
+    this.targetChatName,
+  });
 
   factory InviteDetails.fromMap(Map<String, dynamic> map) => InviteDetails(
     invite: InviteData.fromMap(map['invite'] as Map<String, dynamic>),
     server: map['server'] is Map<String, dynamic>
         ? Server.fromMap(map['server'] as Map<String, dynamic>)
         : null,
+    chat: map['chat'] is Map<String, dynamic>
+        ? Chat.fromMap(map['chat'] as Map<String, dynamic>)
+        : null,
+    targetChatName: map['targetChatName'] as String?,
   );
 
   @override
-  List<Object?> get props => [invite, server];
+  List<Object?> get props => [invite, server, chat, targetChatName];
+}
+
+class InviteMembership extends Equatable {
+  const InviteMembership({
+    required this.isMember,
+    required this.entityId,
+    required this.entityType,
+    this.targetChatId,
+  });
+
+  final bool isMember;
+  final int entityId;
+  final EntityType entityType;
+  final int? targetChatId;
+
+  factory InviteMembership.fromMap(Map<String, dynamic> map) =>
+      InviteMembership(
+        isMember: DataParser.parseBool(map['isMember']) ?? false,
+        entityId: DataParser.parseInt(map['entityId']) ?? 0,
+        entityType: EntityType.fromString(map['entityType'] as String?),
+        targetChatId: DataParser.parseInt(map['targetChatId']),
+      );
+
+  @override
+  List<Object?> get props => [isMember, entityId, entityType, targetChatId];
 }
 
 class InviteAcceptance extends Equatable {
   final String? message;
   final Server? server;
+  final Chat? chat;
+  final Chat? conversation;
+  final int? entityId;
+  final EntityType? entityType;
+  final int? targetChatId;
+  final bool alreadyMember;
 
-  const InviteAcceptance({this.message, this.server});
+  const InviteAcceptance({
+    this.message,
+    this.server,
+    this.chat,
+    this.conversation,
+    this.entityId,
+    this.entityType,
+    this.targetChatId,
+    this.alreadyMember = false,
+  });
 
   factory InviteAcceptance.fromMap(Map<String, dynamic> map) =>
       InviteAcceptance(
@@ -203,8 +269,29 @@ class InviteAcceptance extends Equatable {
         server: map['server'] is Map<String, dynamic>
             ? Server.fromMap(map['server'] as Map<String, dynamic>)
             : null,
+        chat: map['chat'] is Map<String, dynamic>
+            ? Chat.fromMap(map['chat'] as Map<String, dynamic>)
+            : null,
+        conversation: map['conversation'] is Map<String, dynamic>
+            ? Chat.fromMap(map['conversation'] as Map<String, dynamic>)
+            : null,
+        entityId: DataParser.parseInt(map['entityId']),
+        entityType: map['entityType'] is String
+            ? EntityType.fromString(map['entityType'] as String)
+            : null,
+        targetChatId: DataParser.parseInt(map['targetChatId']),
+        alreadyMember: DataParser.parseBool(map['alreadyMember']) ?? false,
       );
 
   @override
-  List<Object?> get props => [message, server];
+  List<Object?> get props => [
+    message,
+    server,
+    chat,
+    conversation,
+    entityId,
+    entityType,
+    targetChatId,
+    alreadyMember,
+  ];
 }

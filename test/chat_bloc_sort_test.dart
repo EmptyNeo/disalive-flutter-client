@@ -2,6 +2,8 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/permissions.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
@@ -51,6 +53,51 @@ class _CurrentUserRepository implements UserRepository {
 }
 
 void main() {
+  test('updated group role refreshes invitation permission', () async {
+    final repository = _FakeChatRepository();
+    repository.chats[0] = const Chat(
+      id: 2,
+      name: 'Группа',
+      roleId: 5,
+      role: RoleMember(id: 5, permissions: {'manageInvites': false}),
+      member: Member(fkRole: 5),
+    );
+    final bus = WsEventBus();
+    final bloc = ChatBloc(repository, bus)..setupListeners();
+    final updated = bloc.stream.firstWhere(
+      (state) =>
+          state is ChatLoaded &&
+          state.chats.first.role?.hasPermission(
+                ChatPermissions.manageInvites,
+              ) ==
+              true,
+    );
+    bus.dispatch(
+      WsEvent(
+        table: 'RoleMembers',
+        action: ActionType.update,
+        data: {
+          'entityId': 2,
+          'entityType': 'chat',
+          'role': {
+            'id': 5,
+            'permissions': {'manageInvites': true},
+          },
+        },
+        isSelf: false,
+      ),
+    );
+    await updated;
+    expect(
+      repository.chats.first.member?.role?.hasPermission(
+        ChatPermissions.manageInvites,
+      ),
+      isTrue,
+    );
+    await bloc.close();
+    bus.dispose();
+  });
+
   test(
     'deletion reduces only unread messages written by someone else',
     () async {

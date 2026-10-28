@@ -2,6 +2,7 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/server.dart';
@@ -22,11 +23,50 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class InviteServerScreen extends StatefulWidget {
-  const InviteServerScreen({super.key, required this.server});
+  const InviteServerScreen({
+    super.key,
+    this.server,
+    this.chat,
+    this.callEntity,
+    this.targetChatId,
+    this.callTitle,
+  });
 
-  final Server server;
+  final Server? server;
+  final Chat? chat;
+  final EntityKey? callEntity;
+  final int? targetChatId;
+  final String? callTitle;
 
-  static Future<void> open(BuildContext context, {required Server server}) {
+  int get entityId => server?.id ?? chat?.id ?? callEntity!.entityId;
+  EntityType get entityType => server != null
+      ? EntityType.server
+      : chat != null
+      ? EntityType.chat
+      : callEntity!.entityType;
+  String get entityName => server?.name ?? chat?.name ?? callTitle ?? 'чат';
+
+  static Future<void> open(BuildContext context, {required Server server}) =>
+      _open(context, InviteServerScreen(server: server));
+
+  static Future<void> openChat(BuildContext context, {required Chat chat}) =>
+      _open(context, InviteServerScreen(chat: chat));
+
+  static Future<void> openCall(
+    BuildContext context, {
+    required EntityKey entityKey,
+    required int targetChatId,
+    required String title,
+  }) => _open(
+    context,
+    InviteServerScreen(
+      callEntity: entityKey,
+      targetChatId: targetChatId,
+      callTitle: title,
+    ),
+  );
+
+  static Future<void> _open(BuildContext context, InviteServerScreen screen) {
     final chatBloc = context.read<ChatBloc>();
     final messageBloc = context.read<MessageBloc>();
     final invitesBloc = context.read<InvitesBloc>();
@@ -38,7 +78,7 @@ class InviteServerScreen extends StatefulWidget {
           BlocProvider.value(value: messageBloc),
           BlocProvider.value(value: invitesBloc),
         ],
-        child: InviteServerScreen(server: server),
+        child: screen,
       ),
     );
   }
@@ -106,9 +146,11 @@ class _InviteServerScreenState extends State<InviteServerScreen> {
   Future<InviteData?> _createInvite(String code) async {
     _invitesBloc.add(
       CreateInvite(
-        entityId: widget.server.id!,
-        entityType: EntityType.server,
+        entityId: widget.entityId,
+        entityType: widget.entityType,
         code: code,
+        callEntity: widget.callEntity,
+        targetChatId: widget.targetChatId,
         maxUsers: _usageLimit.value,
         expiresAt: _lifetime.durationSeconds,
       ),
@@ -380,7 +422,11 @@ class _InviteServerScreenState extends State<InviteServerScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Или отправьте другу ссылку-приглашение на сервер',
+          widget.targetChatId != null
+              ? 'Или отправьте другу приглашение в звонок'
+              : widget.entityType == EntityType.chat
+              ? 'Или отправьте другу приглашение в группу'
+              : 'Или отправьте другу ссылку-приглашение на сервер',
           style: TextStyle(
             color: AppColors.white,
             fontSize: 15,
@@ -445,8 +491,12 @@ class _InviteServerScreenState extends State<InviteServerScreen> {
 
   @override
   Widget build(BuildContext context) => RoleScreenShell(
-    title: 'Пригласить в ${widget.server.name ?? 'сервер'}',
-    subtitle: 'Сервер',
+    title: 'Пригласить в ${widget.entityName}',
+    subtitle: widget.targetChatId != null
+        ? 'Звонок'
+        : widget.entityType == EntityType.chat
+        ? 'Группа'
+        : 'Сервер',
     child: BlocBuilder<ChatBloc, ChatState>(
       builder: (context, state) {
         final chats = state is ChatLoaded

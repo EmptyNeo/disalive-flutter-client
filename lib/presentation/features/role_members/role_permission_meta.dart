@@ -20,6 +20,12 @@ List<RolePermissionMeta> rolePermissionsFor(EntityType type) => [
       'Управление чатом',
       'Позволяет редактировать чат',
     ),
+  if (type == EntityType.chat)
+    const RolePermissionMeta(
+      ChatPermissions.manageInvites,
+      'Управление приглашениями',
+      'Создание и отзыв приглашений',
+    ),
   if (type == EntityType.server) ...[
     const RolePermissionMeta(
       ServerPermissions.manageServer,

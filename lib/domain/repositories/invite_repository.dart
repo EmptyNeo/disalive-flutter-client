@@ -12,12 +12,15 @@ abstract class InviteRepository {
     EntityType entityType,
     String code, {
     EntityKey? callEntity,
+    int? targetChatId,
     int maxUsers = 0,
     int? expiresAt,
   });
 
   /// Public lookup for the invitation page; no session is required.
   Future<Either<Failure, InviteDetails>> getByCode(String code);
+
+  Future<Either<Failure, InviteMembership>> checkMembership(String code);
 
   Future<Either<Failure, List<InviteData>>> getForServer(int serverId);
 
