@@ -7,8 +7,10 @@ import 'package:disalive/domain/enums/email_type.dart';
 import 'package:disalive/domain/my_router.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/verify/verify_code_screen.dart';
+import 'package:disalive/presentation/widgets/link_opener.dart';
 import 'package:disalive/presentation/widgets/step_progress_indicator.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -34,10 +36,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordFocus = FocusNode();
 
   bool _obscurePassword = true;
+  bool _acceptedTerms = false;
+  bool _acceptedPersonalData = false;
+  late final TapGestureRecognizer _termsRecognizer;
+  late final TapGestureRecognizer _personalDataRecognizer;
+  late final TapGestureRecognizer _privacyRecognizer;
 
   @override
   void initState() {
     super.initState();
+    _termsRecognizer = TapGestureRecognizer()
+      ..onTap = () =>
+          LinkOpener.confirmAndOpen(context, 'https://disalive.ru/terms');
+    _personalDataRecognizer = TapGestureRecognizer()
+      ..onTap = () => LinkOpener.confirmAndOpen(
+        context,
+        'https://disalive.ru/personal-data-consent',
+      );
+    _privacyRecognizer = TapGestureRecognizer()
+      ..onTap = () =>
+          LinkOpener.confirmAndOpen(context, 'https://disalive.ru/privacy');
   }
 
   @override
@@ -50,7 +68,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _displayNameFocus.dispose();
     _usernameFocus.dispose();
     _passwordFocus.dispose();
+    _termsRecognizer.dispose();
+    _personalDataRecognizer.dispose();
+    _privacyRecognizer.dispose();
     super.dispose();
+  }
+
+  Widget _buildConsentRow({
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    required String prefix,
+    required String linkText,
+    required TapGestureRecognizer recognizer,
+  }) {
+    final textStyle = AppText.lowTextStyle.copyWith(
+      color: AppColors.white,
+      fontSize: 13,
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CupertinoCheckbox(
+          value: value,
+          activeColor: AppColors.blurple,
+          onChanged: (checked) => onChanged(checked ?? false),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 9),
+            child: Text.rich(
+              TextSpan(
+                style: textStyle,
+                children: [
+                  TextSpan(text: prefix),
+                  TextSpan(
+                    text: linkText,
+                    style: textStyle.copyWith(
+                      color: AppColors.linkBlue,
+                      decoration: TextDecoration.underline,
+                    ),
+                    recognizer: recognizer,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   // 🎯 Хелпер для построения лейбла
@@ -516,6 +582,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
+          const SizedBox(height: 20),
+          _buildConsentRow(
+            value: _acceptedTerms,
+            onChanged: (checked) => setState(() => _acceptedTerms = checked),
+            prefix: 'Я соглашаюсь с ',
+            linkText: 'пользовательским соглашением',
+            recognizer: _termsRecognizer,
+          ),
+          const SizedBox(height: 8),
+          _buildConsentRow(
+            value: _acceptedPersonalData,
+            onChanged: (checked) =>
+                setState(() => _acceptedPersonalData = checked),
+            prefix: 'Я даю ',
+            linkText: 'согласие на обработку персональных данных',
+            recognizer: _personalDataRecognizer,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 48, top: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text.rich(
+                TextSpan(
+                  style: AppText.lowTextStyle.copyWith(
+                    color: AppColors.greyple,
+                    fontSize: 12,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Подробнее об обработке данных — в '),
+                    TextSpan(
+                      text: 'политике конфиденциальности',
+                      style: AppText.lowTextStyle.copyWith(
+                        color: AppColors.linkBlue,
+                        fontSize: 12,
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _privacyRecognizer,
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           if (state.generalError != null) ...[
             const SizedBox(height: 12),
             Text(
@@ -533,7 +644,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               onPressed:
                   (state.isSubmitLoading ||
                       state.isUsernameLoading ||
-                      state.usernameError != null)
+                      state.usernameError != null ||
+                      !_acceptedTerms ||
+                      !_acceptedPersonalData)
                   ? null
                   : () {
                       FocusScope.of(context).unfocus();

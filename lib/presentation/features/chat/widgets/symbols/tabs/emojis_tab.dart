@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/preferred_reaction.dart';
@@ -24,14 +26,20 @@ class EmojisTab extends StatefulWidget {
 
 class _EmojisTabState extends State<EmojisTab> {
   final ScrollController _scrollController = ScrollController();
-  final Map<String, GlobalKey> _categoryKeys = {};
   List<String> _categories = [];
   final frequentKey = 'frequent';
+  double _contentWidth = 0;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _loadCategories() {
@@ -41,22 +49,47 @@ class _EmojisTabState extends State<EmojisTab> {
         widget.preferredReactions!.isNotEmpty) {
       _categories.insert(0, frequentKey);
     }
+  }
 
-    for (var name in _categories) {
-      _categoryKeys[name] = GlobalKey();
-    }
+  double _categoryExtent(String name, double width) {
+    final isFrequent = name == frequentKey;
+    final count = isFrequent
+        ? widget.preferredReactions?.length ?? 0
+        : EmojisHandler.instance.getSheetDataByName(name)?.emojis.length ?? 0;
+    final style = AppText.lowTextStyle.copyWith(
+      color: AppColors.greyple,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1,
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: isFrequent ? 'Частые реакции' : name, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: width - 4);
+    final headerHeight = painter.height + (isFrequent ? 4 : 8);
+    painter.dispose();
+
+    final rows = (count + 7) ~/ 8;
+    final cellSize = (width - 7 * 4) / 8;
+    final gridHeight = rows == 0 ? 0.0 : rows * cellSize + (rows - 1) * 4;
+    return headerHeight + gridHeight + (isFrequent ? 8 : 16);
   }
 
   void _scrollToCategory(String categoryName) {
-    final key = _categoryKeys[categoryName];
-    if (key?.currentContext != null) {
-      Scrollable.ensureVisible(
-        key!.currentContext!,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        alignment: 0.0,
-      );
+    final index = _categories.indexOf(categoryName);
+    if (index < 0 || !_scrollController.hasClients) return;
+
+    // The list has exact extents, so even sections outside the viewport have
+    // a stable offset and do not need a mounted BuildContext.
+    var offset = 8.0; // ListView top padding.
+    for (var i = 0; i < index; i++) {
+      offset += _categoryExtent(_categories[i], _contentWidth);
     }
+    _scrollController.animateTo(
+      offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -66,63 +99,85 @@ class _EmojisTabState extends State<EmojisTab> {
         Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(8),
-                itemCount: _categories.length,
-                itemBuilder: (context, index) {
-                  final categoryName = _categories[index];
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  _contentWidth = constraints.maxWidth - 16;
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _categories.length,
+                    itemExtentBuilder: (index, _) =>
+                        _categoryExtent(_categories[index], _contentWidth),
+                    itemBuilder: (context, index) {
+                      final categoryName = _categories[index];
 
-                  if (categoryName == frequentKey) {
-                    return _buildFrequentCategory(context);
-                  }
+                      if (categoryName == frequentKey) {
+                        return _buildFrequentCategory(context);
+                      }
 
-                  final sheetData = EmojisHandler.instance.getSheetDataByName(
-                    categoryName,
-                  );
-                  if (sheetData == null) return const SizedBox.shrink();
+                      final sheetData = EmojisHandler.instance
+                          .getSheetDataByName(categoryName);
+                      if (sheetData == null) return const SizedBox.shrink();
 
-                  return Container(
-                    key: _categoryKeys[categoryName],
-                    margin: const EdgeInsets.only(bottom: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8, left: 4),
-                          child: Text(
-                            categoryName,
-                            style: AppText.lowTextStyle.copyWith(
-                              color: AppColors.greyple,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.zero,
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 8,
-                                mainAxisSpacing: 4,
-                                crossAxisSpacing: 4,
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 8,
+                                left: 4,
                               ),
-                          itemCount: sheetData.emojis.length,
-                          itemBuilder: (context, i) {
-                            final emoji = sheetData.emojis.values.elementAt(i);
-                            return EmojiWidget(
-                              emoji: emoji,
-                              sheetData: sheetData,
-                              size: 30,
-                              onTap: widget.onTap,
-                              animate: false,
-                            );
-                          },
+                              child: Text(
+                                categoryName,
+                                style: AppText.lowTextStyle.copyWith(
+                                  color: AppColors.greyple,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final cellSize =
+                                    (constraints.maxWidth - 7 * 4) / 8;
+                                final emojiSize = math.max(
+                                  1.0,
+                                  math.min(30.0, cellSize - 2),
+                                );
+                                return GridView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: EdgeInsets.zero,
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 8,
+                                        mainAxisSpacing: 4,
+                                        crossAxisSpacing: 4,
+                                      ),
+                                  itemCount: sheetData.emojis.length,
+                                  itemBuilder: (context, i) {
+                                    final emoji = sheetData.emojis.values
+                                        .elementAt(i);
+                                    return Center(
+                                      child: EmojiWidget(
+                                        emoji: emoji,
+                                        sheetData: sheetData,
+                                        size: emojiSize,
+                                        frameInset: 1,
+                                        onTap: widget.onTap,
+                                        animate: false,
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -141,6 +196,7 @@ class _EmojisTabState extends State<EmojisTab> {
                   // 🎯 СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ КАТЕГОРИИ "ЧАСТЫЕ"
                   if (categoryName == frequentKey) {
                     return GestureDetector(
+                      key: ValueKey('emoji-category-$categoryName'),
                       onTap: () => _scrollToCategory(frequentKey),
                       child: Container(
                         width: 36,
@@ -172,6 +228,7 @@ class _EmojisTabState extends State<EmojisTab> {
                   final firstEmoji = sheetData.emojis.values.firstOrNull;
 
                   return GestureDetector(
+                    key: ValueKey('emoji-category-$categoryName'),
                     onTap: () => _scrollToCategory(categoryName),
                     child: Container(
                       width: 36,
@@ -189,6 +246,7 @@ class _EmojisTabState extends State<EmojisTab> {
                                 emoji: firstEmoji,
                                 sheetData: sheetData,
                                 size: 24,
+                                frameInset: 1,
                                 animate: false,
                               )
                             : const SizedBox.shrink(),
@@ -234,7 +292,6 @@ class _EmojisTabState extends State<EmojisTab> {
     }
 
     return Container(
-      key: _categoryKeys[frequentKey],
       margin: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,36 +307,44 @@ class _EmojisTabState extends State<EmojisTab> {
               ),
             ),
           ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 8,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-            ),
-            itemCount: widget.preferredReactions!.length,
-            itemBuilder: (context, i) {
-              final prefReaction = widget.preferredReactions![i];
-              final emoji = EmojisHandler.instance.getEmojiByName(
-                prefReaction.nameReaction ?? '',
-              );
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellSize = (constraints.maxWidth - 7 * 4) / 8;
+              final emojiSize = math.max(1.0, math.min(30.0, cellSize - 2));
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: widget.preferredReactions!.length,
+                itemBuilder: (context, i) {
+                  final prefReaction = widget.preferredReactions![i];
+                  final emoji = EmojisHandler.instance.getEmojiByName(
+                    prefReaction.nameReaction ?? '',
+                  );
 
-              if (emoji == null) return const SizedBox.shrink();
+                  if (emoji == null) return const SizedBox.shrink();
 
-              final sheetData = EmojisHandler.instance.getSheetDataByCategory(
-                emoji.categoryName ?? '',
-              );
+                  final sheetData = EmojisHandler.instance
+                      .getSheetDataByCategory(emoji.categoryName ?? '');
 
-              if (sheetData == null) return const SizedBox.shrink();
+                  if (sheetData == null) return const SizedBox.shrink();
 
-              return EmojiWidget(
-                emoji: emoji,
-                sheetData: sheetData,
-                size: 30,
-                onTap: (e) => widget.onTap(e),
-                animate: false,
+                  return Center(
+                    child: EmojiWidget(
+                      emoji: emoji,
+                      sheetData: sheetData,
+                      size: emojiSize,
+                      frameInset: 1,
+                      onTap: widget.onTap,
+                      animate: false,
+                    ),
+                  );
+                },
               );
             },
           ),
