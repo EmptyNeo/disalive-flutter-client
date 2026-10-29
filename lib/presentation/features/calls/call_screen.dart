@@ -19,6 +19,7 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
@@ -759,8 +760,14 @@ class _CallScreenState extends State<CallScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.title,
+                  Text.rich(
+                    TextSpan(
+                      children: EmojiTextParser.parse(
+                        widget.title,
+                        emojiSize: 19,
+                        animateEmoji: false,
+                      ),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

@@ -228,26 +228,32 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
               color: AppColors.iconGrey,
             ),
             const SizedBox(width: 10),
-            if (role.name?.trim().isNotEmpty == true)
-              Flexible(
-                child: Text(
-                  role.name!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.white),
-                ),
+            Expanded(
+              child: Row(
+                children: [
+                  if (role.name?.trim().isNotEmpty == true)
+                    Flexible(
+                      child: Text(
+                        role.name!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AppColors.white),
+                      ),
+                    ),
+                  if (role.emoji?.isNotEmpty == true) ...[
+                    if (role.name?.trim().isNotEmpty == true)
+                      const SizedBox(width: 6),
+                    RoleEmoji(role.emoji),
+                  ],
+                ],
               ),
-            if (role.emoji?.isNotEmpty == true) ...[
-              if (role.name?.trim().isNotEmpty == true)
-                const SizedBox(width: 6),
-              RoleEmoji(role.emoji),
-            ],
-            const Spacer(),
+            ),
             Icon(
               selected
                   ? CupertinoIcons.checkmark_circle_fill
                   : CupertinoIcons.circle,
               color: selected ? AppColors.blurple : AppColors.greyple,
+              size: 23,
             ),
           ],
         ),

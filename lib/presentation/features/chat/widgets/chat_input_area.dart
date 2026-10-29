@@ -13,6 +13,7 @@ import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/channel_mention.dart';
 import 'package:disalive/presentation/features/chat/user_mention.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/features/chat/widgets/attachments/attachment_container.dart';
 import 'package:disalive/presentation/features/chat/widgets/banners/input_banner_top.dart';
 import 'package:disalive/presentation/features/chat/widgets/voice/voice_record_overlay.dart';
@@ -287,8 +288,14 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    channel.chatName ?? 'Канал',
+                  child: Text.rich(
+                    TextSpan(
+                      children: EmojiTextParser.parse(
+                        channel.chatName ?? 'Канал',
+                        emojiSize: 18,
+                        animateEmoji: false,
+                      ),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.mediumTextStyle.copyWith(

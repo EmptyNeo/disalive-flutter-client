@@ -9,6 +9,7 @@ import 'package:disalive/presentation/features/channel_server/channel_access_scr
 import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_screen_shell.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/widgets/app_selection_sheet.dart';
 import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -284,8 +285,14 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        label,
+                      child: Text.rich(
+                        TextSpan(
+                          children: EmojiTextParser.parse(
+                            label,
+                            emojiSize: 17,
+                            animateEmoji: false,
+                          ),
+                        ),
                         style: TextStyle(color: AppColors.white),
                       ),
                     ),

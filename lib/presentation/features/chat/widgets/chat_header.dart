@@ -2,6 +2,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_text.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
@@ -109,8 +110,14 @@ class ChatHeader extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                title,
+                              Text.rich(
+                                TextSpan(
+                                  children: EmojiTextParser.parse(
+                                    title,
+                                    emojiSize: 18,
+                                    animateEmoji: false,
+                                  ),
+                                ),
                                 style: AppText.mediumTextStyle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

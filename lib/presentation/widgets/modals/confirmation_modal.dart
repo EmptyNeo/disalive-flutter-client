@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -105,8 +106,14 @@ class _ConfirmationModalContent extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    description,
+                  Text.rich(
+                    TextSpan(
+                      children: EmojiTextParser.parse(
+                        description,
+                        emojiSize: 16,
+                        animateEmoji: false,
+                      ),
+                    ),
                     textAlign: TextAlign.center,
                     style: AppText.mediumTextStyle.copyWith(
                       color: AppColors.greyple,

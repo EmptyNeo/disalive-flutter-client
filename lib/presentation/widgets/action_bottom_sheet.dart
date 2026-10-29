@@ -4,6 +4,7 @@ import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/reactions/reaction_item.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -232,8 +233,14 @@ class _ActionBottomSheetState extends State<ActionBottomSheet>
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.title != null)
-                  Text(
-                    widget.title!,
+                  Text.rich(
+                    TextSpan(
+                      children: EmojiTextParser.parse(
+                        widget.title!,
+                        emojiSize: 15,
+                        animateEmoji: false,
+                      ),
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.lowTextStyle.copyWith(

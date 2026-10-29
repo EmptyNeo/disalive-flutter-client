@@ -1,4 +1,5 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:flutter/cupertino.dart';
 
 class AppSelectionOption<T> {
@@ -159,8 +160,14 @@ class AppSelectionSheet<T> extends StatelessWidget {
             const SizedBox(width: 12),
           ],
           Expanded(
-            child: Text(
-              option.label,
+            child: Text.rich(
+              TextSpan(
+                children: EmojiTextParser.parse(
+                  option.label,
+                  emojiSize: 18,
+                  animateEmoji: false,
+                ),
+              ),
               style: AppText.mediumTextStyle.copyWith(color: AppColors.white),
             ),
           ),
