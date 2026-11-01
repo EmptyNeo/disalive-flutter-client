@@ -423,7 +423,7 @@ class _EmojisTabState extends State<EmojisTab> {
                   final token = preferredEmoji.emoji ?? '';
                   final emoji = EmojisHandler.instance.getEmojiByName(token);
 
-                  if (emoji == null) return const SizedBox.shrink());
+                  if (emoji == null) return const SizedBox.shrink();
 
                   final sheetData = EmojisHandler.instance
                       .getSheetDataByCategory(emoji.categoryName ?? '');
