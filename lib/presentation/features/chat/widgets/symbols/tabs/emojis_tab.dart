@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
+import 'package:disalive/domain/models/preferred_emoji.dart';
 import 'package:disalive/domain/models/preferred_reaction.dart';
 import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/widgets/custom_divider.dart';
@@ -12,12 +13,20 @@ class EmojisTab extends StatefulWidget {
   final Function(EmojiDefinition emoji) onTap;
   final VoidCallback? onBackspace;
   final List<PreferredReaction>? preferredReactions;
+  final List<PreferredEmoji>? preferredEmojis;
+
+  /// Обработчик нажатия на часто используемый эмодзи по токену вида
+  /// `[category:id]`. Если не задан, используется разбор токена через
+  /// [EmojisHandler] и вызов [onTap].
+  final Function(String emojiToken)? onFrequentEmojiTap;
 
   const EmojisTab({
     super.key,
     required this.onTap,
     this.onBackspace,
     this.preferredReactions,
+    this.preferredEmojis,
+    this.onFrequentEmojiTap,
   });
 
   @override
@@ -28,12 +37,29 @@ class _EmojisTabState extends State<EmojisTab> {
   final ScrollController _scrollController = ScrollController();
   List<String> _categories = [];
   final frequentKey = 'frequent';
+  final frequentEmojisKey = 'frequent-emojis';
   double _contentWidth = 0;
+
+  bool get _hasFrequentReactions =>
+      widget.preferredReactions != null &&
+      widget.preferredReactions!.isNotEmpty;
+
+  bool get _hasFrequentEmojis =>
+      widget.preferredEmojis != null && widget.preferredEmojis!.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _loadCategories();
+  }
+
+  @override
+  void didUpdateWidget(covariant EmojisTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.preferredReactions != widget.preferredReactions ||
+        oldWidget.preferredEmojis != widget.preferredEmojis) {
+      _loadCategories();
+    }
   }
 
   @override
@@ -45,24 +71,40 @@ class _EmojisTabState extends State<EmojisTab> {
   void _loadCategories() {
     _categories = EmojisHandler.instance.categoryNames;
 
-    if (widget.preferredReactions != null &&
-        widget.preferredReactions!.isNotEmpty) {
+    if (_hasFrequentEmojis) {
+      _categories.insert(0, frequentEmojisKey);
+    }
+    if (_hasFrequentReactions) {
       _categories.insert(0, frequentKey);
     }
   }
 
+  int _sectionCount(String name) {
+    if (name == frequentKey) {
+      return widget.preferredReactions?.length ?? 0;
+    }
+    if (name == frequentEmojisKey) {
+      return widget.preferredEmojis?.length ?? 0;
+    }
+    return EmojisHandler.instance.getSheetDataByName(name)?.emojis.length ?? 0;
+  }
+
+  String _sectionTitle(String name) {
+    if (name == frequentKey) return 'Частые реакции';
+    if (name == frequentEmojisKey) return 'Частые эмодзи';
+    return name;
+  }
+
   double _categoryExtent(String name, double width) {
-    final isFrequent = name == frequentKey;
-    final count = isFrequent
-        ? widget.preferredReactions?.length ?? 0
-        : EmojisHandler.instance.getSheetDataByName(name)?.emojis.length ?? 0;
+    final isFrequent = name == frequentKey || name == frequentEmojisKey;
+    final count = _sectionCount(name);
     final style = AppText.lowTextStyle.copyWith(
       color: AppColors.greyple,
       fontWeight: FontWeight.w600,
       letterSpacing: 1,
     );
     final painter = TextPainter(
-      text: TextSpan(text: isFrequent ? 'Частые реакции' : name, style: style),
+      text: TextSpan(text: _sectionTitle(name), style: style),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
     )..layout(maxWidth: width - 4);
@@ -113,6 +155,9 @@ class _EmojisTabState extends State<EmojisTab> {
 
                       if (categoryName == frequentKey) {
                         return _buildFrequentCategory(context);
+                      }
+                      if (categoryName == frequentEmojisKey) {
+                        return _buildFrequentEmojisCategory(context);
                       }
 
                       final sheetData = EmojisHandler.instance
@@ -193,11 +238,12 @@ class _EmojisTabState extends State<EmojisTab> {
                 itemBuilder: (context, index) {
                   final categoryName = _categories[index];
 
-                  // 🎯 СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ КАТЕГОРИИ "ЧАСТЫЕ"
-                  if (categoryName == frequentKey) {
+                  // 🎯 СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ КАТЕГОРИЙ "ЧАСТЫЕ"
+                  if (categoryName == frequentKey ||
+                      categoryName == frequentEmojisKey) {
                     return GestureDetector(
                       key: ValueKey('emoji-category-$categoryName'),
-                      onTap: () => _scrollToCategory(frequentKey),
+                      onTap: () => _scrollToCategory(categoryName),
                       child: Container(
                         width: 36,
                         margin: EdgeInsets.only(
@@ -286,8 +332,7 @@ class _EmojisTabState extends State<EmojisTab> {
   }
 
   Widget _buildFrequentCategory(BuildContext context) {
-    if (widget.preferredReactions == null ||
-        widget.preferredReactions!.isEmpty) {
+    if (!_hasFrequentReactions) {
       return const SizedBox.shrink();
     }
 
@@ -327,7 +372,58 @@ class _EmojisTabState extends State<EmojisTab> {
                     prefReaction.nameReaction ?? '',
                   );
 
-                  if (emoji == null) return const SizedBox.shrink();
+                  return _buildFrequentCell(emoji, emojiSize);
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFrequentEmojisCategory(BuildContext context) {
+    if (!_hasFrequentEmojis) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4, left: 4),
+            child: Text(
+              'Частые эмодзи',
+              style: AppText.lowTextStyle.copyWith(
+                color: AppColors.greyple,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cellSize = (constraints.maxWidth - 7 * 4) / 8;
+              final emojiSize = math.max(1.0, math.min(30.0, cellSize - 2));
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                  mainAxisSpacing: 4,
+                  crossAxisSpacing: 4,
+                ),
+                itemCount: widget.preferredEmojis!.length,
+                itemBuilder: (context, i) {
+                  final preferredEmoji = widget.preferredEmojis![i];
+                  // Поле emoji хранит токен вида [category:id].
+                  final token = preferredEmoji.emoji ?? '';
+                  final emoji = EmojisHandler.instance.getEmojiByName(token);
+
+                  if (emoji == null) return const SizedBox.shrink());
 
                   final sheetData = EmojisHandler.instance
                       .getSheetDataByCategory(emoji.categoryName ?? '');
@@ -340,8 +436,15 @@ class _EmojisTabState extends State<EmojisTab> {
                       sheetData: sheetData,
                       size: emojiSize,
                       frameInset: 1,
-                      onTap: widget.onTap,
                       animate: false,
+                      onTap: (_) {
+                        final handler = widget.onFrequentEmojiTap;
+                        if (handler != null) {
+                          handler(token);
+                        } else {
+                          widget.onTap(emoji);
+                        }
+                      },
                     ),
                   );
                 },
@@ -349,6 +452,27 @@ class _EmojisTabState extends State<EmojisTab> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFrequentCell(EmojiDefinition? emoji, double emojiSize) {
+    if (emoji == null) return const SizedBox.shrink();
+
+    final sheetData = EmojisHandler.instance.getSheetDataByCategory(
+      emoji.categoryName ?? '',
+    );
+
+    if (sheetData == null) return const SizedBox.shrink();
+
+    return Center(
+      child: EmojiWidget(
+        emoji: emoji,
+        sheetData: sheetData,
+        size: emojiSize,
+        frameInset: 1,
+        onTap: widget.onTap,
+        animate: false,
       ),
     );
   }

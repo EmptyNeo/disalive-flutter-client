@@ -1,12 +1,15 @@
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/gif_type_search.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/gif.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
+import 'package:disalive/domain/repositories/preferred_emojis_repository.dart';
 import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/emojis_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/gifs_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/stickers_tab.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
@@ -23,6 +26,7 @@ class ChatExtraPanel extends StatefulWidget {
   final Function(Gif gif) onTapGif;
   final VoidCallback onBackspace;
   final bool emojiOnly;
+  final Function(String fullEmojiId)? onInsertEmoji;
 
   const ChatExtraPanel({
     super.key,
@@ -33,6 +37,7 @@ class ChatExtraPanel extends StatefulWidget {
     required this.onTapGif,
     required this.onBackspace,
     this.emojiOnly = false,
+    this.onInsertEmoji,
   });
 
   static Future<void> showEmojiPicker(
@@ -49,34 +54,56 @@ class ChatExtraPanel extends StatefulWidget {
         alignment: Alignment.bottomCenter,
         child: SafeArea(
           top: false,
-          child: ChatExtraPanel(
-            height: MediaQuery.sizeOf(popupContext).height * 0.45,
-            emojiOnly: true,
-            onClose: () => Navigator.of(popupContext).pop(),
-            onTapEmoji: (emoji) {
-              final token = '[${emoji.categoryName}:${emoji.id}]';
-              final value = controller.value;
-              final start = value.selection.isValid
-                  ? value.selection.start
-                  : value.text.length;
-              final end = value.selection.isValid
-                  ? value.selection.end
-                  : value.text.length;
-              final updated = value.text.replaceRange(start, end, token);
-              if (updated.runes.length > maxLength) return;
-              controller.value = TextEditingValue(
-                text: updated,
-                selection: TextSelection.collapsed(
-                  offset: start + token.length,
-                ),
-              );
-            },
-            onTapSticker: (_) {},
-            onTapGif: (_) {},
-            onBackspace: () {
-              controller.value = const EmojiAtomicDeletionFormatter()
-                  .deleteBackward(controller.value);
-            },
+          child: BlocProvider<PreferredEmojisBloc>(
+            create: (_) =>
+                PreferredEmojisBloc(sl<PreferredEmojisRepository>())
+                  ..add(const LoadPreferredEmojis()),
+            child: ChatExtraPanel(
+              height: MediaQuery.sizeOf(popupContext).height * 0.45,
+              emojiOnly: true,
+              onClose: () => Navigator.of(popupContext).pop(),
+              onTapEmoji: (emoji) {
+                final token = '[${emoji.categoryName}:${emoji.id}]';
+                final value = controller.value;
+                final start = value.selection.isValid
+                    ? value.selection.start
+                    : value.text.length;
+                final end = value.selection.isValid
+                    ? value.selection.end
+                    : value.text.length;
+                final updated = value.text.replaceRange(start, end, token);
+                if (updated.runes.length > maxLength) return;
+                controller.value = TextEditingValue(
+                  text: updated,
+                  selection: TextSelection.collapsed(
+                    offset: start + token.length,
+                  ),
+                );
+              },
+              onInsertEmoji: (token) {
+                final value = controller.value;
+                final start = value.selection.isValid
+                    ? value.selection.start
+                    : value.text.length;
+                final end = value.selection.isValid
+                    ? value.selection.end
+                    : value.text.length;
+                final updated = value.text.replaceRange(start, end, token);
+                if (updated.runes.length > maxLength) return;
+                controller.value = TextEditingValue(
+                  text: updated,
+                  selection: TextSelection.collapsed(
+                    offset: start + token.length,
+                  ),
+                );
+              },
+              onTapSticker: (_) {},
+              onTapGif: (_) {},
+              onBackspace: () {
+                controller.value = const EmojiAtomicDeletionFormatter()
+                    .deleteBackward(controller.value);
+              },
+            ),
           ),
         ),
       ),
@@ -107,6 +134,7 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
     _animationController.forward();
 
     // Инициализация BLoC при открытии
+    context.read<PreferredEmojisBloc>().add(const LoadPreferredEmojis());
     if (!widget.emojiOnly) {
       context.read<StickersPackBloc>().add(
         const LoadStickerPacks(skip: 0, take: 10),
@@ -126,6 +154,36 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
   void dispose() {
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _handleEmojiTap(EmojiDefinition emoji) {
+    final token = '[${emoji.categoryName}:${emoji.id}]';
+    context.read<PreferredEmojisBloc>().add(
+      UpsertPreferredEmoji(emoji: token),
+    );
+    widget.onTapEmoji(emoji);
+  }
+
+  void _handleFrequentEmojiTap(String token) {
+    final emoji = EmojisHandler.instance.getEmojiByName(token);
+    if (emoji == null) return;
+    _handleEmojiTap(emoji);
+  }
+
+  Widget _buildEmojisTab() {
+    return BlocBuilder<PreferredEmojisBloc, PreferredEmojisState>(
+      builder: (context, state) {
+        final preferredEmojis = state is PreferredEmojisLoaded
+            ? state.emojis
+            : null;
+        return EmojisTab(
+          onTap: _handleEmojiTap,
+          onBackspace: widget.onBackspace,
+          preferredEmojis: preferredEmojis,
+          onFrequentEmojiTap: _handleFrequentEmojiTap,
+        );
+      },
+    );
   }
 
   @override
@@ -181,10 +239,7 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                   child: IndexedStack(
                     index: _currentIndex,
                     children: [
-                      EmojisTab(
-                        onTap: widget.onTapEmoji,
-                        onBackspace: widget.onBackspace,
-                      ),
+                      _buildEmojisTab(),
                       if (!widget.emojiOnly) ...[
                         StickersTab(onTap: widget.onTapSticker),
                         GifsTab(onTap: widget.onTapGif),
