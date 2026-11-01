@@ -15,6 +15,7 @@ import 'package:disalive/data/repositories/media_filter_repository_impl.dart';
 import 'package:disalive/data/repositories/media_stats_repository_impl.dart';
 import 'package:disalive/data/repositories/message_repository_impl.dart';
 import 'package:disalive/data/repositories/permission_repository_impl.dart';
+import 'package:disalive/data/repositories/preferred_emojis_repository_impl.dart';
 import 'package:disalive/data/repositories/preferred_reactions_repository_impl.dart';
 import 'package:disalive/data/repositories/profile_comments_repository_impl.dart';
 import 'package:disalive/data/repositories/profile_comment_likes_repository_impl.dart';
@@ -45,6 +46,7 @@ import 'package:disalive/domain/repositories/media_filter_repository.dart';
 import 'package:disalive/domain/repositories/media_stats_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/permission_repository.dart';
+import 'package:disalive/domain/repositories/preferred_emojis_repository.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
 import 'package:disalive/domain/repositories/profile_comments_repository.dart';
 import 'package:disalive/domain/repositories/profile_comment_likes_repository.dart';
@@ -165,6 +167,9 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<PreferredReactionsRepository>(
     () => PreferredReactionsRepositoryImpl(),
+  );
+  sl.registerLazySingleton<PreferredEmojisRepository>(
+    () => PreferredEmojisRepositoryImpl(),
   );
   sl.registerLazySingleton<UserStickersPackRepository>(
     () => UserStickersPackRepositoryImpl(),
