@@ -63,16 +63,18 @@ class ServerChannelMessageAdded extends ChannelServerEvent {
     this.serverId,
     this.chatId,
     this.messageId,
-    this.isSelf,
-  );
+    this.isSelf, {
+    this.sentAt,
+  });
 
   final int serverId;
   final int chatId;
   final int messageId;
   final bool isSelf;
+  final String? sentAt;
 
   @override
-  List<Object?> get props => [serverId, chatId, messageId, isSelf];
+  List<Object?> get props => [serverId, chatId, messageId, isSelf, sentAt];
 }
 
 class ServerChannelMessageRemoved extends ChannelServerEvent {

@@ -13,15 +13,18 @@ import 'package:disalive/domain/enums/file_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/domain/models/responses/symbol_data.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
 import 'package:disalive/domain/models/ui/chat_attachment.dart';
 import 'package:disalive/domain/models/ui/meta_file_message.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
@@ -42,10 +45,12 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
@@ -75,8 +80,15 @@ int? initialPositionForChat(Chat chat, int? savedPositionId) {
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
+  final bool initiallyModerationMuted;
+  final String? initialModerationMuteExpiresAt;
 
-  const ChatScreen({super.key, required this.chat});
+  const ChatScreen({
+    super.key,
+    required this.chat,
+    this.initiallyModerationMuted = false,
+    this.initialModerationMuteExpiresAt,
+  });
 
   static Future<void> openServerChannel(
     BuildContext context,
@@ -85,10 +97,15 @@ class ChatScreen extends StatefulWidget {
   ) async {
     final chatId = channel.chatId;
     if (chatId == null) return;
+    final serverId =
+        channel.serverId ?? sl<ServerRepository>().selectedServerId;
+    if (serverId == null) return;
+    final access = await checkEntityAccess(
+      context,
+      EntityKey(entityId: serverId, entityType: EntityType.server),
+    );
+    if (access == null || !context.mounted) return;
     if (channel.type == 'voice') {
-      final serverId =
-          channel.serverId ?? sl<ServerRepository>().selectedServerId;
-      if (serverId == null) return;
       await CallScreen.open(
         context,
         chatId: chatId,
@@ -115,14 +132,32 @@ class ChatScreen extends StatefulWidget {
           newMessagesCount: channel.newMessagesCount,
           member: Member(lastIdReadMessage: channel.lastIdReadMessage),
         );
-    await open(context, chat, isReconnect);
+    await open(context, chat, isReconnect, entityAccess: access);
   }
 
   static Future<void> open(
     BuildContext context,
     Chat chat,
-    bool isReconnect,
-  ) async {
+    bool isReconnect, {
+    EntityAccess? entityAccess,
+  }) async {
+    var access = entityAccess;
+    if (access == null && chat.type == ChatType.group) {
+      access = await checkEntityAccess(
+        context,
+        EntityKey(entityId: chat.id, entityType: EntityType.chat),
+      );
+      if (access == null || !context.mounted) return;
+    }
+    if (access == null && chat.type == ChatType.channel) {
+      final serverId = sl<ServerRepository>().selectedServerId;
+      if (serverId == null) return;
+      access = await checkEntityAccess(
+        context,
+        EntityKey(entityId: serverId, entityType: EntityType.server),
+      );
+      if (access == null || !context.mounted) return;
+    }
     ChatBloc chatBloc = context.read<ChatBloc>();
     MessageBloc messageBloc = context.read<MessageBloc>();
     ChatServerBloc chatServerBloc = context.read<ChatServerBloc>();
@@ -131,6 +166,7 @@ class ChatScreen extends StatefulWidget {
     StickersPackBloc stickerBloc = context.read<StickersPackBloc>();
     PreferredReactionsBloc preferredReactionsBloc = context
         .read<PreferredReactionsBloc>();
+    final preferredEmojisBloc = context.read<PreferredEmojisBloc>();
     final invitesBloc = context.read<InvitesBloc>();
     final mediaStatsBloc = context.read<MediaStatsBloc>();
     final serversBloc = context.read<ServersBloc>();
@@ -153,12 +189,17 @@ class ChatScreen extends StatefulWidget {
             BlocProvider.value(value: gifBloc),
             BlocProvider.value(value: stickerBloc),
             BlocProvider.value(value: preferredReactionsBloc),
+            BlocProvider.value(value: preferredEmojisBloc),
             BlocProvider.value(value: invitesBloc),
             BlocProvider.value(value: mediaStatsBloc),
             BlocProvider.value(value: serversBloc),
             BlocProvider.value(value: callBloc),
           ],
-          child: ChatScreen(chat: chat),
+          child: ChatScreen(
+            chat: chat,
+            initiallyModerationMuted: chat.member?.isChatMuted ?? false,
+            initialModerationMuteExpiresAt: chat.member?.chatMuteExpiresAt,
+          ),
         ),
       );
     } finally {
@@ -285,17 +326,44 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   StreamSubscription? _channelReadSubscription;
   StreamSubscription? _channelMessageSubscription;
   StreamSubscription? _channelAccessSubscription;
+  StreamSubscription? _moderationSubscription;
+  Timer? _moderationMuteTimer;
+  late bool _isModerationMuted;
 
   bool get _canSendMessages =>
-      _currentChat.type != ChatType.channel ||
-      canSendToChannel(
-        channel: _channel,
-        server: _channelServerId == null
-            ? null
-            : sl<ServerRepository>().getByIdCached(_channelServerId!),
-        userId: _currentUserId,
-        roleId: _channelRoleId,
+      !_isModerationMuted &&
+      (_currentChat.type != ChatType.channel ||
+          canSendToChannel(
+            channel: _channel,
+            server: _channelServerId == null
+                ? null
+                : sl<ServerRepository>().getByIdCached(_channelServerId!),
+            userId: _currentUserId,
+            roleId: _channelRoleId,
+          ));
+
+  int get _slowModeRemainingSeconds {
+    final seconds = _channel?.slowModeSeconds ?? 0;
+    final value = _channel?.slowModeLastSentAt;
+    if (seconds <= 0 || value == null || value.isEmpty) return 0;
+    final hasTimezone =
+        value.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(value);
+    final sentAt = DateTime.tryParse(hasTimezone ? value : '${value}Z');
+    if (sentAt == null) return 0;
+    return (seconds -
+            DateTime.now().toUtc().difference(sentAt.toUtc()).inSeconds)
+        .clamp(0, seconds);
+  }
+
+  void _recordSlowModeMessageSent() {
+    final channel = _channel;
+    if (channel == null || channel.slowModeSeconds <= 0) return;
+    setState(() {
+      _channel = channel.copyWith(
+        slowModeLastSentAt: DateTime.now().toUtc().toIso8601String(),
       );
+    });
+  }
 
   Future<void> _refreshChannelAccess() async {
     final serverId = _channelServerId;
@@ -315,6 +383,111 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_isExtraPanelOpen) setState(() => _isExtraPanelOpen = false);
   }
 
+  void _listenToModerationEvents() {
+    final entityId = _currentChat.type == ChatType.channel
+        ? _channelServerId
+        : (_currentChat.type == ChatType.group ? _currentChat.id : null);
+    if (entityId == null) return;
+    _moderationSubscription = sl<WsEventBus>().subscribeToTable(
+      table: 'EntityModeration',
+      onData: (event) {
+        final eventEntityId = DataParser.parseInt(event.data['entityId']);
+        final eventEntityType = event.data['entityType'] as String?;
+        final eventUserId = DataParser.parseInt(event.data['userId']);
+        final action = event.data['action'] as String?;
+        final expectedType = _currentChat.type == ChatType.channel
+            ? 'server'
+            : 'chat';
+        if (!mounted ||
+            eventEntityId != entityId ||
+            eventEntityType != expectedType ||
+            action != 'mute' && action != 'ban') {
+          return;
+        }
+        final active = DataParser.parseBool(event.data['active']) ?? false;
+        final isOwnBanExpiry =
+            eventUserId == null && action == 'ban' && !active && event.isSelf;
+        final userId = eventUserId ?? (isOwnBanExpiry ? _currentUserId : null);
+        if (userId != _currentUserId) return;
+        if (action == 'ban') {
+          if (active) {
+            unawaited(_showCurrentEntityBan(event.data));
+          }
+          return;
+        }
+        _setModerationMute(active, event.data['expiresAt'] as String?);
+        if (active) _hideRestrictedInput();
+      },
+    );
+  }
+
+  Future<void> _showCurrentEntityBan(Map<String, dynamic> data) async {
+    final isServerChannel = _currentChat.type == ChatType.channel;
+    final entityId = isServerChannel
+        ? _channelServerId ?? sl<ServerRepository>().selectedServerId
+        : _currentChat.id;
+    if (entityId == null) return;
+    final entityType = isServerChannel ? EntityType.server : EntityType.chat;
+    final entityKey = EntityKey(entityId: entityId, entityType: entityType);
+    final serversBloc = isServerChannel ? context.read<ServersBloc>() : null;
+    await showEntityBanNotice(
+      context,
+      entityKey: entityKey,
+      access: EntityAccess(
+        banned: true,
+        banReason: data['reason'] as String?,
+        banExpiresAt: data['expiresAt'] as String?,
+      ),
+    );
+    if (!mounted) return;
+    if (isServerChannel) serversBloc?.add(const SelectServer(null));
+    Navigator.of(context).maybePop();
+  }
+
+  void _setModerationMute(bool active, String? expiresAt) {
+    _moderationMuteTimer?.cancel();
+    final expiry = _parseModerationExpiry(expiresAt);
+    final isActive =
+        active && (expiry == null || expiry.isAfter(DateTime.now()));
+    if (mounted) {
+      setState(() {
+        _isModerationMuted = isActive;
+        if (_currentChat.type == ChatType.group) {
+          final member = (_currentChat.member ?? const Member()).copyWith(
+            isChatMuted: isActive,
+            chatMuteExpiresAt: expiresAt,
+            clearChatMuteExpiresAt: !isActive || expiresAt == null,
+          );
+          _currentChat = _currentChat.copyWith(member: member);
+          sl<ChatRepository>().setCurrentChat(_currentChat);
+          final userId = _currentUserId;
+          if (userId != null) {
+            _chatBloc.add(
+              UpdateMemberInChat(
+                chatId: _currentChat.id,
+                userId: userId,
+                member: member,
+                isSelf: true,
+              ),
+            );
+          }
+        }
+      });
+    }
+    if (!isActive || expiry == null) return;
+    _moderationMuteTimer = Timer(expiry.difference(DateTime.now()), () {
+      if (mounted) _setModerationMute(false, null);
+    });
+  }
+
+  DateTime? _parseModerationExpiry(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final hasTimezone =
+        value.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(value);
+    final parsed = DateTime.tryParse(hasTimezone ? value : '${value}Z');
+    return parsed?.toLocal();
+  }
+
   bool _hasUnread(Chat chat) {
     if (chat.type == ChatType.channel) {
       return (chat.newMessagesCount ?? 0) > 0;
@@ -326,6 +499,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _isExtraPanelOpen = false;
   final double _extraPanelHeight = 335;
 
+  bool get _canManageMessages {
+    if (_currentChat.type == ChatType.channel) {
+      final serverId = _channelServerId;
+      if (serverId == null) return false;
+      final server = sl<ServerRepository>().getByIdCached(serverId);
+      return server?.isServerOwner == true ||
+          server?.hasPermission(GeneralPermissions.manageMessages) == true;
+    }
+
+    return _currentChat.isOwner ||
+        _currentChat.member?.role?.hasPermission(
+              GeneralPermissions.manageMessages,
+            ) ==
+            true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -333,6 +522,35 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _draftUserId = _currentUserId;
     sl<LocalChatStateRepository>().allowDraftsForUser(_draftUserId);
     _currentChat = widget.chat;
+    _isModerationMuted = widget.initiallyModerationMuted;
+    var muteExpiresAt = widget.initialModerationMuteExpiresAt;
+    final moderationEntityId = _currentChat.type == ChatType.channel
+        ? _channelServerId ?? sl<ServerRepository>().selectedServerId
+        : (_currentChat.type == ChatType.group ? _currentChat.id : null);
+    final moderationEntityType = _currentChat.type == ChatType.channel
+        ? EntityType.server
+        : EntityType.chat;
+    final membersState = context.read<MembersBloc>().state;
+    if (moderationEntityId != null &&
+        membersState is MembersLoaded &&
+        membersState.entityId == moderationEntityId &&
+        membersState.entityType == moderationEntityType) {
+      final currentMember = membersState.members
+          .where((member) => member.fkUser == _currentUserId)
+          .firstOrNull;
+      if (currentMember?.isChatMuted != null) {
+        _isModerationMuted = currentMember!.isChatMuted!;
+        muteExpiresAt = currentMember.chatMuteExpiresAt;
+      }
+    }
+    if (_currentChat.type == ChatType.group &&
+        _currentChat.member?.isChatMuted != null) {
+      _isModerationMuted = _currentChat.member!.isChatMuted!;
+      muteExpiresAt = _currentChat.member!.chatMuteExpiresAt;
+    }
+    if (_isModerationMuted) {
+      _scheduleInitialModerationMuteExpiry(muteExpiresAt);
+    }
     if (_currentChat.type == ChatType.channel) {
       _channelServerId = sl<ServerRepository>().selectedServerId;
       _channelRoleId = sl<ServerRepository>().selectedServer?.roleId;
@@ -346,6 +564,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
       }
       unawaited(_refreshChannelAccess());
+      if (_channelServerId != null) {
+        unawaited(_restoreServerMuteFromMemberCache(_channelServerId!));
+      }
     }
     _textController = EmojiTextEditingController();
     _textController.addListener(_onTextChanged);
@@ -372,6 +593,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     }
     if (_currentChat.type == ChatType.channel) _listenToChannelEvents();
+    _listenToModerationEvents();
     _restoreDraft();
     final savedPosition = sl<LocalChatStateRepository>().getChatPosition(
       _draftUserId,
@@ -390,6 +612,55 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     context.read<PreferredReactionsBloc>().add(const LoadPreferredReactions());
 
     _inputFocusNode.addListener(_handleFocusChange);
+  }
+
+  void _scheduleInitialModerationMuteExpiry(String? expiresAt) {
+    final expiry = _parseModerationExpiry(expiresAt);
+    if (expiry == null) return;
+    final remaining = expiry.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      _isModerationMuted = false;
+      return;
+    }
+    _moderationMuteTimer = Timer(remaining, () {
+      if (mounted) _expireModerationMute();
+    });
+  }
+
+  Future<void> _restoreServerMuteFromMemberCache(int serverId) async {
+    final members = await sl<MembersRepository>().getCached(
+      EntityKey(entityId: serverId, entityType: EntityType.server),
+    );
+    if (!mounted || _channelServerId != serverId) return;
+    final currentMember = members
+        .where((member) => member.fkUser == _currentUserId)
+        .firstOrNull;
+    if (currentMember?.isChatMuted == null) return;
+    _setModerationMute(
+      currentMember!.isChatMuted!,
+      currentMember.chatMuteExpiresAt,
+    );
+  }
+
+  void _expireModerationMute() {
+    _setModerationMute(false, null);
+    final entityId = _currentChat.type == ChatType.channel
+        ? _channelServerId
+        : _currentChat.id;
+    final entityType = _currentChat.type == ChatType.channel
+        ? EntityType.server
+        : EntityType.chat;
+    final userId = _currentUserId;
+    if (entityId == null || userId == null) return;
+    context.read<MembersBloc>().add(
+      MemberModerationUpdatedEvent(
+        entityId: entityId,
+        entityType: entityType,
+        userId: userId,
+        action: 'mute',
+        active: false,
+      ),
+    );
   }
 
   void _listenToChannelEvents() {
@@ -492,6 +763,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             newMessagesCount:
                 (_currentChat.newMessagesCount ?? 0) + (event.isSelf ? 0 : 1),
           );
+          if (event.isSelf &&
+              _channel != null &&
+              _channel!.slowModeSeconds > 0) {
+            _channel = _channel!.copyWith(
+              slowModeLastSentAt:
+                  message['time'] as String? ??
+                  DateTime.now().toUtc().toIso8601String(),
+            );
+          }
         });
       },
     );
@@ -711,6 +991,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _channelReadSubscription?.cancel();
     _channelMessageSubscription?.cancel();
     _channelAccessSubscription?.cancel();
+    _moderationSubscription?.cancel();
+    _moderationMuteTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _saveDraft();
     _inputFocusNode.removeListener(_handleFocusChange);
@@ -848,6 +1130,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   onDeleteMessage: _onDeleteMessage,
                                   onAnswerMessage: _onAnswerMessage,
                                   canReply: _canSendMessages,
+                                  canManageMessages: _canManageMessages,
+                                  canReact: !_isModerationMuted,
                                   onFocusInput: _focusInput,
                                   onUnfocusInput: _unfocusInput,
                                   onStickerTap: onTapSticker,
@@ -982,6 +1266,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         child: ChatInputArea(
                           key: const ValueKey('chat_input_area'),
                           chat: _currentChat,
+                          channel: _channel,
                           serverId: _channelServerId,
                           inputKey: _inputKey,
                           textController: _textController,
@@ -995,6 +1280,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           inputFocusNode: _inputFocusNode,
                           isReconnect: isReconnect,
                           canSendMessages: _canSendMessages,
+                          isModerationMuted: _isModerationMuted,
                           attachments: _attachments,
                           onPickAttachment: _pickAttachments,
                           onRemoveAttachment: (attachment) {
@@ -1143,9 +1429,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onSendMessage(Message message) {
-    if (!_canSendMessages) return;
+    if (!_canSendMessages || _slowModeRemainingSeconds > 0) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
+    _recordSlowModeMessageSent();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _messagesListKey.currentState?.handleScrollToBottom(animated: false);
     });
@@ -1295,9 +1582,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _onSendVoiceMessage(File file, double durationSeconds) {
-    if (!_canSendMessages) return;
+    if (!_canSendMessages || _slowModeRemainingSeconds > 0) return;
     final entity = DeterminingContextService.getEntityKey();
     if (entity == null) return;
+    _recordSlowModeMessageSent();
     var localGeneratedId = IdGenerator.generateId();
     final bytes = file.lengthSync();
     final (sizeVal, sizeUnit) = UtilFile.getFileSizeAndUnit(bytes);

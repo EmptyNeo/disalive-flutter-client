@@ -4,7 +4,7 @@ import 'package:disalive/domain/enums/gif_type_search.dart';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/gif.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
-import 'package:disalive/domain/repositories/preferred_emojis_repository.dart';
+import 'package:disalive/domain/repositories/server_emoji_pack_repository.dart';
 import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/emojis_tab.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/tabs/gifs_tab.dart';
@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/services.dart';
 
-class ChatExtraPanel extends StatefulWidget {
+class ChatExtraPanel extends StatelessWidget {
   final double height;
   final VoidCallback onClose;
   final Function(EmojiDefinition emoji) onTapEmoji;
@@ -45,6 +45,7 @@ class ChatExtraPanel extends StatefulWidget {
     required TextEditingController controller,
     int maxLength = 30,
   }) async {
+    final preferredEmojisBloc = context.read<PreferredEmojisBloc>();
     await EmojisHandler.instance.initialize();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     if (!context.mounted) return;
@@ -54,10 +55,8 @@ class ChatExtraPanel extends StatefulWidget {
         alignment: Alignment.bottomCenter,
         child: SafeArea(
           top: false,
-          child: BlocProvider<PreferredEmojisBloc>(
-            create: (_) =>
-                PreferredEmojisBloc(sl<PreferredEmojisRepository>())
-                  ..add(const LoadPreferredEmojis()),
+          child: BlocProvider.value(
+            value: preferredEmojisBloc,
             child: ChatExtraPanel(
               height: MediaQuery.sizeOf(popupContext).height * 0.45,
               emojiOnly: true,
@@ -111,14 +110,26 @@ class ChatExtraPanel extends StatefulWidget {
   }
 
   @override
-  State<ChatExtraPanel> createState() => _ChatExtraPanelState();
+  Widget build(BuildContext context) {
+    return _ChatExtraPanelContent(panel: this);
+  }
 }
 
-class _ChatExtraPanelState extends State<ChatExtraPanel>
+class _ChatExtraPanelContent extends StatefulWidget {
+  final ChatExtraPanel panel;
+
+  const _ChatExtraPanelContent({required this.panel});
+
+  @override
+  State<_ChatExtraPanelContent> createState() => _ChatExtraPanelState();
+}
+
+class _ChatExtraPanelState extends State<_ChatExtraPanelContent>
     with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
   late AnimationController _animationController;
   late Animation<double> _animation;
+  late final Future<void> _emojiDataLoad;
 
   @override
   void initState() {
@@ -131,11 +142,10 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
       parent: _animationController,
       curve: Curves.easeOutCubic,
     );
+    _emojiDataLoad = _loadEmojiData();
     _animationController.forward();
 
-    // Инициализация BLoC при открытии
-    context.read<PreferredEmojisBloc>().add(const LoadPreferredEmojis());
-    if (!widget.emojiOnly) {
+    if (!widget.panel.emojiOnly) {
       context.read<StickersPackBloc>().add(
         const LoadStickerPacks(skip: 0, take: 10),
       );
@@ -150,6 +160,13 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
     }
   }
 
+  Future<void> _loadEmojiData() async {
+    await EmojisHandler.instance.initialize();
+    await EmojisHandler.instance.loadServerEmojiPacks(
+      sl<ServerEmojiPackRepository>(),
+    );
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -158,10 +175,8 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
 
   void _handleEmojiTap(EmojiDefinition emoji) {
     final token = '[${emoji.categoryName}:${emoji.id}]';
-    context.read<PreferredEmojisBloc>().add(
-      UpsertPreferredEmoji(emoji: token),
-    );
-    widget.onTapEmoji(emoji);
+    context.read<PreferredEmojisBloc>().add(UpsertPreferredEmoji(emoji: token));
+    widget.panel.onTapEmoji(emoji);
   }
 
   void _handleFrequentEmojiTap(String token) {
@@ -171,16 +186,24 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
   }
 
   Widget _buildEmojisTab() {
-    return BlocBuilder<PreferredEmojisBloc, PreferredEmojisState>(
-      builder: (context, state) {
-        final preferredEmojis = state is PreferredEmojisLoaded
-            ? state.emojis
-            : null;
-        return EmojisTab(
-          onTap: _handleEmojiTap,
-          onBackspace: widget.onBackspace,
-          preferredEmojis: preferredEmojis,
-          onFrequentEmojiTap: _handleFrequentEmojiTap,
+    return FutureBuilder<void>(
+      future: _emojiDataLoad,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CupertinoActivityIndicator());
+        }
+        return BlocBuilder<PreferredEmojisBloc, PreferredEmojisState>(
+          builder: (context, state) {
+            final preferredEmojis = state is PreferredEmojisLoaded
+                ? state.emojis
+                : null;
+            return EmojisTab(
+              onTap: _handleEmojiTap,
+              onBackspace: widget.panel.onBackspace,
+              preferredEmojis: preferredEmojis,
+              onFrequentEmojiTap: _handleFrequentEmojiTap,
+            );
+          },
         );
       },
     );
@@ -198,7 +221,7 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
       child: FadeTransition(
         opacity: _animation,
         child: Container(
-          height: widget.height,
+          height: widget.panel.height,
           margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           decoration: BoxDecoration(
             color: AppColors.lightGrey,
@@ -227,7 +250,7 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                   ),
                 ),
                 // Табы
-                if (!widget.emojiOnly) ...[
+                if (!widget.panel.emojiOnly) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: 5),
                     child: _buildTabBar(),
@@ -240,9 +263,9 @@ class _ChatExtraPanelState extends State<ChatExtraPanel>
                     index: _currentIndex,
                     children: [
                       _buildEmojisTab(),
-                      if (!widget.emojiOnly) ...[
-                        StickersTab(onTap: widget.onTapSticker),
-                        GifsTab(onTap: widget.onTapGif),
+                      if (!widget.panel.emojiOnly) ...[
+                        StickersTab(onTap: widget.panel.onTapSticker),
+                        GifsTab(onTap: widget.panel.onTapGif),
                       ],
                     ],
                   ),

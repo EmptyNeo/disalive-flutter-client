@@ -78,6 +78,8 @@ class MessagesList extends StatefulWidget {
   final Function(Message message) onDeleteMessage;
   final Function(Message message) onAnswerMessage;
   final bool canReply;
+  final bool canManageMessages;
+  final bool canReact;
   final Function(StickerContent sticker) onStickerTap;
   final ValueChanged<String>? onInviteMention;
   final ValueChanged<int>? onChannelTap;
@@ -101,6 +103,8 @@ class MessagesList extends StatefulWidget {
     required this.onDeleteMessage,
     required this.onAnswerMessage,
     this.canReply = true,
+    this.canManageMessages = false,
+    this.canReact = true,
     required this.onStickerTap,
     this.onInviteMention,
     this.onChannelTap,
@@ -243,6 +247,7 @@ class MessagesListState extends State<MessagesList> {
   double get _distanceFromBottom {
     if (!_scrollController.hasClients) return 0;
     final p = _scrollController.position;
+    if (!p.hasContentDimensions) return double.infinity;
     return p.pixels - p.minScrollExtent;
   }
 
@@ -271,6 +276,7 @@ class MessagesListState extends State<MessagesList> {
 
   ChatPosition? visiblePosition() {
     if (!_scrollController.hasClients) return null;
+    if (!_scrollController.position.hasContentDimensions) return null;
     final state = _chatState;
     if (state is! MessageLoaded) return null;
     if (_distanceFromBottom <= 24 && !state.hasNewerMessages) {
@@ -1034,7 +1040,7 @@ class MessagesListState extends State<MessagesList> {
                       );
                     }
                   },
-                  onTapReaction: onToggleReaction,
+                  onTapReaction: widget.canReact ? onToggleReaction : null,
                   onStickerTap: widget.onStickerTap,
                   onInviteMention: widget.onInviteMention,
                   onChannelTap: widget.onChannelTap,
@@ -1192,6 +1198,7 @@ class MessagesListState extends State<MessagesList> {
   }
 
   void _showReactionSheet(Message message) {
+    if (!widget.canReact) return;
     ReactionBottomSheet.show(
       context,
       onReactionSelected: (emoji) {
@@ -1242,6 +1249,12 @@ class MessagesListState extends State<MessagesList> {
 
     final isMyMessage =
         widget.currentUserId != null && message.userId == widget.currentUserId;
+    final canDeleteMessage = isMyMessage || widget.canManageMessages;
+    final preferredReactionState = context.read<PreferredReactionsBloc>().state;
+    final preferredReactions =
+        widget.canReact && preferredReactionState is PreferredReactionsLoaded
+        ? preferredReactionState.reactions.take(4).toList()
+        : null;
 
     final actions = <ActionItem>[
       if (message.hasErrorMessage)
@@ -1264,13 +1277,14 @@ class MessagesListState extends State<MessagesList> {
             }
           },
         ),
-      ActionItem(
-        icon: CupertinoIcons.smiley,
-        label: "Добавить реакцию",
-        onTap: () {
-          _showReactionSheet(message);
-        },
-      ),
+      if (widget.canReact)
+        ActionItem(
+          icon: CupertinoIcons.smiley,
+          label: "Добавить реакцию",
+          onTap: () {
+            _showReactionSheet(message);
+          },
+        ),
       if (widget.canReply)
         ActionItem(
           icon: CupertinoIcons.arrow_turn_up_left,
@@ -1309,7 +1323,7 @@ class MessagesListState extends State<MessagesList> {
             widget.onFocusInput?.call();
           },
         ),
-      if (isMyMessage && message.hasError != ActionType.delete)
+      if (canDeleteMessage && message.hasError != ActionType.delete)
         ActionItem(
           icon: CupertinoIcons.trash_fill,
           label: 'Удалить',
@@ -1324,40 +1338,34 @@ class MessagesListState extends State<MessagesList> {
       context,
       title: "Сообщение от ${message.user?.displayName}",
       actions: actions,
-      preferredReactions:
-          (context.read<PreferredReactionsBloc>().state
-              is PreferredReactionsLoaded)
-          ? (context.read<PreferredReactionsBloc>().state
-                    as PreferredReactionsLoaded)
-                .reactions
-                .take(4)
-                .toList()
-          : null,
-      onReactionTap: (prefReaction) {
-        final entity = _currentEntityKey();
-        final nameReaction = prefReaction.nameReaction;
-        if (entity?.entityId != null &&
-            entity?.entityType != null &&
-            message.id != null &&
-            nameReaction != null) {
-          context.read<MessageBloc>().add(
-            ToggleReaction(
-              chatId: widget.chat.id,
-              entityId: entity!.entityId,
-              entityType: entity.entityType,
-              messageId: message.getId,
-              nameReaction: nameReaction,
-            ),
-          );
+      preferredReactions: preferredReactions,
+      onReactionTap: widget.canReact
+          ? (prefReaction) {
+              final entity = _currentEntityKey();
+              final nameReaction = prefReaction.nameReaction;
+              if (entity?.entityId != null &&
+                  entity?.entityType != null &&
+                  message.id != null &&
+                  nameReaction != null) {
+                context.read<MessageBloc>().add(
+                  ToggleReaction(
+                    chatId: widget.chat.id,
+                    entityId: entity!.entityId,
+                    entityType: entity.entityType,
+                    messageId: message.getId,
+                    nameReaction: nameReaction,
+                  ),
+                );
 
-          final reactions = message.reactions;
-          if (reactions != null && reactions.contains(prefReaction)) {
-            context.read<PreferredReactionsBloc>().add(
-              UpsertPreferredReaction(nameReaction: nameReaction),
-            );
-          }
-        }
-      },
+                final reactions = message.reactions;
+                if (reactions != null && reactions.contains(prefReaction)) {
+                  context.read<PreferredReactionsBloc>().add(
+                    UpsertPreferredReaction(nameReaction: nameReaction),
+                  );
+                }
+              }
+            }
+          : null,
     );
   }
 
@@ -1412,6 +1420,7 @@ class MessagesListState extends State<MessagesList> {
   }
 
   void onToggleReaction(Message message, ReactionMessage reaction) {
+    if (!widget.canReact) return;
     final chatId = widget.chat.id;
     final entity = _currentEntityKey();
     final entityId = entity?.entityId;

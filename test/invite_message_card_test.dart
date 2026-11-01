@@ -3,11 +3,14 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/models/entity_access.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/invite_data.dart';
 import 'package:disalive/domain/models/link_data.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/invite_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
@@ -71,6 +74,16 @@ class _MembershipRepository implements InviteRepository {
     checks++;
     return Right(membership);
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Members implements MembersRepository {
+  @override
+  Future<Either<Failure, EntityAccess>> checkAccess(
+    EntityKey entityKey,
+  ) async => const Right(EntityAccess());
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -171,6 +184,8 @@ void main() {
   testWidgets('server ID in invite data opens an existing server', (
     tester,
   ) async {
+    await sl.reset();
+    sl.registerSingleton<MembersRepository>(_Members());
     final bus = WsEventBus();
     final serversBloc = ServersBloc(
       _ServerRepository([const Server(id: 42, name: 'Сообщество')]),
@@ -202,6 +217,7 @@ void main() {
     await tester.runAsync(() async {
       await serversBloc.close();
       bus.dispose();
+      await sl.reset();
     });
   });
 
@@ -211,6 +227,7 @@ void main() {
     await sl.reset();
     final membership = _MembershipRepository();
     sl.registerSingleton<InviteRepository>(membership);
+    sl.registerSingleton<MembersRepository>(_Members());
     final bus = WsEventBus();
     final serversBloc = ServersBloc(
       _ServerRepository([const Server(id: 42, name: 'Сообщество')]),
@@ -263,6 +280,7 @@ void main() {
         ),
       ),
     );
+    sl.registerSingleton<MembersRepository>(_Members());
     await tester.pumpWidget(
       const CupertinoApp(
         home: Center(

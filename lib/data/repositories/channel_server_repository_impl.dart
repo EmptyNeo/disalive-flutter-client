@@ -50,6 +50,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     int? categoryId,
     bool isPrivate = false,
     int? maxParticipants,
+    int slowModeSeconds = 0,
     List<int> userIds = const [],
     List<int> roleIds = const [],
   }) async {
@@ -60,6 +61,8 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
       'type': type,
       'categoryId': ?categoryId,
       'isPrivate': isPrivate ? 1 : 0,
+      if (type == 'text' && slowModeSeconds > 0)
+        'slowModeSeconds': slowModeSeconds,
       if (type == 'voice' && maxParticipants != null)
         'maxParticipants': maxParticipants,
       for (var i = 0; i < userIds.length; i++) 'userIds[$i]': userIds[i],
@@ -82,6 +85,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     String? name,
     int? categoryId,
     int? maxParticipants,
+    int? slowModeSeconds,
   }) async {
     final result = await _httpClient.postFormData<Map<String, dynamic>>(
       endpoint: 'channelsServer/update.php',
@@ -90,6 +94,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
         'name': ?name,
         'categoryId': ?categoryId,
         'maxParticipants': maxParticipants?.toString() ?? '',
+        'slowModeSeconds': ?slowModeSeconds,
       },
       apiType: ApiType.v1,
       requireAuth: true,

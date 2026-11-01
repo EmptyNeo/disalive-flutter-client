@@ -9,7 +9,9 @@ class EmojiSheetData {
   final double sheetWidth;
   final double sheetHeight;
   final int? fps;
+  final bool loop;
   final Map<String, EmojiDefinition> emojis;
+  final bool isNetworkAsset;
 
   EmojiSheetData({
     required this.sheetName,
@@ -19,19 +21,35 @@ class EmojiSheetData {
     required this.sheetWidth,
     required this.sheetHeight,
     this.fps,
+    this.loop = true,
     required this.emojis,
+    this.isNetworkAsset = false,
   });
 
   factory EmojiSheetData.fromJson(
     String categoryFromSheet,
-    Map<String, dynamic> json,
-  ) {
-    final meta = json['meta'] as Map<String, dynamic>;
+    Map<String, dynamic> json, {
+    String? sheetNameOverride,
+    bool isNetworkAsset = false,
+  }) {
+    final meta = json['meta'] as Map<String, dynamic>? ?? const {};
     final Map<String, EmojiDefinition> parsedEmojis = {};
     String extractedAssetPath = '';
 
-    final frameSize = meta['frameSize'] as Map<String, dynamic>;
+    final frameSize = meta['frameSize'] as Map<String, dynamic>? ?? const {};
     final size = meta['size'] as Map<String, dynamic>?;
+    final frameWidth = (frameSize['w'] as num?)?.toDouble() ?? 66;
+    final frameHeight = (frameSize['h'] as num?)?.toDouble() ?? 66;
+    final sheetWidth = size != null
+        ? (size['w'] as num).toDouble()
+        : frameWidth;
+    final sheetHeight = size != null
+        ? (size['h'] as num).toDouble()
+        : frameHeight;
+    final fps =
+        _parseFps(meta['fps'] ?? json['fps']) ??
+        (json.containsKey('emojis') ? 12 : null);
+    final loop = meta['loop'] != false;
 
     if (json.containsKey('emojis') && json['emojis'] is Map) {
       // Анимированный формат
@@ -51,6 +69,14 @@ class EmojiSheetData {
           frames: framesData
               .map((f) => EmojiFrame.fromJson(f as Map<String, dynamic>))
               .toList(),
+          spritePath: data['spritePath'] as String?,
+          name: data['name'] as String?,
+          frameWidth: frameWidth,
+          frameHeight: frameHeight,
+          sheetWidth: sheetWidth,
+          sheetHeight: sheetHeight,
+          fps: fps,
+          loop: loop,
         );
       }
     } else if (json.containsKey('frames') && json['frames'] is Map) {
@@ -67,23 +93,38 @@ class EmojiSheetData {
           id: entry.key,
           categoryName: categoryFromSheet,
           frames: [EmojiFrame.fromJson(frameData)],
+          spritePath: frameData['spritePath'] as String?,
+          name: frameData['name'] as String?,
+          frameWidth: frameWidth,
+          frameHeight: frameHeight,
+          sheetWidth: sheetWidth,
+          sheetHeight: sheetHeight,
+          fps: fps,
+          loop: loop,
         );
       }
     }
 
     return EmojiSheetData(
-      sheetName: meta['name'] as String,
-      assetPath: extractedAssetPath,
-      frameWidth: (frameSize['w'] as num).toDouble(),
-      frameHeight: (frameSize['h'] as num).toDouble(),
-      sheetWidth: size != null
-          ? (size['w'] as num).toDouble()
-          : (frameSize['w'] as num).toDouble(),
-      sheetHeight: size != null
-          ? (size['h'] as num).toDouble()
-          : (frameSize['h'] as num).toDouble(),
-      fps: meta['fps'] as int?,
+      sheetName:
+          sheetNameOverride ?? meta['name'] as String? ?? categoryFromSheet,
+      assetPath: extractedAssetPath.isNotEmpty
+          ? extractedAssetPath
+          : (meta['path'] as String? ?? ''),
+      frameWidth: frameWidth,
+      frameHeight: frameHeight,
+      sheetWidth: sheetWidth,
+      sheetHeight: sheetHeight,
+      fps: fps,
+      loop: loop,
       emojis: parsedEmojis,
+      isNetworkAsset: isNetworkAsset,
     );
+  }
+
+  static int? _parseFps(dynamic value) {
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 }

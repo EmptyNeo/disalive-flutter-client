@@ -3,6 +3,8 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/models/entity_access.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
@@ -68,6 +70,11 @@ class _Members implements MembersRepository {
     joinedType = entityType;
     return Right(Server(id: entityId, name: 'New', memberId: 11));
   }
+
+  @override
+  Future<Either<Failure, EntityAccess>> checkAccess(
+    EntityKey entityKey,
+  ) async => const Right(EntityAccess());
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -24,6 +24,7 @@ class ChannelAccessScreen extends StatefulWidget {
     required this.type,
     required this.categoryId,
     this.maxParticipants,
+    this.slowModeSeconds = 0,
     required this.channelsBloc,
   });
 
@@ -33,6 +34,7 @@ class ChannelAccessScreen extends StatefulWidget {
   final String type;
   final int? categoryId;
   final int? maxParticipants;
+  final int slowModeSeconds;
   final ChannelServerBloc channelsBloc;
 
   static Future<bool> open(
@@ -43,6 +45,7 @@ class ChannelAccessScreen extends StatefulWidget {
     required String type,
     required int? categoryId,
     int? maxParticipants,
+    int slowModeSeconds = 0,
     required ChannelServerBloc channelsBloc,
   }) async {
     return await SwipeToDismissRoute.push<bool>(
@@ -54,6 +57,7 @@ class ChannelAccessScreen extends StatefulWidget {
             type: type,
             categoryId: categoryId,
             maxParticipants: maxParticipants,
+            slowModeSeconds: slowModeSeconds,
             channelsBloc: channelsBloc,
           ),
         ) ??
@@ -116,6 +120,7 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
       type: widget.type,
       categoryId: widget.categoryId,
       maxParticipants: widget.maxParticipants,
+      slowModeSeconds: widget.slowModeSeconds,
       isPrivate: true,
       userIds: _selectedUsers.toList(),
       roleIds: _selectedRoles.toList(),

@@ -212,7 +212,9 @@ class _EmojisTabState extends State<EmojisTab> {
                                         size: emojiSize,
                                         frameInset: 1,
                                         onTap: widget.onTap,
-                                        animate: false,
+                                        animate:
+                                            sheetData.isNetworkAsset &&
+                                            emoji.isAnimated,
                                       ),
                                     );
                                   },
@@ -436,7 +438,7 @@ class _EmojisTabState extends State<EmojisTab> {
                       sheetData: sheetData,
                       size: emojiSize,
                       frameInset: 1,
-                      animate: false,
+                      animate: sheetData.isNetworkAsset && emoji.isAnimated,
                       onTap: (_) {
                         final handler = widget.onFrequentEmojiTap;
                         if (handler != null) {
@@ -472,7 +474,7 @@ class _EmojisTabState extends State<EmojisTab> {
         size: emojiSize,
         frameInset: 1,
         onTap: widget.onTap,
-        animate: false,
+        animate: sheetData.isNetworkAsset && emoji.isAnimated,
       ),
     );
   }

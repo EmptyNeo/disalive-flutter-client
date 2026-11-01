@@ -5,7 +5,7 @@ import 'package:disalive/domain/models/responses/install_server_emoji_pack.dart'
 import 'package:disalive/domain/models/server_emoji_pack.dart';
 
 abstract class ServerEmojiPackRepository {
-  /// GET /v1/serverEmojiPack/get.php
+  /// POST /v1/serverEmojiPack/get.php
   Future<Either<Failure, List<ServerEmojiPack>>> getPacks({
     int? serverId,
     String? categoryId,

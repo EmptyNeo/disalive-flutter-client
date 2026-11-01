@@ -17,14 +17,17 @@ import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/media_stats_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
+import 'package:disalive/domain/repositories/preferred_emojis_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
+import 'package:disalive/domain/repositories/server_emoji_pack_repository.dart';
 import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
 import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
+import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/bloc/auth/auth_bloc.dart';
 import 'package:disalive/presentation/bloc/session/session_bloc.dart';
@@ -46,6 +49,7 @@ import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/personal_profile_screen.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/settings/settings_screen.dart';
@@ -138,6 +142,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pageController = PageController(initialPage: _currentIndex);
     CallScreen.exitRevision.addListener(_onCallScreenExited);
+    unawaited(_loadServerEmojis());
+  }
+
+  Future<void> _loadServerEmojis() async {
+    final emojiHandler = EmojisHandler.instance;
+    await emojiHandler.initialize();
+    await emojiHandler.loadServerEmojiPacks(sl<ServerEmojiPackRepository>());
+    if (mounted) setState(() {});
   }
 
   void _onCallScreenExited() {
@@ -244,6 +256,12 @@ class _HomeScreenState extends State<HomeScreen> {
         BlocProvider<PreferredReactionsBloc>(
           create: (_) =>
               PreferredReactionsBloc(sl<PreferredReactionsRepository>()),
+        ),
+        BlocProvider<PreferredEmojisBloc>(
+          lazy: false,
+          create: (_) =>
+              PreferredEmojisBloc(sl<PreferredEmojisRepository>())
+                ..add(const LoadPreferredEmojis()),
         ),
       ],
       child: Builder(

@@ -1,6 +1,7 @@
 // lib/presentation/features/message/widgets/media_grid.dart
 import 'package:disalive/domain/models/file_message.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/image_item.dart';
+import 'package:disalive/presentation/features/message/widgets/media/items/spoiler_media_preview.dart';
 import 'package:disalive/presentation/features/message/widgets/media/items/video_thumbnail_item.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -199,31 +200,36 @@ class ImagesGrid extends StatelessWidget {
     BorderRadius radius = BorderRadius.zero,
   }) {
     final key = ValueKey(file.id ?? file.objectKey ?? file.urlPath);
-    final onTap = onTapImage;
-
+    final onTap = onTapImage == null ? null : () => onTapImage!(index);
     if (file.isVideoFile) {
-      return VideoThumbnailItem(
+      return SpoilerMediaPreview(
         key: key,
-        videoSource: file.urlPath,
-        isNetwork: true,
-        thumbnailPath: file.thumbnailUrlPath,
-        width: width,
-        height: height,
-        radius: radius,
-        onTap: onTap == null ? null : () => onTap(index),
+        isSpoiler: file.isSpoilerFile,
+        borderRadius: radius,
+        onTapRevealed: onTap,
+        childBuilder: (context, _) => VideoThumbnailItem(
+          videoSource: file.urlPath,
+          isNetwork: true,
+          thumbnailPath: file.thumbnailUrlPath,
+          width: width,
+          height: height,
+          radius: radius,
+        ),
       );
     }
 
-    final image = ImageItem(
+    return SpoilerMediaPreview(
       key: key,
-      pathImage: file.urlPath,
-      width: width,
-      height: height,
+      isSpoiler: file.isSpoilerFile,
       borderRadius: radius,
+      onTapRevealed: onTap,
+      childBuilder: (context, _) => ImageItem(
+        pathImage: file.urlPath,
+        width: width,
+        height: height,
+        borderRadius: radius,
+      ),
     );
-
-    if (onTap == null) return image;
-    return GestureDetector(onTap: () => onTap(index), child: image);
   }
 }
 

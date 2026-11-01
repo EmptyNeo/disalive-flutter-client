@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:disalive/domain/models/emojis/emoji_definition.dart';
 import 'package:disalive/domain/models/emojis/emoji_sheet_data.dart';
+import 'package:disalive/domain/models/server_emoji_pack.dart';
+import 'package:disalive/domain/repositories/server_emoji_pack_repository.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class EmojisHandler {
@@ -9,25 +12,51 @@ class EmojisHandler {
   static final EmojisHandler instance = EmojisHandler._();
 
   final Map<String, EmojiSheetData> _sheets = {};
+  final Map<String, EmojiSheetData> _serverSheets = {};
+  final Map<String, ServerEmojiPack> _serverPacks = {};
+  bool _serverPacksLoaded = false;
+  Future<void>? _serverPackLoadFuture;
 
   Map<String, EmojiSheetData> get sheets => _sheets;
 
   List<String> get categoryNames {
-    return _sheets.values.map((e) => e.sheetName).toList();
+    return [
+      ..._sheets.values.map((e) => e.sheetName),
+      ..._serverPacks.values
+          .where((pack) => pack.installed == true)
+          .map((pack) => pack.name ?? pack.categoryId ?? '')
+          .where((name) => name.isNotEmpty),
+    ];
   }
 
   EmojiSheetData? getSheetDataByName(String name) {
-    return _sheets.values.firstWhere(
-      (sheet) => sheet.sheetName == name,
-      orElse: () => throw Exception('Sheet not found: $name'),
-    );
+    for (final sheet in _sheets.values) {
+      if (sheet.sheetName == name) return sheet;
+    }
+    for (final entry in _serverPacks.entries) {
+      final pack = entry.value;
+      if (pack.installed == true &&
+          (pack.name == name || pack.categoryId == name)) {
+        return _serverSheets[entry.key];
+      }
+    }
+    return null;
   }
 
   bool _isInitialized = false;
+  Future<void>? _initializationFuture;
 
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  bool get isInitialized => _isInitialized;
 
+  Future<void> initialize() {
+    if (_isInitialized) return Future<void>.value();
+    if (_initializationFuture != null) return _initializationFuture!;
+    final future = _initialize();
+    _initializationFuture = future;
+    return future;
+  }
+
+  Future<void> _initialize() async {
     final sheetNames = [
       'sprite_sheet_people',
       'sprite_sheet_nature',
@@ -62,21 +91,141 @@ class EmojisHandler {
 
         _sheets[normalizedKey] = sheetData;
       } catch (e) {
-        print('Ошибка загрузки эмодзи $name: $e');
+        debugPrint('Ошибка загрузки эмодзи $name: $e');
       }
     }
 
     _isInitialized = true;
+    _initializationFuture = null;
+  }
+
+  /// Loads all emoji packs visible to the current user. Emoji lookups stay
+  /// synchronous after this call so message parsing can render server emojis.
+  Future<void> loadServerEmojiPacks(
+    ServerEmojiPackRepository repository, {
+    bool force = false,
+  }) {
+    if (_serverPackLoadFuture != null && !force) return _serverPackLoadFuture!;
+    if (_serverPacksLoaded && !force) return Future<void>.value();
+    final future = _loadServerEmojiPacks(repository);
+    _serverPackLoadFuture = future;
+    return future;
+  }
+
+  Future<void> _loadServerEmojiPacks(
+    ServerEmojiPackRepository repository,
+  ) async {
+    try {
+      final result = await repository.getPacks();
+      result.fold((_) {}, (packs) {
+        _serverPacks
+          ..clear()
+          ..addEntries(
+            packs
+                .where((pack) => pack.categoryId?.isNotEmpty == true)
+                .map((pack) => MapEntry(pack.categoryId!, pack)),
+          );
+        _serverSheets
+          ..clear()
+          ..addEntries(
+            packs
+                .map(
+                  (pack) =>
+                      MapEntry(pack.categoryId ?? '', _sheetForPack(pack)),
+                )
+                .where((entry) => entry.key.isNotEmpty && entry.value != null)
+                .map((entry) => MapEntry(entry.key, entry.value!)),
+          );
+        _serverPacksLoaded = true;
+      });
+    } finally {
+      _serverPackLoadFuture = null;
+    }
+  }
+
+  /// Updates the cached packs for one server after a management or install
+  /// operation, preserving packs loaded for other servers.
+  void updateServerEmojiPacksForServer(
+    int serverId,
+    List<ServerEmojiPack> packs,
+  ) {
+    final currentCategoryIds = _serverPacks.entries
+        .where((entry) => entry.value.serverId == serverId)
+        .map((entry) => entry.key)
+        .toList();
+    for (final categoryId in currentCategoryIds) {
+      _serverPacks.remove(categoryId);
+      _serverSheets.remove(categoryId);
+    }
+    for (final pack in packs) {
+      final categoryId = pack.categoryId;
+      if (categoryId == null || categoryId.isEmpty) continue;
+      _serverPacks[categoryId] = pack;
+      final sheet = _sheetForPack(pack);
+      if (sheet != null) _serverSheets[categoryId] = sheet;
+    }
+    _serverPacksLoaded = true;
+  }
+
+  EmojiSheetData? _sheetForPack(ServerEmojiPack pack) {
+    final sheets = pack.jsons;
+    if (sheets == null || sheets.isEmpty) return null;
+    final categoryId = pack.categoryId ?? 'server_pack';
+    final emojis = <String, EmojiDefinition>{};
+    EmojiSheetData? baseSheet;
+    EmojiSheetData? animatedSheet;
+    for (final sheet in sheets) {
+      baseSheet ??= sheet;
+      if (sheet.emojis.values.any((emoji) => emoji.isAnimated)) {
+        animatedSheet ??= sheet;
+      }
+      emojis.addAll(sheet.emojis);
+    }
+    final source = baseSheet;
+    if (source == null || emojis.isEmpty) return null;
+    return EmojiSheetData(
+      sheetName: pack.name ?? source.sheetName,
+      assetPath: source.assetPath,
+      frameWidth: source.frameWidth,
+      frameHeight: source.frameHeight,
+      sheetWidth: source.sheetWidth,
+      sheetHeight: source.sheetHeight,
+      fps: animatedSheet?.fps ?? source.fps,
+      loop: animatedSheet?.loop ?? source.loop,
+      emojis: emojis.map(
+        (id, emoji) => MapEntry(
+          id,
+          EmojiDefinition(
+            id: emoji.id,
+            categoryName: categoryId,
+            frames: emoji.frames,
+            spritePath: emoji.spritePath,
+            name: emoji.name,
+            frameWidth: emoji.frameWidth,
+            frameHeight: emoji.frameHeight,
+            sheetWidth: emoji.sheetWidth,
+            sheetHeight: emoji.sheetHeight,
+            fps: emoji.fps,
+            loop: emoji.loop,
+          ),
+        ),
+      ),
+      isNetworkAsset: true,
+    );
   }
 
   EmojiDefinition? getEmojiById(String categoryName, String id) {
     final normalizedCategory = categoryName.toLowerCase().replaceAll(' ', '_');
-    return _sheets[normalizedCategory]?.emojis[id];
+    return _sheets[normalizedCategory]?.emojis[id] ??
+        _serverSheets[categoryName]?.emojis[id] ??
+        _serverSheets[normalizedCategory]?.emojis[id];
   }
 
   EmojiSheetData? getSheetDataByCategory(String categoryName) {
     final normalizedCategory = categoryName.toLowerCase().replaceAll(' ', '_');
-    return _sheets[normalizedCategory];
+    return _sheets[normalizedCategory] ??
+        _serverSheets[categoryName] ??
+        _serverSheets[normalizedCategory];
   }
 
   EmojiDefinition? getEmojiByName(String nameReaction) {

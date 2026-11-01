@@ -8,6 +8,8 @@ class ChannelServer extends Equatable {
   final int? categoryId;
   final bool isPrivate;
   final int? maxParticipants;
+  final int slowModeSeconds;
+  final String? slowModeLastSentAt;
   final String? chatName;
   final int newMessagesCount;
   final int? lastIdReadMessage;
@@ -22,6 +24,8 @@ class ChannelServer extends Equatable {
     this.categoryId,
     this.isPrivate = false,
     this.maxParticipants,
+    this.slowModeSeconds = 0,
+    this.slowModeLastSentAt,
     this.chatName,
     this.newMessagesCount = 0,
     this.lastIdReadMessage,
@@ -37,6 +41,8 @@ class ChannelServer extends Equatable {
     categoryId: (map['categoryId'] as num?)?.toInt(),
     isPrivate: map['isPrivate'] == true || map['isPrivate'] == 1,
     maxParticipants: (map['maxParticipants'] as num?)?.toInt(),
+    slowModeSeconds: (map['slowModeSeconds'] as num?)?.toInt() ?? 0,
+    slowModeLastSentAt: map['slowModeLastSentAt'] as String?,
     chatName: map['chatName'] as String?,
     newMessagesCount: (map['newMessagesCount'] as num?)?.toInt() ?? 0,
     lastIdReadMessage: (map['lastIdReadMessage'] as num?)?.toInt(),
@@ -56,12 +62,31 @@ class ChannelServer extends Equatable {
     'categoryId': categoryId,
     'isPrivate': isPrivate,
     'maxParticipants': maxParticipants,
+    'slowModeSeconds': slowModeSeconds,
+    'slowModeLastSentAt': slowModeLastSentAt,
     'chatName': chatName,
     'newMessagesCount': newMessagesCount,
     'lastIdReadMessage': lastIdReadMessage,
     'allowedUsers': allowedUsers,
     'allowedRoles': allowedRoles,
   };
+
+  ChannelServer copyWith({String? slowModeLastSentAt}) => ChannelServer(
+    id: id,
+    serverId: serverId,
+    chatId: chatId,
+    type: type,
+    categoryId: categoryId,
+    isPrivate: isPrivate,
+    maxParticipants: maxParticipants,
+    slowModeSeconds: slowModeSeconds,
+    slowModeLastSentAt: slowModeLastSentAt ?? this.slowModeLastSentAt,
+    chatName: chatName,
+    newMessagesCount: newMessagesCount,
+    lastIdReadMessage: lastIdReadMessage,
+    allowedUsers: allowedUsers,
+    allowedRoles: allowedRoles,
+  );
 
   @override
   List<Object?> get props => [
@@ -72,6 +97,8 @@ class ChannelServer extends Equatable {
     categoryId,
     isPrivate,
     maxParticipants,
+    slowModeSeconds,
+    slowModeLastSentAt,
     chatName,
     newMessagesCount,
     lastIdReadMessage,

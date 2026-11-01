@@ -457,6 +457,18 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         fixed: event.member.fixed,
         orderFixed: event.member.orderFixed,
         lastIdReadMessage: event.member.lastIdReadMessage,
+        isBanned: event.member.isBanned,
+        banExpiresAt: event.member.banExpiresAt,
+        isChatMuted: event.member.isChatMuted,
+        chatMuteExpiresAt: event.member.chatMuteExpiresAt,
+        clearChatMuteExpiresAt:
+            event.member.isChatMuted == false ||
+            (event.member.isChatMuted == true &&
+                event.member.chatMuteExpiresAt == null),
+        clearBanExpiresAt:
+            event.member.isBanned == false ||
+            (event.member.isBanned == true &&
+                event.member.banExpiresAt == null),
       );
       updatedChat = chat.copyWith(
         member: updatedCurrentMember,

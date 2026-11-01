@@ -128,6 +128,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
             chatId,
             messageId,
             event.isSelf,
+            sentAt: message['time'] as String?,
           ),
         );
       },
@@ -320,8 +321,14 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     final lastMessageId = _latestMessageIds[event.chatId] ?? 0;
     if (event.messageId <= lastMessageId) return false;
     _latestMessageIds[event.chatId] = event.messageId;
-    if (event.isSelf) return false;
     final previous = channels[index];
+    if (event.isSelf) {
+      channels[index] = previous.copyWith(
+        slowModeLastSentAt:
+            event.sentAt ?? DateTime.now().toUtc().toIso8601String(),
+      );
+      return true;
+    }
     channels[index] = ChannelServer.fromMap({
       ...previous.toMap(),
       'newMessagesCount': previous.newMessagesCount + 1,

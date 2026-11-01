@@ -2,6 +2,7 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
@@ -9,6 +10,7 @@ import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
@@ -25,6 +27,7 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
   StreamSubscription<WsEvent>? _deleteSubscription;
   StreamSubscription<WsEvent>? _updateSubscription;
   StreamSubscription<WsEvent>? _userUpdateSubscription;
+  StreamSubscription<WsEvent>? _moderationSubscription;
 
   MembersBloc(this._membersRepository, this._eventBus)
     : super(MembersInitial()) {
@@ -32,6 +35,7 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     on<MemberAddedEvent>(_onMemberAdded);
     on<MemberRemovedEvent>(_onMemberRemoved);
     on<MemberUpdatedEvent>(_onMemberUpdated);
+    on<MemberModerationUpdatedEvent>(_onMemberModerationUpdated);
     on<UpdateUserInMembers>(_onUpdateUserInMembers);
   }
 
@@ -121,6 +125,42 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
           final user = UserModel.fromMap(map);
           add(UpdateUserInMembers(user));
         }
+      },
+    );
+
+    _moderationSubscription = _eventBus.subscribe(
+      table: 'EntityModeration',
+      action: ActionType.update,
+      onData: (event) {
+        final entityId = DataParser.parseInt(event.data['entityId']);
+        final entityTypeValue = event.data['entityType'];
+        var userId = DataParser.parseInt(event.data['userId']);
+        final action = event.data['action'] as String?;
+        final active = DataParser.parseBool(event.data['active']) ?? false;
+        if (userId == null &&
+            action == 'ban' &&
+            !active &&
+            event.isSelf &&
+            sl.isRegistered<UserRepository>()) {
+          userId = sl<UserRepository>().getCurrentUser()?.id;
+        }
+        if (entityId == null ||
+            entityTypeValue is! String ||
+            userId == null ||
+            action == null ||
+            (action != 'ban' && action != 'mute')) {
+          return;
+        }
+        add(
+          MemberModerationUpdatedEvent(
+            entityId: entityId,
+            entityType: EntityType.fromString(entityTypeValue),
+            userId: userId,
+            action: action,
+            active: active,
+            expiresAt: event.data['expiresAt'] as String?,
+          ),
+        );
       },
     );
   }
@@ -251,6 +291,56 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     );
   }
 
+  Future<void> _onMemberModerationUpdated(
+    MemberModerationUpdatedEvent event,
+    Emitter<MembersState> emit,
+  ) async {
+    final entityKey = EntityKey(
+      entityId: event.entityId,
+      entityType: event.entityType,
+    );
+    final currentState = state;
+    final isCurrentEntity =
+        currentState is MembersLoaded &&
+        currentState.entityId == event.entityId &&
+        currentState.entityType == event.entityType;
+    final members = isCurrentEntity
+        ? currentState.members
+        : await _membersRepository.getCached(entityKey);
+    if (members.isEmpty) return;
+
+    final updatedMembers = members.map((member) {
+      if (member.fkUser != event.userId) return member;
+      if (event.action == 'ban') {
+        return member.copyWith(
+          isBanned: event.active,
+          banExpiresAt: event.expiresAt,
+          clearBanExpiresAt: !event.active || event.expiresAt == null,
+        );
+      }
+      return member.copyWith(
+        isChatMuted: event.active,
+        chatMuteExpiresAt: event.expiresAt,
+        clearChatMuteExpiresAt: !event.active || event.expiresAt == null,
+      );
+    }).toList();
+
+    _membersRepository.updateCache(entityKey, updatedMembers);
+    final latestState = state;
+    if (latestState is MembersLoaded &&
+        latestState.entityId == event.entityId &&
+        latestState.entityType == event.entityType) {
+      emit(
+        MembersLoaded(
+          entityId: latestState.entityId,
+          entityType: latestState.entityType,
+          members: updatedMembers,
+          memberCount: latestState.memberCount,
+        ),
+      );
+    }
+  }
+
   void _onUpdateUserInMembers(
     UpdateUserInMembers event,
     Emitter<MembersState> emit,
@@ -314,5 +404,6 @@ class MembersBloc extends Bloc<MembersEvent, MembersState> {
     _deleteSubscription?.cancel();
     _updateSubscription?.cancel();
     _userUpdateSubscription?.cancel();
+    _moderationSubscription?.cancel();
   }
 }

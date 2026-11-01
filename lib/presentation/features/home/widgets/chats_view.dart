@@ -2,6 +2,8 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
@@ -10,6 +12,7 @@ import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/server_content_sidebar.dart';
 import 'package:disalive/presentation/features/server/server_form_screen.dart';
 import 'package:disalive/presentation/features/server/server_discovery_sidebar.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/server/servers_sidebar.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
 import 'package:flutter/cupertino.dart';
@@ -42,9 +45,20 @@ class _ChatsViewState extends State<ChatsView> {
     widget.onDiscoveryChanged?.call(value);
   }
 
-  void _openDiscoveredServer(Server server, {bool refresh = false}) {
+  Future<void> _openDiscoveredServer(
+    Server server, {
+    bool refresh = false,
+    bool accessChecked = false,
+  }) async {
     final id = server.id;
     if (id == null) return;
+    if (!accessChecked) {
+      final access = await checkEntityAccess(
+        context,
+        EntityKey(entityId: id, entityType: EntityType.server),
+      );
+      if (access == null || !mounted) return;
+    }
     final repository = sl<ServerRepository>();
     final needsRefresh = repository.getByIdCached(id) == null;
     if (needsRefresh) {
@@ -87,8 +101,11 @@ class _ChatsViewState extends State<ChatsView> {
                         ? ServerDiscoverySidebar(
                             gridView: widget.discoveryGridView,
                             onOpenServer: _openDiscoveredServer,
-                            onJoinedServer: (server) =>
-                                _openDiscoveredServer(server, refresh: true),
+                            onJoinedServer: (server) => _openDiscoveredServer(
+                              server,
+                              refresh: true,
+                              accessChecked: true,
+                            ),
                           )
                         : selectedServer != null
                         ? ServerContentSidebar(
@@ -118,10 +135,7 @@ class _ChatsViewState extends State<ChatsView> {
                   _setDiscovering(false);
                   context.read<ServersBloc>().add(const SelectServer(null));
                 },
-                onSelectServer: (server) {
-                  _setDiscovering(false);
-                  context.read<ServersBloc>().add(SelectServer(server.id));
-                },
+                onSelectServer: _selectServer,
                 onDiscoverServers: () {
                   _setDiscovering(true);
                   context.read<ServersBloc>().add(const SelectServer(null));
@@ -140,6 +154,18 @@ class _ChatsViewState extends State<ChatsView> {
         );
       },
     );
+  }
+
+  Future<void> _selectServer(Server server) async {
+    final id = server.id;
+    if (id == null) return;
+    final access = await checkEntityAccess(
+      context,
+      EntityKey(entityId: id, entityType: EntityType.server),
+    );
+    if (access == null || !mounted) return;
+    _setDiscovering(false);
+    context.read<ServersBloc>().add(SelectServer(id));
   }
 
   Widget _buildDirectMessages(BuildContext context) {

@@ -58,7 +58,7 @@ class FileMessage extends Equatable {
       duration: (map['duration'] as num?)?.toDouble(),
       contentType: FileContentType.fromString(map['type']),
       objectKey: map['objectKey'],
-      isSpoiler: map['isSpoiler'],
+      isSpoiler: DataParser.parseInt(map['isSpoiler']),
       mimeType: mimeType,
       fileType: mimeType != null && mimeType.isNotEmpty
           ? FileType.fromMimeType(mimeType)

@@ -1,7 +1,9 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Поле ввода в нижней шторке с оформлением приложения.
 class AppTextInputSheet extends StatefulWidget {
@@ -30,17 +32,26 @@ class AppTextInputSheet extends StatefulWidget {
     String actionLabel = 'Сохранить',
     int maxLength = 30,
     bool enableEmojis = false,
-  }) => showCupertinoModalPopup<String>(
-    context: context,
-    builder: (_) => AppTextInputSheet(
-      title: title,
-      initialValue: initialValue,
-      placeholder: placeholder,
-      actionLabel: actionLabel,
-      maxLength: maxLength,
-      enableEmojis: enableEmojis,
-    ),
-  );
+  }) {
+    final preferredEmojisBloc = enableEmojis
+        ? context.read<PreferredEmojisBloc>()
+        : null;
+    return showCupertinoModalPopup<String>(
+      context: context,
+      builder: (_) {
+        final sheet = AppTextInputSheet(
+          title: title,
+          initialValue: initialValue,
+          placeholder: placeholder,
+          actionLabel: actionLabel,
+          maxLength: maxLength,
+          enableEmojis: enableEmojis,
+        );
+        if (preferredEmojisBloc == null) return sheet;
+        return BlocProvider.value(value: preferredEmojisBloc, child: sheet);
+      },
+    );
+  }
 
   @override
   State<AppTextInputSheet> createState() => _AppTextInputSheetState();

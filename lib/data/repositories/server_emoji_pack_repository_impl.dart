@@ -21,9 +21,9 @@ class ServerEmojiPackRepositoryImpl implements ServerEmojiPackRepository {
     if (serverId != null) queryParams['serverId'] = serverId;
     if (categoryId != null) queryParams['categoryId'] = categoryId;
 
-    return await _httpClient.get<List<ServerEmojiPack>>(
+    return await _httpClient.postFormData<List<ServerEmojiPack>>(
       endpoint: 'serverEmojiPack/get.php',
-      queryParams: queryParams.isNotEmpty ? queryParams : null,
+      data: queryParams,
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {
@@ -93,11 +93,7 @@ class ServerEmojiPackRepositoryImpl implements ServerEmojiPackRepository {
   }) async {
     return await _httpClient.postFormData<InstallServerEmojiPack>(
       endpoint: 'serverEmojiPack/install.php',
-      data: {
-        'packId': packId,
-        'installed': installed ? 'true' : 'false',
-        // PHP filter_var лучше понимает строки
-      },
+      data: {'packId': packId, 'installed': installed ? '1' : '0'},
       apiType: ApiType.v1,
       requireAuth: true,
       fromJson: (json) {

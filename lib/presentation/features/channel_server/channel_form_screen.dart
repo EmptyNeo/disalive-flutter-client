@@ -7,6 +7,7 @@ import 'package:disalive/presentation/features/category_channel/bloc/category_ch
 import 'package:disalive/presentation/features/channel_server/bloc/channel_server_bloc.dart';
 import 'package:disalive/presentation/features/channel_server/channel_access_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_screen_shell.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
@@ -43,15 +44,19 @@ class ChannelFormScreen extends StatefulWidget {
     ChannelServer? channel,
     int? initialCategoryId,
   }) async {
+    final preferredEmojisBloc = context.read<PreferredEmojisBloc>();
     await SwipeToDismissRoute.push<void>(
       context,
-      (_) => ChannelFormScreen(
-        serverId: serverId,
-        serverName: serverName,
-        channelsBloc: channelsBloc,
-        categoriesBloc: categoriesBloc,
-        channel: channel,
-        initialCategoryId: initialCategoryId,
+      (_) => BlocProvider.value(
+        value: preferredEmojisBloc,
+        child: ChannelFormScreen(
+          serverId: serverId,
+          serverName: serverName,
+          channelsBloc: channelsBloc,
+          categoriesBloc: categoriesBloc,
+          channel: channel,
+          initialCategoryId: initialCategoryId,
+        ),
       ),
     );
   }
@@ -63,6 +68,7 @@ class ChannelFormScreen extends StatefulWidget {
 class _ChannelFormScreenState extends State<ChannelFormScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _maxParticipantsController;
+  late int _slowModeSeconds;
   late String _type;
   late int? _categoryId;
   bool _isPrivate = false;
@@ -79,6 +85,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     _maxParticipantsController = TextEditingController(
       text: widget.channel?.maxParticipants?.toString() ?? '',
     )..addListener(() => setState(() {}));
+    _slowModeSeconds = widget.channel?.slowModeSeconds ?? 0;
     _type = widget.channel?.type ?? 'text';
     _categoryId = widget.channel?.categoryId ?? widget.initialCategoryId;
   }
@@ -88,6 +95,77 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     _nameController.dispose();
     _maxParticipantsController.dispose();
     super.dispose();
+  }
+
+  static const _slowModePresets = <(int, String)>[
+    (0, 'Выключен'),
+    (5, '5 секунд'),
+    (10, '10 секунд'),
+    (15, '15 секунд'),
+    (30, '30 секунд'),
+    (60, '1 минута'),
+    (120, '2 минуты'),
+    (300, '5 минут'),
+    (600, '10 минут'),
+    (900, '15 минут'),
+    (1800, '30 минут'),
+    (3600, '1 час'),
+    (7200, '2 часа'),
+    (21600, '6 часов'),
+  ];
+
+  String _slowModeLabel(int seconds) {
+    for (final (value, label) in _slowModePresets) {
+      if (value == seconds) return label;
+    }
+    if (seconds >= 3600 && seconds % 3600 == 0) {
+      return '${seconds ~/ 3600} ч.';
+    }
+    if (seconds >= 60 && seconds % 60 == 0) {
+      return '${seconds ~/ 60} мин.';
+    }
+    if (seconds >= 60) {
+      return '${seconds ~/ 60} мин. ${seconds % 60} сек.';
+    }
+    return '$seconds сек.';
+  }
+
+  Future<void> _chooseSlowMode() async {
+    final options = [
+      if (!_slowModePresets.any((preset) => preset.$1 == _slowModeSeconds))
+        AppSelectionOption<int>(
+          value: _slowModeSeconds,
+          label: 'Текущее значение · ${_slowModeLabel(_slowModeSeconds)}',
+        ),
+      const AppSelectionOption<int>(
+        value: -1,
+        label: 'Своё значение',
+        icon: CupertinoIcons.slider_horizontal_3,
+      ),
+      for (final (seconds, label) in _slowModePresets)
+        AppSelectionOption<int>(
+          value: seconds,
+          label: label,
+          icon: seconds == 0 ? CupertinoIcons.clear : CupertinoIcons.timer,
+        ),
+    ];
+    final selected = await AppSelectionSheet.show<int>(
+      context,
+      title: 'Медленный режим',
+      selectedValue: _slowModeSeconds,
+      options: options,
+    );
+    if (selected == -1) {
+      final customValue = await showCupertinoDialog<int>(
+        context: context,
+        builder: (_) => const _CustomSlowModeDialog(),
+      );
+      if (customValue == null || !mounted) return;
+      setState(() => _slowModeSeconds = customValue);
+      return;
+    }
+    if (selected == null || !mounted) return;
+    setState(() => _slowModeSeconds = selected);
   }
 
   Future<void> _chooseCategory(List<CategoryChannel> categories) async {
@@ -118,6 +196,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     final name = _nameController.text.trim();
     final limitText = _maxParticipantsController.text.trim();
     final maxParticipants = limitText.isEmpty ? null : int.tryParse(limitText);
+    final slowModeSeconds = _slowModeSeconds;
     if (name.isEmpty ||
         _submitting ||
         (_type == 'voice' &&
@@ -137,6 +216,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
         type: _type,
         categoryId: _categoryId,
         maxParticipants: _type == 'voice' ? maxParticipants : null,
+        slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
         channelsBloc: widget.channelsBloc,
       );
       if (created && mounted) Navigator.of(context).pop();
@@ -151,6 +231,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
             name: name,
             categoryId: _categoryId ?? 0,
             maxParticipants: _type == 'voice' ? maxParticipants : null,
+            slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
           )
         : await repository.create(
             widget.serverId,
@@ -158,6 +239,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
             type: _type,
             categoryId: _categoryId,
             maxParticipants: _type == 'voice' ? maxParticipants : null,
+            slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
           );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -255,6 +337,40 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
                   style: TextStyle(color: AppColors.errorRed, fontSize: 12),
                 ),
               ),
+          ],
+          if (_type == 'text') ...[
+            const SizedBox(height: 24),
+            _sectionTitle('Медленный режим'),
+            const SizedBox(height: 8),
+            CupertinoButton(
+              key: const ValueKey('channel_slow_mode_picker'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              color: AppColors.actionGrey,
+              borderRadius: BorderRadius.circular(13),
+              onPressed: _chooseSlowMode,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _slowModeLabel(_slowModeSeconds),
+                      style: TextStyle(color: AppColors.white),
+                    ),
+                  ),
+                  Icon(
+                    CupertinoIcons.chevron_down,
+                    size: 16,
+                    color: AppColors.greyple,
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Выберите, как часто участники могут отправлять сообщения.',
+                style: TextStyle(color: AppColors.greyple, fontSize: 12),
+              ),
+            ),
           ],
           const SizedBox(height: 24),
           _sectionTitle('Категория'),
@@ -365,4 +481,106 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
       ),
     );
   }
+}
+
+enum _SlowModeUnit { seconds, minutes, hours }
+
+class _CustomSlowModeDialog extends StatefulWidget {
+  const _CustomSlowModeDialog();
+
+  @override
+  State<_CustomSlowModeDialog> createState() => _CustomSlowModeDialogState();
+}
+
+class _CustomSlowModeDialogState extends State<_CustomSlowModeDialog> {
+  late final TextEditingController _controller;
+  _SlowModeUnit _unit = _SlowModeUnit.minutes;
+
+  int get _unitMultiplier => switch (_unit) {
+    _SlowModeUnit.seconds => 1,
+    _SlowModeUnit.minutes => 60,
+    _SlowModeUnit.hours => 3600,
+  };
+
+  int get _maximumValue => 21600 ~/ _unitMultiplier;
+
+  int? get _seconds {
+    final value = int.tryParse(_controller.text.trim());
+    if (value == null || value < 1 || value > _maximumValue) return null;
+    return value * _unitMultiplier;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController()..addListener(_refresh);
+  }
+
+  void _refresh() => setState(() {});
+
+  @override
+  void dispose() {
+    _controller.removeListener(_refresh);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CupertinoAlertDialog(
+    title: const Text('Своё значение'),
+    content: Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CupertinoTextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            placeholder: 'Введите число',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          CupertinoSlidingSegmentedControl<_SlowModeUnit>(
+            groupValue: _unit,
+            children: const {
+              _SlowModeUnit.seconds: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Text('сек'),
+              ),
+              _SlowModeUnit.minutes: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Text('мин'),
+              ),
+              _SlowModeUnit.hours: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 5),
+                child: Text('часы'),
+              ),
+            },
+            onValueChanged: (unit) {
+              if (unit != null) setState(() => _unit = unit);
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'От 1 секунды до 6 часов',
+            style: TextStyle(color: AppColors.greyple, fontSize: 12),
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      CupertinoDialogAction(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Отмена'),
+      ),
+      CupertinoDialogAction(
+        isDefaultAction: true,
+        onPressed: _seconds == null
+            ? null
+            : () => Navigator.of(context).pop(_seconds),
+        child: const Text('Применить'),
+      ),
+    ],
+  );
 }

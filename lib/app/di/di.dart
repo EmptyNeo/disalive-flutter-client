@@ -25,6 +25,7 @@ import 'package:disalive/data/repositories/role_member_repository_impl.dart';
 import 'package:disalive/data/repositories/setting_repository_impl.dart';
 import 'package:disalive/data/repositories/session_repository_impl.dart';
 import 'package:disalive/data/repositories/server_repository_impl.dart';
+import 'package:disalive/data/repositories/server_emoji_pack_repository_impl.dart';
 import 'package:disalive/data/repositories/sticker_pack_repository_impl.dart';
 import 'package:disalive/data/repositories/stickers_repository_impl.dart';
 import 'package:disalive/data/repositories/user_repository_impl.dart';
@@ -56,6 +57,7 @@ import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/setting_repository.dart';
 import 'package:disalive/domain/repositories/session_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/server_emoji_pack_repository.dart';
 import 'package:disalive/domain/repositories/sticker_pack_repository.dart';
 import 'package:disalive/domain/repositories/stickers_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
@@ -83,6 +85,7 @@ import 'package:disalive/presentation/features/register/bloc/register_bloc.dart'
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/role_members/bloc/role_members_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
+import 'package:disalive/presentation/features/server_emoji_packs/bloc/server_emoji_packs_bloc.dart';
 import 'package:disalive/presentation/features/reset/bloc/reset_password_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/features/verify/bloc/verify_code_bloc.dart';
@@ -126,6 +129,9 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ServerRepository>(() => ServerRepositoryImpl());
+  sl.registerLazySingleton<ServerEmojiPackRepository>(
+    () => ServerEmojiPackRepositoryImpl(),
+  );
   sl.registerLazySingleton<ChannelServerRepository>(
     () => ChannelServerRepositoryImpl(),
   );
@@ -201,6 +207,9 @@ Future<void> setupDependencies() async {
   );
   sl.registerFactory(
     () => ServersBloc(sl<ServerRepository>(), sl<WsEventBus>()),
+  );
+  sl.registerFactory<ServerEmojiPacksBloc>(
+    () => ServerEmojiPacksBloc(sl<ServerEmojiPackRepository>()),
   );
   sl.registerFactory<SessionBloc>(
     () => SessionBloc(sl(), sl(), sl(), sl(), sl()),

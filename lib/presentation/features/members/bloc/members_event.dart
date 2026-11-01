@@ -69,6 +69,34 @@ class MemberUpdatedEvent extends MembersEvent {
   List<Object?> get props => [entityId, entityType, updatedMembers];
 }
 
+class MemberModerationUpdatedEvent extends MembersEvent {
+  final int entityId;
+  final EntityType entityType;
+  final int userId;
+  final String action;
+  final bool active;
+  final String? expiresAt;
+
+  const MemberModerationUpdatedEvent({
+    required this.entityId,
+    required this.entityType,
+    required this.userId,
+    required this.action,
+    required this.active,
+    this.expiresAt,
+  });
+
+  @override
+  List<Object?> get props => [
+    entityId,
+    entityType,
+    userId,
+    action,
+    active,
+    expiresAt,
+  ];
+}
+
 class UpdateUserInMembers extends MembersEvent {
   final UserModel user;
 

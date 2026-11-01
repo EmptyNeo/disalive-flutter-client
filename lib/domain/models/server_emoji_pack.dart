@@ -25,18 +25,41 @@ class ServerEmojiPack extends Equatable {
       final categoryId = map['categoryId'] as String? ?? 'server_pack';
       parsedJsons = (map['jsons'] as List)
           .whereType<Map<String, dynamic>>()
-          .map((json) => EmojiSheetData.fromJson(categoryId, json))
+          .map(
+            (json) => EmojiSheetData.fromJson(
+              categoryId,
+              json,
+              sheetNameOverride: map['name'] as String?,
+              isNetworkAsset: true,
+            ),
+          )
           .toList();
     }
 
     return ServerEmojiPack(
-      map['id'] as int?,
-      map['serverId'] as int?,
+      _parseInt(map['id']),
+      _parseInt(map['serverId']),
       map['name'] as String?,
       map['categoryId'] as String?,
-      map['installed'] as bool?,
+      _parseBool(map['installed']),
       parsedJsons,
     );
+  }
+
+  static int? _parseInt(dynamic value) => value is int
+      ? value
+      : value is String
+      ? int.tryParse(value)
+      : null;
+
+  static bool? _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      if (value == '1' || value.toLowerCase() == 'true') return true;
+      if (value == '0' || value.toLowerCase() == 'false') return false;
+    }
+    return null;
   }
 
   ServerEmojiPack copyWith({
@@ -58,5 +81,5 @@ class ServerEmojiPack extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, serverId, name, categoryId, installed];
+  List<Object?> get props => [id, serverId, name, categoryId, installed, jsons];
 }

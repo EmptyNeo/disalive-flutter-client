@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:disalive/app/di/di.dart';
@@ -26,9 +27,11 @@ const double _kFloatingPanelMargin = 8;
 
 class ChatInputArea extends StatefulWidget {
   final Chat chat;
+  final ChannelServer? channel;
   final int? serverId;
   final bool isReconnect;
   final bool canSendMessages;
+  final bool isModerationMuted;
   final FocusNode inputFocusNode;
   final GlobalKey inputKey;
   final bool hasEdit;
@@ -51,9 +54,11 @@ class ChatInputArea extends StatefulWidget {
   const ChatInputArea({
     super.key,
     required this.chat,
+    this.channel,
     this.serverId,
     required this.isReconnect,
     this.canSendMessages = true,
+    this.isModerationMuted = false,
     required this.inputKey,
     required this.textController,
     required this.hasEdit,
@@ -88,11 +93,15 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   bool _loadingChannels = false;
   List<Member> _mentionMembers = const [];
   EntityKey? _loadedMembersKey;
+  Timer? _slowModeTimer;
+  DateTime? _slowModeLastSentAt;
+  int _slowModeRemaining = 0;
 
   @override
   void initState() {
     super.initState();
     widget.textController.addListener(_updateMentionQuery);
+    _syncSlowMode();
   }
 
   @override
@@ -102,6 +111,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
       oldWidget.textController.removeListener(_updateMentionQuery);
       widget.textController.addListener(_updateMentionQuery);
     }
+    if (oldWidget.channel != widget.channel) _syncSlowMode();
     if (oldWidget.serverId != widget.serverId ||
         oldWidget.chat.id != widget.chat.id ||
         oldWidget.canSendMessages != widget.canSendMessages) {
@@ -109,6 +119,43 @@ class _ChatInputAreaState extends State<ChatInputArea> {
       _mentionMembers = const [];
       _updateMentionQuery();
       if (_userMentionQuery != null) _loadMentionMembers();
+    }
+  }
+
+  DateTime? _parseSlowModeTimestamp(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final hasTimezone =
+        value.endsWith('Z') || RegExp(r'[+-]\d\d:?\d\d$').hasMatch(value);
+    return DateTime.tryParse(hasTimezone ? value : '${value}Z')?.toUtc();
+  }
+
+  void _syncSlowMode() {
+    _slowModeTimer?.cancel();
+    _slowModeLastSentAt = _parseSlowModeTimestamp(
+      widget.channel?.slowModeLastSentAt,
+    );
+    _updateSlowModeRemaining();
+    if ((widget.channel?.slowModeSeconds ?? 0) > 0) {
+      _slowModeTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _updateSlowModeRemaining(),
+      );
+    }
+  }
+
+  void _updateSlowModeRemaining() {
+    final seconds = widget.channel?.slowModeSeconds ?? 0;
+    final lastSentAt = _slowModeLastSentAt;
+    final remaining = seconds <= 0 || lastSentAt == null
+        ? 0
+        : (seconds - DateTime.now().toUtc().difference(lastSentAt).inSeconds)
+              .clamp(0, seconds);
+    if (!mounted) {
+      _slowModeRemaining = remaining;
+      return;
+    }
+    if (_slowModeRemaining != remaining) {
+      setState(() => _slowModeRemaining = remaining);
     }
   }
 
@@ -194,6 +241,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
 
   @override
   void dispose() {
+    _slowModeTimer?.cancel();
     widget.textController.removeListener(_updateMentionQuery);
     _removeVoiceOverlay();
     super.dispose();
@@ -380,7 +428,8 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     final bool isInputAllowed =
         !widget.chat.isAnyBlocked &&
         !widget.isReconnect &&
-        widget.canSendMessages;
+        widget.canSendMessages &&
+        (widget.hasEdit || _slowModeRemaining == 0);
 
     return Padding(
       key: widget.inputKey,
@@ -449,7 +498,9 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                               vertical: 10,
                             ),
                             child: Text(
-                              'У вас недостаточно прав, чтобы отправлять сообщения на этом канале',
+                              widget.isModerationMuted
+                                  ? 'Вам временно запрещено отправлять сообщения и реакции'
+                                  : 'У вас недостаточно прав, чтобы отправлять сообщения на этом канале',
                               style: AppText.mediumTextStyle.copyWith(
                                 color: AppColors.greyple,
                               ),
@@ -597,6 +648,9 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   String? getRestrictionMessage() {
     String? displayName = widget.chat.user?.displayName;
 
+    if (widget.isModerationMuted) {
+      return 'Вам временно запрещено отправлять сообщения и реакции';
+    }
     if (widget.isReconnect) {
       return "Соединение с сервером...";
     }
@@ -609,7 +663,19 @@ class _ChatInputAreaState extends State<ChatInputArea> {
     if (widget.chat.user?.bothBlocked == true) {
       return 'Вы и пользователь $displayName заблокировали друг друга';
     }
+    if (!widget.hasEdit && _slowModeRemaining > 0) {
+      return 'Медленный режим · Следующее сообщение через ${formatSlowModeRemaining(_slowModeRemaining)}';
+    }
 
     return null;
+  }
+
+  String formatSlowModeRemaining(int remaining) {
+    final hours = remaining ~/ 3600;
+    final minutes = (remaining % 3600) ~/ 60;
+    final seconds = (remaining % 60).toString().padLeft(2, '0');
+    return hours > 0
+        ? '$hours:${minutes.toString().padLeft(2, '0')}:$seconds'
+        : '$minutes:$seconds';
   }
 }

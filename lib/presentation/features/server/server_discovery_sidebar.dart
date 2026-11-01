@@ -8,6 +8,8 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
@@ -88,6 +90,15 @@ class _ServerDiscoverySidebarState extends State<ServerDiscoverySidebar> {
     final id = server.id;
     if (id == null || !_joining.add(id)) return;
     setState(() {});
+    final access = await checkEntityAccess(
+      context,
+      EntityKey(entityId: id, entityType: EntityType.server),
+    );
+    if (access == null || !mounted) {
+      _joining.remove(id);
+      if (mounted) setState(() {});
+      return;
+    }
     final result = await sl<MembersRepository>().create(id, EntityType.server);
     if (!mounted) return;
     _joining.remove(id);

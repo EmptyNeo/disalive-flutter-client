@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/call_data.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/category_channel.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/server.dart';
@@ -10,11 +13,14 @@ import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/category_channel/bloc/category_channel_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
+import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
 import 'package:disalive/presentation/features/calls/widgets/channel_call_participants.dart';
 import 'package:disalive/presentation/features/category_channel/widgets/category_channel_item.dart';
 import 'package:disalive/presentation/features/channel_server/bloc/channel_server_bloc.dart';
@@ -28,11 +34,14 @@ import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
 import 'package:disalive/presentation/features/server/server_form_screen.dart';
+import 'package:disalive/presentation/features/server_emoji_packs/server_emoji_pack_screen.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/app_text_input_sheet.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -60,6 +69,8 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   late final ChannelServerBloc _channelsBloc;
   late final CategoryChannelBloc _categoriesBloc;
   late final CallParticipantsBloc _callParticipantsBloc;
+  StreamSubscription? _moderationSubscription;
+  bool _checkingServerAccess = true;
 
   int get _serverId => widget.server.id!;
   ServerActionPermissions get _rights =>
@@ -82,12 +93,16 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
           EntityKey(entityId: _serverId, entityType: EntityType.server),
         ),
       );
+    _listenToOwnBanEvents();
+    _verifyServerAccess();
   }
 
   @override
   void didUpdateWidget(covariant ServerContentSidebar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.server.id != widget.server.id) {
+      _checkingServerAccess = true;
+      _verifyServerAccess();
       _collapsedCategories.clear();
       _collapsedCalls.clear();
       _channelsBloc.add(GetServerChannels(_serverId));
@@ -100,8 +115,77 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     }
   }
 
+  Future<void> _verifyServerAccess() async {
+    final serverId = _serverId;
+    final access = await checkEntityAccess(
+      context,
+      EntityKey(entityId: serverId, entityType: EntityType.server),
+    );
+    if (!mounted || widget.server.id != serverId) return;
+    if (access == null) {
+      widget.onLeave?.call();
+      return;
+    }
+    setState(() => _checkingServerAccess = false);
+  }
+
+  void _listenToOwnBanEvents() {
+    _moderationSubscription = sl<WsEventBus>().subscribeToTable(
+      table: 'EntityModeration',
+      onData: (event) {
+        final currentUserId = sl<UserRepository>().getCurrentUser()?.id;
+        final openChat = sl<ChatRepository>().getCurrentChat();
+        final isOpenServerChannel =
+            openChat != null &&
+            sl<ChannelServerRepository>()
+                .getCached(_serverId)
+                .any((channel) => channel.chatId == openChat.id);
+        final isInThisServerCall = _isInThisServerCall();
+        if (currentUserId == null ||
+            isOpenServerChannel ||
+            isInThisServerCall ||
+            DataParser.parseInt(event.data['entityId']) != _serverId ||
+            event.data['entityType'] != EntityType.server.value ||
+            DataParser.parseInt(event.data['userId']) != currentUserId ||
+            event.data['action'] != 'ban' ||
+            !(DataParser.parseBool(event.data['active']) ?? false)) {
+          return;
+        }
+        unawaited(_showBanNoticeAndLeave(event.data));
+      },
+    );
+  }
+
+  bool _isInThisServerCall() {
+    try {
+      final state = context.read<CallBloc>().state;
+      return (state.status == CallStatus.connecting ||
+              state.status == CallStatus.connected) &&
+          state.entityKey ==
+              EntityKey(entityId: _serverId, entityType: EntityType.server);
+    } on ProviderNotFoundException {
+      return false;
+    }
+  }
+
+  Future<void> _showBanNoticeAndLeave(Map<String, dynamic> data) async {
+    final serverId = _serverId;
+    await showEntityBanNotice(
+      context,
+      entityKey: EntityKey(entityId: serverId, entityType: EntityType.server),
+      access: EntityAccess(
+        banned: true,
+        banReason: data['reason'] as String?,
+        banExpiresAt: data['expiresAt'] as String?,
+      ),
+    );
+    if (!mounted || widget.server.id != serverId) return;
+    widget.onLeave?.call();
+  }
+
   @override
   void dispose() {
+    _moderationSubscription?.cancel();
     _channelsBloc.close();
     _categoriesBloc.close();
     _callParticipantsBloc.close();
@@ -449,6 +533,12 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             onTap: _createCategory,
           ),
         ActionItem(
+          icon: CupertinoIcons.smiley,
+          label: 'Эмодзи сервера',
+          onTap: () =>
+              ServerEmojiPackScreen.open(context, server: widget.server),
+        ),
+        ActionItem(
           icon: CupertinoIcons.square_arrow_right,
           label: 'Покинуть сервер',
           isDestructive: true,
@@ -496,12 +586,22 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             onTap: () =>
                 ManageServerInvitesScreen.open(context, server: widget.server),
           ),
+        if (widget.server.isServerOwner)
+          ActionItem(
+            icon: CupertinoIcons.smiley,
+            label: 'Управлять эмодзи',
+            onTap: () =>
+                ServerEmojiPackScreen.open(context, server: widget.server),
+          ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingServerAccess) {
+      return const Center(child: CupertinoActivityIndicator());
+    }
     return MultiBlocProvider(
       providers: [
         BlocProvider<ChannelServerBloc>.value(value: _channelsBloc),

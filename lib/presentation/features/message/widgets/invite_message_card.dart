@@ -14,6 +14,7 @@ import 'package:disalive/presentation/features/calls/call_screen.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/message/widgets/invite_message_meta.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -101,6 +102,17 @@ class _InviteMessageCardState extends State<InviteMessageCard> {
           message: 'Не удалось проверить приглашение',
         );
         return;
+      }
+      final destinationId = membership?.entityId ?? _entityId;
+      if (destinationId != null) {
+        final access = await checkEntityAccess(
+          context,
+          EntityKey(
+            entityId: destinationId,
+            entityType: membership?.entityType ?? _entityType,
+          ),
+        );
+        if (access == null || !mounted) return;
       }
       if (membership?.isMember == true ||
           (membership == null && _isMemberLocally())) {

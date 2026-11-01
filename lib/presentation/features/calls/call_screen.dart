@@ -7,10 +7,13 @@ import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/domain/services/calls/pip_service.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
 import 'package:disalive/presentation/features/calls/call_pip_overlay.dart';
@@ -19,6 +22,8 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
+import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
+import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
@@ -164,6 +169,7 @@ class _CallScreenState extends State<CallScreen> {
   bool _overlaysVisible = true;
   bool _offeredPipSettings = false;
   Timer? _overlayTimer;
+  StreamSubscription? _moderationSubscription;
   late final int _ownSystemUiEpoch;
   Future<void>? _restoreSystemUiFuture;
 
@@ -215,6 +221,7 @@ class _CallScreenState extends State<CallScreen> {
     _ownSystemUiEpoch = ++_systemUiEpoch;
     _focusedTileId = CallPipOverlay.selectedTileId;
     _scheduleOverlayHide();
+    _listenToOwnBanEvents();
     if (Platform.isIOS) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
     } else {
@@ -225,12 +232,48 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void dispose() {
     _overlayTimer?.cancel();
+    _moderationSubscription?.cancel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       CallPipOverlay.setScreenVisible(false);
     });
     unawaited(_restoreSystemUi());
     CallScreen.exitRevision.value++;
     super.dispose();
+  }
+
+  void _listenToOwnBanEvents() {
+    if (!sl.isRegistered<WsEventBus>() || !sl.isRegistered<UserRepository>()) {
+      return;
+    }
+    _moderationSubscription = sl<WsEventBus>().subscribeToTable(
+      table: 'EntityModeration',
+      onData: (event) {
+        final currentUserId = sl<UserRepository>().getCurrentUser()?.id;
+        if (currentUserId == null ||
+            DataParser.parseInt(event.data['entityId']) !=
+                widget.entityKey.entityId ||
+            event.data['entityType'] != widget.entityKey.entityType.value ||
+            DataParser.parseInt(event.data['userId']) != currentUserId ||
+            event.data['action'] != 'ban' ||
+            !(DataParser.parseBool(event.data['active']) ?? false)) {
+          return;
+        }
+        unawaited(_showOwnBanNotice(event.data));
+      },
+    );
+  }
+
+  Future<void> _showOwnBanNotice(Map<String, dynamic> data) async {
+    await showEntityBanNotice(
+      context,
+      entityKey: widget.entityKey,
+      access: EntityAccess(
+        banned: true,
+        banReason: data['reason'] as String?,
+        banExpiresAt: data['expiresAt'] as String?,
+      ),
+    );
+    if (mounted) _leave();
   }
 
   Future<void> _restoreSystemUi() =>

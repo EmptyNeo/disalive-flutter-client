@@ -13,6 +13,10 @@ class Member extends Equatable {
   final int? orderFixed;
   final bool? isSelf;
   final bool? isCreator;
+  final bool? isBanned;
+  final String? banExpiresAt;
+  final bool? isChatMuted;
+  final String? chatMuteExpiresAt;
   final UserModel? user;
   final RoleMember? role;
 
@@ -26,6 +30,10 @@ class Member extends Equatable {
     this.orderFixed,
     this.isSelf,
     this.isCreator,
+    this.isBanned,
+    this.banExpiresAt,
+    this.isChatMuted,
+    this.chatMuteExpiresAt,
     this.user,
     this.role,
   });
@@ -41,6 +49,10 @@ class Member extends Equatable {
       orderFixed: map['orderFixed'],
       isSelf: map['isSelf'],
       isCreator: map['isCreator'],
+      isBanned: _parseBool(map['isBanned']),
+      banExpiresAt: map['banExpiresAt'] as String?,
+      isChatMuted: _parseBool(map['isChatMuted']),
+      chatMuteExpiresAt: map['chatMuteExpiresAt'] as String?,
       user: map['user'] != null
           ? UserModel.fromMap(map['user'] as Map<String, dynamic>)
           : null,
@@ -61,6 +73,10 @@ class Member extends Equatable {
       if (orderFixed != null) 'orderFixed': orderFixed,
       if (isSelf != null) 'isSelf': isSelf,
       if (isCreator != null) 'isCreator': isCreator,
+      if (isBanned != null) 'isBanned': isBanned,
+      if (banExpiresAt != null) 'banExpiresAt': banExpiresAt,
+      if (isChatMuted != null) 'isChatMuted': isChatMuted,
+      if (chatMuteExpiresAt != null) 'chatMuteExpiresAt': chatMuteExpiresAt,
       if (user != null) 'user': user?.toMap(),
       if (role != null) 'role': role?.toMap(),
     };
@@ -76,6 +92,12 @@ class Member extends Equatable {
     int? orderFixed,
     bool? isSelf,
     bool? isCreator,
+    bool? isBanned,
+    String? banExpiresAt,
+    bool clearBanExpiresAt = false,
+    bool? isChatMuted,
+    String? chatMuteExpiresAt,
+    bool clearChatMuteExpiresAt = false,
     UserModel? user,
     RoleMember? role,
   }) {
@@ -89,6 +111,14 @@ class Member extends Equatable {
       orderFixed: orderFixed ?? this.orderFixed,
       isSelf: isSelf ?? this.isSelf,
       isCreator: isCreator ?? this.isCreator,
+      isBanned: isBanned ?? this.isBanned,
+      banExpiresAt: clearBanExpiresAt
+          ? null
+          : (banExpiresAt ?? this.banExpiresAt),
+      isChatMuted: isChatMuted ?? this.isChatMuted,
+      chatMuteExpiresAt: clearChatMuteExpiresAt
+          ? null
+          : (chatMuteExpiresAt ?? this.chatMuteExpiresAt),
       user: user ?? this.user,
       role: role ?? this.role,
     );
@@ -110,7 +140,22 @@ class Member extends Equatable {
     orderFixed,
     isSelf,
     isCreator,
+    isBanned,
+    banExpiresAt,
+    isChatMuted,
+    chatMuteExpiresAt,
     user,
     role,
   ];
+}
+
+bool? _parseBool(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.toLowerCase();
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0') return false;
+  }
+  return null;
 }

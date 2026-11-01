@@ -6,11 +6,13 @@ import 'package:disalive/domain/models/category_channel.dart';
 import 'package:disalive/domain/models/call_data.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/category_channel_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/requests_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -144,6 +146,16 @@ class _Requests implements RequestsRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _Members implements MembersRepository {
+  @override
+  Future<Either<Failure, EntityAccess>> checkAccess(
+    EntityKey entityKey,
+  ) async => const Right(EntityAccess());
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   testWidgets(
     'discovery layout toggle works beside the server rail on a 320px screen',
@@ -247,6 +259,7 @@ void main() {
       sl.registerSingleton<ServerRepository>(serverRepository);
       sl.registerSingleton<ChannelServerRepository>(_Channels());
       sl.registerSingleton<CategoryChannelRepository>(_Categories());
+      sl.registerSingleton<MembersRepository>(_Members());
 
       await tester.pumpWidget(
         MultiBlocProvider(

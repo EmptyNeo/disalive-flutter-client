@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:flutter/cupertino.dart';
@@ -8,11 +7,8 @@ import 'package:flutter/cupertino.dart';
 /// Не использует Material-виджеты, полностью соответствует дизайну приложения.
 class CustomToast {
   static OverlayEntry? _currentOverlayEntry;
+  static GlobalKey<_ToastWidgetState>? _currentToastKey;
   static Timer? _autoDismissTimer;
-
-  // 🎯 Ключ для управления анимацией скрытия из статического метода
-  static final GlobalKey<_ToastWidgetState> _toastKey =
-      GlobalKey<_ToastWidgetState>();
 
   /// Показывает toast-уведомление поверх текущего интерфейса.
   static void open({
@@ -24,17 +20,21 @@ class CustomToast {
     // Если уже есть активный toast, скрываем его мгновенно перед показом нового
     _hide(immediate: true);
 
-    _currentOverlayEntry = OverlayEntry(
+    final toastKey = GlobalKey<_ToastWidgetState>();
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
       builder: (context) => _ToastWidget(
-        key: _toastKey,
+        key: toastKey,
         icon: icon,
         color: color,
         message: message,
-        onDismissed: _removeOverlay,
+        onDismissed: () => _removeOverlay(entry),
       ),
     );
 
-    Overlay.of(context).insert(_currentOverlayEntry!);
+    _currentToastKey = toastKey;
+    _currentOverlayEntry = entry;
+    Overlay.of(context).insert(entry);
 
     // Автоматическое скрытие через 5 секунд
     _autoDismissTimer = Timer(
@@ -53,15 +53,27 @@ class CustomToast {
       _removeOverlay();
     } else {
       // 🎯 Запускаем обратную анимацию
-      _toastKey.currentState?.hide();
+      final toastState = _currentToastKey?.currentState;
+      if (toastState == null) {
+        _removeOverlay();
+      } else {
+        toastState.hide();
+      }
     }
   }
 
-  static void _removeOverlay() {
-    if (_currentOverlayEntry != null) {
-      _currentOverlayEntry?.remove();
+  static void _removeOverlay([OverlayEntry? entry]) {
+    final target = entry ?? _currentOverlayEntry;
+    if (target == null) return;
+
+    if (identical(_currentOverlayEntry, target)) {
+      _autoDismissTimer?.cancel();
+      _autoDismissTimer = null;
       _currentOverlayEntry = null;
+      _currentToastKey = null;
     }
+
+    if (target.mounted) target.remove();
   }
 }
 

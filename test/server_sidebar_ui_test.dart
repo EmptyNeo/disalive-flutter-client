@@ -8,8 +8,10 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/category_channel.dart';
 import 'package:disalive/domain/models/call_data.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/preferred_emoji.dart';
 import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/user.dart';
@@ -17,11 +19,13 @@ import 'package:disalive/domain/repositories/category_channel_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/preferred_emojis_repository.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/category_channel/widgets/category_channel_item.dart';
+import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/channel_server/widgets/channel_server_item.dart';
 import 'package:disalive/presentation/features/chat/widgets/symbols/chat_extra_panel.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
@@ -44,6 +48,14 @@ class _Calls implements CallsRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _PreferredEmojis implements PreferredEmojisRepository {
+  @override
+  Future<Either<Failure, List<PreferredEmoji>>> get() async => const Right([]);
+
+  @override
+  List<PreferredEmoji> getCache() => const [];
 }
 
 class _Channels implements ChannelServerRepository {
@@ -69,6 +81,7 @@ class _Channels implements ChannelServerRepository {
     int? categoryId,
     bool isPrivate = false,
     int? maxParticipants,
+    int slowModeSeconds = 0,
     List<int> userIds = const [],
     List<int> roleIds = const [],
   }) async {
@@ -88,6 +101,7 @@ class _Channels implements ChannelServerRepository {
         categoryId: categoryId,
         isPrivate: isPrivate,
         maxParticipants: maxParticipants,
+        slowModeSeconds: slowModeSeconds,
         allowedUsers: userIds,
         allowedRoles: roleIds,
       ),
@@ -100,6 +114,7 @@ class _Channels implements ChannelServerRepository {
     String? name,
     int? categoryId,
     int? maxParticipants,
+    int? slowModeSeconds,
   }) async {
     lastUpdatedName = name;
     lastUpdatedCategoryId = categoryId;
@@ -111,6 +126,7 @@ class _Channels implements ChannelServerRepository {
         'chatName': name,
         'categoryId': categoryId == 0 ? null : categoryId,
         'maxParticipants': maxParticipants,
+        'slowModeSeconds': slowModeSeconds,
       }),
     );
   }
@@ -220,6 +236,11 @@ class _Members implements MembersRepository {
       const Right([Member(fkUser: 8, user: UserModel(displayName: 'Alice'))]);
 
   @override
+  Future<Either<Failure, EntityAccess>> checkAccess(
+    EntityKey entityKey,
+  ) async => const Right(EntityAccess());
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -282,17 +303,23 @@ Future<void> _pumpSidebar(
   await sl.reset();
   sl.registerSingleton<WsEventBus>(WsEventBus());
   sl.registerSingleton<CallsRepository>(_Calls());
+  sl.registerSingleton<PreferredEmojisRepository>(_PreferredEmojis());
   sl.registerSingleton<ChannelServerRepository>(_Channels(channels));
   sl.registerSingleton<CategoryChannelRepository>(_Categories(categories));
   await tester.pumpWidget(
     CupertinoApp(
       home: CupertinoPageScaffold(
-        child: SizedBox(
-          width: 390,
-          child: ServerContentSidebar(
-            server: server,
-            onInvite: onInvite,
-            onChannelTap: onChannelTap,
+        child: BlocProvider<PreferredEmojisBloc>(
+          create: (_) =>
+              PreferredEmojisBloc(sl<PreferredEmojisRepository>())
+                ..add(const LoadPreferredEmojis()),
+          child: SizedBox(
+            width: 390,
+            child: ServerContentSidebar(
+              server: server,
+              onInvite: onInvite,
+              onChannelTap: onChannelTap,
+            ),
           ),
         ),
       ),

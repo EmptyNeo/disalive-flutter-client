@@ -6,6 +6,8 @@ import 'package:disalive/domain/enums/api_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/entity_key.dart';
+import 'package:disalive/domain/models/entity_access.dart';
+import 'package:disalive/domain/models/entity_moderation.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
@@ -137,6 +139,65 @@ class MembersRepositoryImpl extends MembersRepository {
 
     return result;
   }
+
+  @override
+  Future<Either<Failure, EntityAccess>> checkAccess(EntityKey entityKey) =>
+      _httpClient.postFormData<EntityAccess>(
+        endpoint: 'members/access.php',
+        data: {
+          'entityId': entityKey.entityId,
+          'entityType': entityKey.entityType.value,
+        },
+        apiType: ApiType.v1,
+        requireAuth: true,
+        fromJson: (json) =>
+            EntityAccess.fromMap(Map<String, dynamic>.from(json as Map)),
+      );
+
+  @override
+  Future<Either<Failure, bool>> moderate({
+    required EntityKey entityKey,
+    required int userId,
+    required String action,
+    String? expiresAt,
+    String? reason,
+  }) => _httpClient.postFormData<bool>(
+    endpoint: 'members/moderate.php',
+    data: {
+      'entityId': entityKey.entityId,
+      'entityType': entityKey.entityType.value,
+      'userId': userId,
+      'action': action,
+      'expiresAt': expiresAt,
+      'reason': reason,
+    },
+    apiType: ApiType.v1,
+    requireAuth: true,
+    fromJson: (json) => json is Map<String, dynamic>,
+  );
+
+  @override
+  Future<Either<Failure, List<EntityModeration>>> getModeration(
+    EntityKey entityKey,
+  ) => _httpClient.postFormData<List<EntityModeration>>(
+    endpoint: 'members/moderation.php',
+    data: {
+      'entityId': entityKey.entityId,
+      'entityType': entityKey.entityType.value,
+    },
+    apiType: ApiType.v1,
+    requireAuth: true,
+    fromJson: (json) {
+      final raw = json is List ? json : <dynamic>[];
+      return raw
+          .map(
+            (entry) => EntityModeration.fromMap(
+              Map<String, dynamic>.from(entry as Map),
+            ),
+          )
+          .toList();
+    },
+  );
 
   @override
   Future<List<Member>> getCached(EntityKey entityKey) async {
