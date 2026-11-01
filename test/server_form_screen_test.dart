@@ -43,6 +43,7 @@ class _Servers implements ServerRepository {
   void selectServer(int? serverId) => _selectedServerId = serverId;
   String? savedName;
   int? savedId;
+  String? savedDescription;
   int? savedCanInvite;
   int? savedPrivate;
   ServerType? savedCategory;
@@ -53,17 +54,19 @@ class _Servers implements ServerRepository {
   @override
   Future<Either<Failure, Server>> create(
     String name, {
+    String description = '',
     int canInvite = 1,
     int isPrivate = 0,
     ServerType? category,
     File? avatar,
     File? banner,
   }) async {
-    _save(null, name, canInvite, isPrivate, category);
+    _save(null, name, description, canInvite, isPrivate, category);
     return Right(
       Server(
         id: 9,
         name: name,
+        description: description,
         canInvite: canInvite,
         private: isPrivate,
         category: category,
@@ -75,6 +78,7 @@ class _Servers implements ServerRepository {
   Future<Either<Failure, Server>> update(
     int id,
     String name, {
+    String? description,
     int? canInvite,
     int? isPrivate,
     ServerType? category,
@@ -86,7 +90,7 @@ class _Servers implements ServerRepository {
     File? banner,
     bool deleteBanner = false,
   }) async {
-    _save(id, name, canInvite, isPrivate, category);
+    _save(id, name, description ?? '', canInvite, isPrivate, category);
     savedMainRoleId = fkMainRole;
     savedClearMainRole = isSetNullMainRole;
     savedDeleteBanner = deleteBanner;
@@ -94,6 +98,7 @@ class _Servers implements ServerRepository {
       Server(
         id: id,
         name: name,
+        description: description,
         canInvite: canInvite,
         private: isPrivate,
         category: category,
@@ -104,12 +109,14 @@ class _Servers implements ServerRepository {
   void _save(
     int? id,
     String name,
+    String description,
     int? canInvite,
     int? isPrivate,
     ServerType? category,
   ) {
     savedId = id;
     savedName = name;
+    savedDescription = description;
     savedCanInvite = canInvite;
     savedPrivate = isPrivate;
     savedCategory = category;
@@ -189,14 +196,21 @@ void main() {
       final server = Server.fromMap(const {
         'id': 4,
         'name': 'Команда',
+        'description': 'Описание сообщества',
         'pathBanner': '/images/banner.gif',
         'pathBannerKey': 'server/banner.gif',
       });
       expect(server.pathBanner, '/images/banner.gif');
       expect(server.pathBannerKey, 'server/banner.gif');
+      expect(server.description, 'Описание сообщества');
       expect(server.toMap()['pathBanner'], '/images/banner.gif');
+      expect(server.toMap()['description'], 'Описание сообщества');
       expect(
         Server.fromMap({...server.toMap(), 'pathBanner': null}).pathBanner,
+        isNull,
+      );
+      expect(
+        Server.fromMap({...server.toMap(), 'description': null}).description,
         isNull,
       );
     },
@@ -236,6 +250,14 @@ void main() {
       find.byKey(const ValueKey('server_name_field')),
       'Команда',
     );
+    await _reveal(
+      tester,
+      find.byKey(const ValueKey('server_description_field')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('server_description_field')),
+      'Описание команды',
+    );
     await tester.tap(find.byKey(const ValueKey('server_category_picker')));
     await tester.pumpAndSettle();
     expect(
@@ -255,6 +277,7 @@ void main() {
     await tester.tap(find.text('Создать сервер').last);
     await tester.pumpAndSettle();
     expect(setup.repository.savedName, 'Команда');
+    expect(setup.repository.savedDescription, 'Описание команды');
     expect(setup.repository.savedCategory, ServerType.games);
     expect(setup.repository.savedCanInvite, 0);
     expect(setup.repository.savedPrivate, 1);
@@ -275,6 +298,7 @@ void main() {
         server: const Server(
           id: 4,
           name: 'Старое',
+          description: 'Старое описание',
           pathAvatar: 'uploads/server.png',
           category: ServerType.music,
           canInvite: 0,
@@ -291,6 +315,14 @@ void main() {
         find.byKey(const ValueKey('server_name_field')),
       );
       expect(nameField.controller!.text, 'Старое');
+      await _reveal(
+        tester,
+        find.byKey(const ValueKey('server_description_field')),
+      );
+      final descriptionField = tester.widget<CupertinoTextField>(
+        find.byKey(const ValueKey('server_description_field')),
+      );
+      expect(descriptionField.controller!.text, 'Старое описание');
       expect(find.text('Музыка'), findsOneWidget);
       await _reveal(
         tester,
@@ -320,10 +352,19 @@ void main() {
         find.byKey(const ValueKey('server_name_field')),
         'Новое',
       );
+      await _reveal(
+        tester,
+        find.byKey(const ValueKey('server_description_field')),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('server_description_field')),
+        'Новое описание',
+      );
       await tester.tap(find.text('Сохранить').last);
       await tester.pumpAndSettle();
       expect(setup.repository.savedId, 4);
       expect(setup.repository.savedName, 'Новое');
+      expect(setup.repository.savedDescription, 'Новое описание');
       expect(setup.repository.savedCategory, ServerType.music);
       expect(setup.repository.savedCanInvite, 0);
       expect(setup.repository.savedPrivate, 1);

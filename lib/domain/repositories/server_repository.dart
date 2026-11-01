@@ -14,6 +14,7 @@ abstract class ServerRepository {
 
   Future<Either<Failure, Server>> create(
     String name, {
+    String description = '',
     int canInvite = 1,
     int isPrivate = 0,
     ServerType? category,
@@ -24,6 +25,7 @@ abstract class ServerRepository {
   Future<Either<Failure, Server>> update(
     int id,
     String name, {
+    String? description,
     int? canInvite,
     int? isPrivate,
     ServerType? category,

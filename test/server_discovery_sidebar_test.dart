@@ -90,6 +90,7 @@ void main() {
         Server(
           id: 1,
           name: 'Команда',
+          description: 'Описание сообщества',
           pathBanner: '/images/banner.gif',
           memberId: 7,
           memberCount: 10,
@@ -111,6 +112,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
+    expect(find.text('Описание сообщества'), findsOneWidget);
     final bannerRect = tester.getRect(find.byType(ServerBannerImage));
     final nameRect = tester.getRect(find.text('Команда'));
     expect(nameRect.top - bannerRect.bottom, closeTo(44, 1));
@@ -133,6 +135,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byKey(const ValueKey('public_server_1')), findsOneWidget);
     expect(find.byType(ServerBannerImage), findsNothing);
+    expect(find.text('Описание сообщества'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await sl.reset();

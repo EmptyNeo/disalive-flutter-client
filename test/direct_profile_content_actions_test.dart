@@ -29,4 +29,36 @@ void main() {
     await pumpProfile(actions: const Text('Действие профиля'));
     expect(find.text('Действие профиля'), findsOneWidget);
   });
+
+  testWidgets('long profile display name stays within a narrow screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: SizedBox(
+          width: 320,
+          height: 800,
+          child: DirectProfileContent(
+            user: UserModel(
+              username: 'alex',
+              displayName:
+                  'Очень длинное отображаемое имя, которое раньше выходило за правую границу экрана',
+            ),
+            isSoloChat: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final name = tester.widget<Text>(find.textContaining('Очень длинное'));
+    expect(name.maxLines, 2);
+    expect(name.overflow, TextOverflow.ellipsis);
+    expect(tester.takeException(), isNull);
+  });
 }

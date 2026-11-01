@@ -26,6 +26,7 @@ import 'package:disalive/presentation/features/message/widgets/new_messages_sepa
 import 'package:disalive/presentation/features/message/widgets/swipes/swipe_to_reply_message.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/reactions/reaction_bottom_sheet.dart';
+import 'package:disalive/presentation/features/reactions/reaction_details_bottom_sheets.dart';
 import 'package:disalive/presentation/utils/app_clipboard.dart';
 import 'package:disalive/presentation/utils/ui/message_grouper.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
@@ -1244,6 +1245,12 @@ class MessagesListState extends State<MessagesList> {
     );
   }
 
+  void _showMessageReactions(Message message) {
+    final entity = _currentEntityKey();
+    if (entity == null || message.id == null) return;
+    ReactionSummaryBottomSheet.show(context, message: message, entity: entity);
+  }
+
   void _showMessageActions(Message message) {
     widget.onUnfocusInput?.call();
 
@@ -1284,6 +1291,12 @@ class MessagesListState extends State<MessagesList> {
           onTap: () {
             _showReactionSheet(message);
           },
+        ),
+      if (message.reactions?.isNotEmpty == true)
+        ActionItem(
+          icon: CupertinoIcons.list_bullet,
+          label: 'Посмотреть реакции',
+          onTap: () => _showMessageReactions(message),
         ),
       if (widget.canReply)
         ActionItem(

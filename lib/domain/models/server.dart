@@ -7,6 +7,7 @@ class Server extends Equatable {
   final int? id;
   final int? fkOwner;
   final String? name;
+  final String? description;
   final String? pathAvatar;
   final String? pathBanner;
   final String? pathBannerKey;
@@ -32,6 +33,7 @@ class Server extends Equatable {
     this.id,
     this.fkOwner,
     this.name,
+    this.description,
     this.pathAvatar,
     this.pathBanner,
     this.pathBannerKey,
@@ -80,6 +82,7 @@ class Server extends Equatable {
       id: map['id'],
       fkOwner: map['fkOwner'],
       name: map['name'],
+      description: map['description'] as String?,
       pathAvatar: map['pathAvatar'],
       pathBanner: map['pathBanner'],
       pathBannerKey: map['pathBannerKey'],
@@ -118,6 +121,7 @@ class Server extends Equatable {
       if (id != null) 'id': id,
       if (fkOwner != null) 'fkOwner': fkOwner,
       if (name != null) 'name': name,
+      'description': description,
       if (pathAvatar != null) 'pathAvatar': pathAvatar,
       'pathBanner': pathBanner,
       'pathBannerKey': pathBannerKey,
@@ -145,6 +149,8 @@ class Server extends Equatable {
     int? id,
     int? fkOwner,
     String? name,
+    String? description,
+    bool clearDescription = false,
     String? pathAvatar,
     String? pathBanner,
     String? pathBannerKey,
@@ -170,6 +176,7 @@ class Server extends Equatable {
       id: id ?? this.id,
       fkOwner: fkOwner ?? this.fkOwner,
       name: name ?? this.name,
+      description: clearDescription ? null : (description ?? this.description),
       pathAvatar: pathAvatar ?? this.pathAvatar,
       pathBanner: pathBanner ?? this.pathBanner,
       pathBannerKey: pathBannerKey ?? this.pathBannerKey,
@@ -210,6 +217,7 @@ class Server extends Equatable {
     id,
     fkOwner,
     name,
+    description,
     pathAvatar,
     pathBanner,
     pathBannerKey,

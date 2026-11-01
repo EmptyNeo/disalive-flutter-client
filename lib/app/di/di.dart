@@ -81,6 +81,7 @@ import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_comments_bloc.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
+import 'package:disalive/presentation/features/reactions/bloc/reaction_details_bloc.dart';
 import 'package:disalive/presentation/features/register/bloc/register_bloc.dart';
 import 'package:disalive/presentation/features/requests/bloc/requests_bloc.dart';
 import 'package:disalive/presentation/features/role_members/bloc/role_members_bloc.dart';
@@ -223,5 +224,8 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<PreferredReactionsBloc>(
     () => PreferredReactionsBloc(sl<PreferredReactionsRepositoryImpl>()),
+  );
+  sl.registerFactory<ReactionDetailsBloc>(
+    () => ReactionDetailsBloc(sl<ReactionsRepository>()),
   );
 }

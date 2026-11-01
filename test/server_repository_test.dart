@@ -233,6 +233,7 @@ void main() {
                 {
                   'id': 4,
                   'name': 'Original',
+                  'description': 'Original description',
                   'fkOwner': 8,
                   'fkMainChannel': 11,
                   'newMessagesCount': 6,
@@ -246,7 +247,12 @@ void main() {
           return http.Response(
             jsonEncode({
               'success': true,
-              'data': {'id': 5, 'name': 'Created', 'fkOwner': 8},
+              'data': {
+                'id': 5,
+                'name': 'Created',
+                'description': 'Created description',
+                'fkOwner': 8,
+              },
             }),
             201,
           );
@@ -257,6 +263,7 @@ void main() {
             'data': {
               'id': 4,
               'name': 'Changed',
+              'description': null,
               'fkMainChannel': null,
               'category': 'GAMES',
             },
@@ -272,21 +279,27 @@ void main() {
       await repository.get();
       final created = await repository.create(
         'Created',
+        description: 'Created description',
         category: ServerType.games,
       );
       expect(created.isRight(), isTrue);
       expect(sent[1].bodyFields['name'], 'Created');
+      expect(sent[1].bodyFields['description'], 'Created description');
       expect(sent[1].bodyFields['category'], 'GAMES');
       expect(sent[1].bodyFields['keySession'], 'session-key');
       expect(repository.getByIdCached(5)?.name, 'Created');
+      expect(repository.getByIdCached(5)?.description, 'Created description');
 
       final updated = await repository.update(
         4,
         'Changed',
+        description: '',
         isSetNullMainChannel: true,
         category: ServerType.games,
       );
       expect(updated.isRight(), isTrue);
+      expect(sent[2].bodyFields['description'], '');
+      expect(repository.getByIdCached(4)?.description, isNull);
       expect(sent[2].bodyFields['isSetNullMainChannel'], '1');
       expect(repository.getByIdCached(4)?.fkMainChannel, isNull);
       expect(repository.getByIdCached(4)?.fkOwner, 8);

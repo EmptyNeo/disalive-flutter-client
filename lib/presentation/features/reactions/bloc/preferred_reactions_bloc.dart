@@ -2,7 +2,6 @@ import 'package:bloc/bloc.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/preferred_reaction.dart';
 import 'package:disalive/domain/repositories/preferred_reactions_repository.dart';
-import 'package:disalive/domain/repositories/reactions_repository.dart';
 import 'package:equatable/equatable.dart';
 
 part 'preferred_reactions_event.dart';

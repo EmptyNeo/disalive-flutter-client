@@ -46,6 +46,7 @@ class ServerRepositoryImpl implements ServerRepository {
   @override
   Future<Either<Failure, Server>> create(
     String name, {
+    String description = '',
     int canInvite = 1,
     int isPrivate = 0,
     ServerType? category,
@@ -54,6 +55,7 @@ class ServerRepositoryImpl implements ServerRepository {
   }) async {
     final data = <String, dynamic>{
       'name': name,
+      'description': description,
       'canInvite': canInvite,
       'private': isPrivate,
       'category': ?category?.value,
@@ -91,6 +93,7 @@ class ServerRepositoryImpl implements ServerRepository {
   Future<Either<Failure, Server>> update(
     int id,
     String name, {
+    String? description,
     int? canInvite,
     int? isPrivate,
     ServerType? category,
@@ -105,6 +108,7 @@ class ServerRepositoryImpl implements ServerRepository {
     final data = <String, dynamic>{
       'id': id,
       'name': name,
+      'description': ?description,
       'canInvite': ?canInvite,
       'private': ?isPrivate,
       'category': ?category?.value,

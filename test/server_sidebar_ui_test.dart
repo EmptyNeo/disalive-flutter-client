@@ -253,6 +253,7 @@ class _ServerRepository implements ServerRepository {
   Future<Either<Failure, Server>> update(
     int id,
     String name, {
+    String? description,
     int? canInvite,
     int? isPrivate,
     ServerType? category,
@@ -342,6 +343,7 @@ void main() {
       server: const Server(
         id: 2,
         name: 'Команда',
+        description: 'Описание сообщества',
         pathBanner: '/images/banner.gif',
         isOwner: true,
       ),
@@ -364,6 +366,9 @@ void main() {
         .bottom;
     expect(bannerRect.bottom - inviteBottom, closeTo(4, 1));
     expect(settingsBottom, closeTo(inviteBottom, 1));
+    final descriptionRect = tester.getRect(find.text('Описание сообщества'));
+    expect(bannerRect.contains(descriptionRect.topLeft), isTrue);
+    expect(bannerRect.contains(descriptionRect.bottomRight), isTrue);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -687,6 +687,19 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ],
             ),
           ),
+          if (widget.server.description?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 3),
+            Text(
+              widget.server.description!.trim(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.white.withValues(alpha: 0.76),
+                fontSize: 11,
+                height: 1.2,
+              ),
+            ),
+          ],
           if (hasBanner) const Spacer() else const SizedBox(height: 14),
           Row(
             children: [

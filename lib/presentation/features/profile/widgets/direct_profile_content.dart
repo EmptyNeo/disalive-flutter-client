@@ -131,12 +131,16 @@ class DirectProfileContent extends StatelessWidget {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(
-                              user.getDisplayName,
-                              style: AppText.highTextStyle.copyWith(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.white,
+                            Flexible(
+                              child: Text(
+                                user.getDisplayName,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.highTextStyle.copyWith(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.white,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 4),

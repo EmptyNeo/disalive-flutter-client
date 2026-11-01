@@ -342,6 +342,11 @@ class _DiscoveryServerCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onJoin;
 
+  String? get _descriptionText {
+    final description = server.description?.trim();
+    return description == null || description.isEmpty ? null : description;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!compact && server.pathBanner?.isNotEmpty == true) {
@@ -383,6 +388,10 @@ class _DiscoveryServerCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _name(),
+            if (_descriptionText != null) ...[
+              const SizedBox(height: 5),
+              _description(compact: true),
+            ],
             const SizedBox(height: 8),
             _actionButton(),
           ] else ...[
@@ -393,6 +402,10 @@ class _DiscoveryServerCard extends StatelessWidget {
                 Expanded(child: _name()),
               ],
             ),
+            if (_descriptionText != null) ...[
+              const SizedBox(height: 8),
+              _description(compact: false),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 14,
@@ -436,6 +449,17 @@ class _DiscoveryServerCard extends StatelessWidget {
     ),
   );
 
+  Widget _description({required bool compact}) => Text(
+    _descriptionText!,
+    maxLines: compact ? 2 : 3,
+    overflow: TextOverflow.ellipsis,
+    style: AppText.lowTextStyle.copyWith(
+      color: AppColors.greyple,
+      fontSize: compact ? 11 : 13,
+      height: 1.3,
+    ),
+  );
+
   Widget _bannerDetails() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -447,6 +471,10 @@ class _DiscoveryServerCard extends StatelessWidget {
         ),
       ),
       _name(),
+      if (_descriptionText != null) ...[
+        const SizedBox(height: 6),
+        _description(compact: false),
+      ],
       const SizedBox(height: 8),
       Wrap(
         spacing: 14,

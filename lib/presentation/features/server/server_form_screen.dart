@@ -45,6 +45,7 @@ class ServerFormScreen extends StatefulWidget {
 
 class _ServerFormScreenState extends State<ServerFormScreen> {
   late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
   late ServerType _category;
   late bool _canInvite;
   late bool _isPrivate;
@@ -89,6 +90,9 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.server?.name ?? '')
       ..addListener(() => setState(() {}));
+    _descriptionController = TextEditingController(
+      text: widget.server?.description ?? '',
+    );
     _category = widget.server?.category ?? ServerType.none;
     _canInvite = (widget.server?.canInvite ?? 1) == 1;
     _isPrivate = widget.server?.isPrivate ?? false;
@@ -99,6 +103,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -358,6 +363,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
         ? await repository.update(
             widget.server!.id!,
             name,
+            description: _descriptionController.text.trim(),
             canInvite: _canInvite ? 1 : 0,
             isPrivate: _isPrivate ? 1 : 0,
             category: _category,
@@ -369,6 +375,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
           )
         : await repository.create(
             name,
+            description: _descriptionController.text.trim(),
             canInvite: _canInvite ? 1 : 0,
             isPrivate: _isPrivate ? 1 : 0,
             category: _category,
@@ -449,6 +456,24 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
           maxLength: 30,
           placeholder: 'Название сервера',
           padding: const EdgeInsets.all(14),
+          style: TextStyle(color: AppColors.white),
+          decoration: BoxDecoration(
+            color: AppColors.actionGrey,
+            borderRadius: BorderRadius.circular(13),
+          ),
+        ),
+        const SizedBox(height: 22),
+        _sectionTitle('Описание сервера'),
+        const SizedBox(height: 8),
+        CupertinoTextField(
+          key: const ValueKey('server_description_field'),
+          controller: _descriptionController,
+          maxLength: 1000,
+          minLines: 3,
+          maxLines: 5,
+          placeholder: 'Расскажите о сервере',
+          padding: const EdgeInsets.all(14),
+          textCapitalization: TextCapitalization.sentences,
           style: TextStyle(color: AppColors.white),
           decoration: BoxDecoration(
             color: AppColors.actionGrey,
