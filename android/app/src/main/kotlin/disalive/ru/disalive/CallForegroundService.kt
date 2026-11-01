@@ -43,7 +43,7 @@ class CallForegroundService : Service() {
             Notification.Builder(this)
         }
         val notification = builder
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Звонок Disalive")
             .setContentText("Нажмите, чтобы вернуться в звонок")
             .setContentIntent(pendingIntent)

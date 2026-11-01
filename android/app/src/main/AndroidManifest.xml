@@ -35,6 +35,9 @@
         android:label="Disalive"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
         <service
             android:name="de.julianassmann.flutter_background.IsolateHolderService"
             android:enabled="true"

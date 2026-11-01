@@ -52,7 +52,7 @@ class PushNotificationService {
     );
 
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      'ic_notification',
     );
     const iosSettings = DarwinInitializationSettings();
     const settings = InitializationSettings(
@@ -220,6 +220,7 @@ class PushNotificationService {
         android: AndroidNotificationDetails(
           'disalive_channel',
           'Disalive',
+          icon: 'ic_notification',
           channelDescription: 'Уведомления Disalive',
           importance: Importance.high,
           priority: Priority.high,

@@ -5,10 +5,13 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/enums/ui/message_tail_direction.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/sticker_content.dart';
+import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
+import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/message/message_item.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
@@ -62,6 +65,8 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
   final TextEditingController _queryController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   Timer? _debounceTimer;
+  late final int _chatId;
+  late final EntityKey _entityKey;
 
   List<Message> _results = [];
   bool _isLoading = false;
@@ -73,8 +78,13 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
   @override
   void initState() {
     super.initState();
+    final currentChat = sl<ChatRepository>().getCurrentChat() ?? widget.chat;
+    _chatId = currentChat.id;
+    _entityKey =
+        DeterminingContextService.getEntityKey() ??
+        EntityKey(entityId: _chatId, entityType: EntityType.chat);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
+      if (mounted) _focusNode.requestFocus();
     });
   }
 
@@ -115,9 +125,9 @@ class _SearchMessagesScreenState extends State<SearchMessagesScreen> {
 
     try {
       final result = await sl<MessageRepository>().get(
-        widget.chat.id,
-        widget.chat.id,
-        EntityType.chat,
+        _chatId,
+        _entityKey.entityId,
+        _entityKey.entityType,
         50,
         // Лимит результатов поиска
         0,
