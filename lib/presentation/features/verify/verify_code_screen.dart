@@ -18,6 +18,7 @@ class VerifyCodeScreen extends StatefulWidget {
   final String? username;
   final String? displayName;
   final String? password;
+  final bool useTotp;
 
   const VerifyCodeScreen({
     super.key,
@@ -28,6 +29,7 @@ class VerifyCodeScreen extends StatefulWidget {
     this.username,
     this.displayName,
     this.password,
+    this.useTotp = false,
   });
 
   static Future<void> open({
@@ -39,6 +41,7 @@ class VerifyCodeScreen extends StatefulWidget {
     String? username,
     String? displayName,
     String? password,
+    bool useTotp = false,
   }) {
     return Navigator.of(context).push(
       CupertinoPageRoute(
@@ -52,6 +55,7 @@ class VerifyCodeScreen extends StatefulWidget {
             username: username,
             displayName: displayName,
             password: password,
+            useTotp: useTotp,
           ),
         ),
       ),
@@ -88,6 +92,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           username: widget.username,
           displayName: widget.displayName,
           password: widget.password,
+          useTotp: widget.useTotp,
         ),
       );
 
@@ -299,7 +304,9 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Text(
-                                      'Подтверждение email',
+                                      state.useTotp
+                                          ? 'Подтверждение 2FA'
+                                          : 'Подтверждение email',
                                       style: AppText.highTextStyle.copyWith(
                                         color: AppColors.white,
                                         fontSize: 28,
@@ -309,7 +316,9 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      'Введите 6-значный код из письма',
+                                      state.useTotp
+                                          ? 'Введите 6-значный код из приложения-аутентификатора'
+                                          : 'Введите 6-значный код из письма',
                                       style: AppText.mediumTextStyle.copyWith(
                                         color: AppColors.greyple,
                                         fontSize: 15,
@@ -396,40 +405,49 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                     const SizedBox(height: 24),
 
                                     Text(
-                                      'Код отправлен на',
+                                      state.useTotp
+                                          ? 'Код из приложения-аутентификатора'
+                                          : 'Код отправлен на',
                                       style: AppText.mediumTextStyle.copyWith(
                                         color: AppColors.greyple,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.blurple.withOpacity(
-                                          0.2,
+                                    if (!state.useTotp) ...[
+                                      const SizedBox(height: 4),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
                                         ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        state.email,
-                                        style: AppText.mediumTextStyle.copyWith(
-                                          color: AppColors.blurple,
-                                          fontWeight: FontWeight.w600,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.blurple.withOpacity(
+                                            0.2,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          state.email,
+                                          style: AppText.mediumTextStyle
+                                              .copyWith(
+                                                color: AppColors.blurple,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                         ),
                                       ),
-                                    ),
+                                    ],
 
                                     const SizedBox(height: 40),
 
-                                    Text(
-                                      'Не получили код?',
-                                      style: AppText.mediumTextStyle.copyWith(
-                                        color: AppColors.greyple,
+                                    if (!state.useTotp) ...[
+                                      Text(
+                                        'Не получили код?',
+                                        style: AppText.mediumTextStyle.copyWith(
+                                          color: AppColors.greyple,
+                                        ),
                                       ),
-                                    ),
+                                    ],
                                     const SizedBox(height: 12),
                                     SizedBox(
                                       width: double.infinity,

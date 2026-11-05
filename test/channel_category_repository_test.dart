@@ -77,14 +77,19 @@ void main() {
         });
       }
       if (request.url.path.endsWith('/update.php')) {
+        final removingPrivacy = request.bodyFields['isPrivate'] == '0';
+        final moving = request.bodyFields.containsKey('sortOrder');
         return _ok({
           'id': 10,
           'serverId': 2,
           'chatId': 90,
           'type': 'text',
-          'categoryId': null,
-          'isPrivate': true,
+          'categoryId': moving ? 7 : null,
+          'sortOrder': moving ? 2 : 0,
+          'isPrivate': !removingPrivacy,
           'chatName': 'Renamed',
+          'allowedUsers': removingPrivacy ? [] : [1, 3],
+          'allowedRoles': removingPrivacy ? [] : [5, 6],
         });
       }
       return _ok({'id': 11});
@@ -134,6 +139,35 @@ void main() {
     expect(repository.getByIdCached(10)?.newMessagesCount, 3);
     expect(repository.getByIdCached(10)?.chatName, 'Renamed');
 
+    expect(
+      (await repository.update(
+        10,
+        isPrivate: true,
+        userIds: [3],
+        roleIds: [5, 6],
+      )).isRight(),
+      isTrue,
+    );
+    expect(sent[4].bodyFields, containsPair('isPrivate', '1'));
+    expect(sent[4].bodyFields, containsPair('userIds', '[3]'));
+    expect(sent[4].bodyFields, containsPair('roleIds', '[5,6]'));
+    expect(repository.getByIdCached(10)?.allowedUsers, [1, 3]);
+    expect(repository.getByIdCached(10)?.allowedRoles, [5, 6]);
+
+    expect((await repository.update(10, isPrivate: false)).isRight(), isTrue);
+    expect(sent[5].bodyFields, containsPair('isPrivate', '0'));
+    expect(sent[5].bodyFields.containsKey('userIds'), isFalse);
+    expect(repository.getByIdCached(10)?.isPrivate, isFalse);
+    expect(repository.getByIdCached(10)?.allowedUsers, isEmpty);
+    expect(repository.getByIdCached(10)?.allowedRoles, isEmpty);
+
+    expect((await repository.updatePosition(10, 7, 2)).isRight(), isTrue);
+    expect(sent[6].bodyFields, containsPair('categoryId', '7'));
+    expect(sent[6].bodyFields, containsPair('sortOrder', '2'));
+    expect(sent[6].bodyFields.containsKey('maxParticipants'), isFalse);
+    expect(sent[6].bodyFields.containsKey('isPrivate'), isFalse);
+    expect(repository.getByIdCached(10)?.sortOrder, 2);
+
     expect((await repository.delete(11)).isRight(), isTrue);
     expect(repository.getByIdCached(11), isNull);
     repository.clear(2);
@@ -156,7 +190,12 @@ void main() {
           return _ok({'id': 8, 'serverId': 2, 'name': 'Voice'});
         }
         if (request.url.path.endsWith('/update.php')) {
-          return _ok({'id': 7, 'serverId': 2, 'name': 'News'});
+          return _ok({
+            'id': 7,
+            'serverId': 2,
+            'name': 'News',
+            'sortOrder': request.bodyFields['sortOrder'] == '3' ? 3 : 0,
+          });
         }
         return _ok(null);
       });
@@ -178,6 +217,11 @@ void main() {
 
       expect((await repository.update(7, 'News')).isRight(), isTrue);
       expect(repository.getByIdCached(7)?.name, 'News');
+
+      expect((await repository.updateSortOrder(7, 3)).isRight(), isTrue);
+      expect(sent[3].bodyFields, containsPair('sortOrder', '3'));
+      expect(sent[3].bodyFields.containsKey('name'), isFalse);
+      expect(repository.getByIdCached(7)?.sortOrder, 3);
 
       expect((await repository.delete(8)).isRight(), isTrue);
       expect(repository.getByIdCached(8), isNull);

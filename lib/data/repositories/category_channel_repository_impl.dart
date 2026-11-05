@@ -57,6 +57,22 @@ class CategoryChannelRepositoryImpl implements CategoryChannelRepository {
   }
 
   @override
+  Future<Either<Failure, CategoryChannel>> updateSortOrder(
+    int id,
+    int sortOrder,
+  ) async {
+    final result = await _httpClient.postFormData<CategoryChannel>(
+      endpoint: 'categories/update.php',
+      data: {'id': id, 'sortOrder': sortOrder},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) => CategoryChannel.fromMap(json as Map<String, dynamic>),
+    );
+    result.fold((failure) => null, _upsert);
+    return result;
+  }
+
+  @override
   Future<Either<Failure, bool>> delete(int id) async {
     final result = await _httpClient.postFormData<bool>(
       endpoint: 'categories/delete.php',

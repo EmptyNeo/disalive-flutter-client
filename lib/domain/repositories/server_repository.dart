@@ -4,8 +4,10 @@ import 'package:dartz/dartz.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/server_tag.dart';
 
 abstract class ServerRepository {
+  Future<Either<Failure, List<ServerTag>>> searchTags(String query);
   Future<Either<Failure, List<Server>>> get({
     bool isPublic = false,
     ServerType? category,
@@ -20,6 +22,7 @@ abstract class ServerRepository {
     ServerType? category,
     File? avatar,
     File? banner,
+    List<String> tags = const [],
   });
 
   Future<Either<Failure, Server>> update(
@@ -36,6 +39,7 @@ abstract class ServerRepository {
     File? avatar,
     File? banner,
     bool deleteBanner = false,
+    List<String>? tags,
   });
 
   List<Server> getCached();

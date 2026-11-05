@@ -6,6 +6,10 @@ abstract class CategoryChannelRepository {
   Future<Either<Failure, List<CategoryChannel>>> get(int serverId);
   Future<Either<Failure, CategoryChannel>> create(int serverId, String name);
   Future<Either<Failure, CategoryChannel>> update(int id, String name);
+  Future<Either<Failure, CategoryChannel>> updateSortOrder(
+    int id,
+    int sortOrder,
+  );
   Future<Either<Failure, bool>> delete(int id);
   List<CategoryChannel> getCached(int serverId);
   CategoryChannel? getByIdCached(int id);

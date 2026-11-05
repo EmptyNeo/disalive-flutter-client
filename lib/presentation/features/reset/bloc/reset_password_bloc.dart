@@ -1,5 +1,4 @@
 import 'package:bloc/bloc.dart';
-import 'package:disalive/domain/enums/email_type.dart';
 import 'package:disalive/domain/repositories/email_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:equatable/equatable.dart';
@@ -20,6 +19,9 @@ class ResetPasswordBloc extends Bloc<ResetPasswordEvent, ResetPasswordState> {
     on<ResetNewPasswordChanged>(_onNewPasswordChanged);
     on<ResetVerifyPasswordChanged>(_onVerifyPasswordChanged);
     on<ResetSubmitPressed>(_onSubmitPressed);
+    on<ResetVerificationMethodChanged>(
+      (event, emit) => emit(state.copyWith(useTotp: event.useTotp)),
+    );
     on<ResetGoBack>(_onGoBack);
     on<ResetReset>(_onReset);
   }
@@ -104,13 +106,17 @@ class ResetPasswordBloc extends Bloc<ResetPasswordEvent, ResetPasswordState> {
       return;
     }
 
+    if (state.useTotp) {
+      emit(state.copyWith(isReadyToVerify: true));
+      return;
+    }
+
     // Включаем индикатор загрузки на кнопке
     emit(state.copyWith(isLoading: true, passwordError: null));
 
     // 🎯 РЕАЛЬНАЯ ОТПРАВКА КОДА НА ПОЧТУ
-    final result = await _emailRepository.sendVerificationEmail(
-      email: state.email,
-      type: EmailType.reset,
+    final result = await _emailRepository.requestPasswordResetMethod(
+      state.email,
     );
 
     result.fold(
@@ -122,9 +128,15 @@ class ResetPasswordBloc extends Bloc<ResetPasswordEvent, ResetPasswordState> {
           ),
         );
       },
-      (success) {
+      (method) {
         // Если код успешно отправлен, разрешаем переход на экран подтверждения
-        emit(state.copyWith(isLoading: false, isReadyToVerify: true));
+        emit(
+          state.copyWith(
+            isLoading: false,
+            isReadyToVerify: true,
+            useTotp: method == 'totp',
+          ),
+        );
       },
     );
   }

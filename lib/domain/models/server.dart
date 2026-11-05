@@ -1,6 +1,7 @@
 // lib/domain/models/server.dart
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/models/role_member.dart';
+import 'package:disalive/domain/models/server_tag.dart';
 import 'package:equatable/equatable.dart';
 
 class Server extends Equatable {
@@ -28,6 +29,7 @@ class Server extends Equatable {
   final bool? isOwner;
   final bool? muted;
   final Map<String, bool>? permissions;
+  final List<ServerTag> tags;
 
   const Server({
     this.id,
@@ -54,6 +56,7 @@ class Server extends Equatable {
     this.isOwner,
     this.muted,
     this.permissions,
+    this.tags = const [],
   });
 
   factory Server.fromMap(Map<String, dynamic> map) {
@@ -113,6 +116,10 @@ class Server extends Equatable {
       isOwner: map['isOwner'],
       muted: map['muted'],
       permissions: permissions,
+      tags: (map['tags'] as List? ?? const [])
+          .whereType<Map>()
+          .map((tag) => ServerTag.fromMap(Map<String, dynamic>.from(tag)))
+          .toList(),
     );
   }
 
@@ -142,6 +149,7 @@ class Server extends Equatable {
       if (isOwner != null) 'isOwner': isOwner,
       if (muted != null) 'muted': muted,
       if (permissions != null) 'permissions': permissions,
+      'tags': tags.map((tag) => tag.toMap()).toList(),
     };
   }
 
@@ -171,6 +179,7 @@ class Server extends Equatable {
     bool? isOwner,
     bool? muted,
     Map<String, bool>? permissions,
+    List<ServerTag>? tags,
   }) {
     return Server(
       id: id ?? this.id,
@@ -197,6 +206,7 @@ class Server extends Equatable {
       isOwner: isOwner ?? this.isOwner,
       muted: muted ?? this.muted,
       permissions: permissions ?? this.permissions,
+      tags: tags ?? this.tags,
     );
   }
 
@@ -238,5 +248,6 @@ class Server extends Equatable {
     isOwner,
     muted,
     permissions,
+    tags,
   ];
 }

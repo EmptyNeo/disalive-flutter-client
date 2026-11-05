@@ -72,6 +72,9 @@ class _Channels implements ChannelServerRepository {
   String? lastUpdatedName;
   int? lastUpdatedCategoryId;
   int? lastUpdatedMaxParticipants;
+  bool? lastUpdatedPrivate;
+  List<int>? lastUpdatedUserIds;
+  List<int>? lastUpdatedRoleIds;
 
   @override
   Future<Either<Failure, ChannelServer>> create(
@@ -115,10 +118,16 @@ class _Channels implements ChannelServerRepository {
     int? categoryId,
     int? maxParticipants,
     int? slowModeSeconds,
+    bool? isPrivate,
+    List<int>? userIds,
+    List<int>? roleIds,
   }) async {
     lastUpdatedName = name;
     lastUpdatedCategoryId = categoryId;
     lastUpdatedMaxParticipants = maxParticipants;
+    lastUpdatedPrivate = isPrivate;
+    lastUpdatedUserIds = userIds;
+    lastUpdatedRoleIds = roleIds;
     final previous = source.firstWhere((channel) => channel.id == id);
     return Right(
       ChannelServer.fromMap({
@@ -127,6 +136,9 @@ class _Channels implements ChannelServerRepository {
         'categoryId': categoryId == 0 ? null : categoryId,
         'maxParticipants': maxParticipants,
         'slowModeSeconds': slowModeSeconds,
+        if (isPrivate != null) 'isPrivate': isPrivate,
+        if (userIds != null) 'allowedUsers': userIds,
+        if (roleIds != null) 'allowedRoles': roleIds,
       }),
     );
   }
@@ -264,6 +276,7 @@ class _ServerRepository implements ServerRepository {
     File? avatar,
     File? banner,
     bool deleteBanner = false,
+    List<String>? tags,
   }) async {
     updatedMainChannel = fkMainChannel;
     clearedMainChannel = isSetNullMainChannel;

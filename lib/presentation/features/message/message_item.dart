@@ -15,6 +15,7 @@ import 'package:disalive/presentation/features/message/widgets/message_status_ro
 import 'package:disalive/presentation/features/message/widgets/sticker_pack_message_card.dart';
 import 'package:disalive/presentation/features/stickers/sticker_pack_link.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:disalive/presentation/features/reactions/reactions_grid.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
@@ -191,8 +192,9 @@ class MessageItem extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (showSenderInfo && message.user != null) ...[
-                      Text(
-                        message.user!.displayName ?? 'Пользователь',
+                      RoleColoredText(
+                        text: message.user!.displayName ?? 'Пользователь',
+                        role: message.user!.role,
                         style: AppText.lowTextStyle.copyWith(
                           color: AppColors.blurple,
                           fontWeight: FontWeight.w600,

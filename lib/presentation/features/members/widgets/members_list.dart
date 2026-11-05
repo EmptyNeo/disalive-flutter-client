@@ -4,6 +4,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/member.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
@@ -11,6 +12,7 @@ import 'package:disalive/presentation/features/members/moderation/entity_moderat
 import 'package:disalive/presentation/features/members/moderation/member_moderation_screen.dart';
 import 'package:disalive/presentation/features/members/member_item.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -26,6 +28,7 @@ class MembersList extends StatelessWidget {
   final int? initialMemberCount;
   final bool canManageMembers;
   final bool canManageRoles;
+  final bool canReorderRoles;
 
   const MembersList({
     super.key,
@@ -35,6 +38,7 @@ class MembersList extends StatelessWidget {
     this.initialMemberCount,
     this.canManageMembers = false,
     this.canManageRoles = false,
+    this.canReorderRoles = false,
   });
 
   @override
@@ -132,22 +136,50 @@ class MembersList extends StatelessWidget {
                 ),
               )
             else if (loaded != null)
-              // Использование SliverList вместо ListView.builder убирает проблему с shrinkWrap
-              SliverList.builder(
-                itemCount: members.length,
-                itemBuilder: (context, index) {
-                  final member = members[index];
-                  return MemberItem(
-                    key: ValueKey(member.fkUser),
-                    member: member,
-                    onLongPress: () => _showMemberActions(context, member),
-                  );
-                },
-              ),
+              ..._buildRoleGroupedSlivers(members),
           ],
         );
       },
     );
+  }
+
+  List<Widget> _buildRoleGroupedSlivers(List<Member> members) {
+    final groupsByKey = <String, _MemberRoleGroup>{};
+    for (final member in members) {
+      final role = member.role;
+      final roleId = role?.id ?? member.fkRole;
+      final key = roleId == null ? 'unassigned' : 'role:$roleId';
+      final group = groupsByKey.putIfAbsent(
+        key,
+        () => _MemberRoleGroup(role: role, sortOrder: role?.sortOrder ?? 0),
+      );
+      group.members.add(member);
+    }
+    final groups = groupsByKey.values.toList()
+      ..sort((a, b) {
+        if (a.role == null && b.role != null) return 1;
+        if (a.role != null && b.role == null) return -1;
+        final order = a.sortOrder.compareTo(b.sortOrder);
+        if (order != 0) return order;
+        return (a.role?.id ?? 0).compareTo(b.role?.id ?? 0);
+      });
+
+    return [
+      for (final group in groups) ...[
+        SliverToBoxAdapter(child: _MemberRoleHeader(group: group)),
+        SliverList.builder(
+          itemCount: group.members.length,
+          itemBuilder: (context, index) {
+            final member = group.members[index];
+            return MemberItem(
+              key: ValueKey(member.fkUser),
+              member: member,
+              onLongPress: () => _showMemberActions(context, member),
+            );
+          },
+        ),
+      ],
+    ];
   }
 
   void removeMember(BuildContext context, Member member) async {
@@ -202,6 +234,7 @@ class MembersList extends StatelessWidget {
             entityId: entityId,
             entityType: entityType,
             entityName: entityName,
+            canReorderRoles: canReorderRoles,
           ),
         ),
 
@@ -252,6 +285,59 @@ class MembersList extends StatelessWidget {
       context,
       title: member.user?.getDisplayName,
       actions: actions,
+    );
+  }
+}
+
+class _MemberRoleGroup {
+  _MemberRoleGroup({required this.role, required this.sortOrder});
+
+  final RoleMember? role;
+  final int sortOrder;
+  final List<Member> members = [];
+}
+
+class _MemberRoleHeader extends StatelessWidget {
+  const _MemberRoleHeader({required this.group});
+
+  final _MemberRoleGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final roleName = group.role?.name?.trim();
+    final title = roleName?.isNotEmpty == true ? roleName! : 'УЧАСТНИК';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    title.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.lowTextStyle.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.greyple,
+                      letterSpacing: 0.35,
+                    ),
+                  ),
+                ),
+                if ((group.role?.emoji ?? '').isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  RoleEmoji(group.role!.emoji, size: 15),
+                ],
+              ],
+            ),
+          ),
+          Text(
+            '${group.members.length}',
+            style: AppText.lowTextStyle.copyWith(color: AppColors.greyple),
+          ),
+        ],
+      ),
     );
   }
 }

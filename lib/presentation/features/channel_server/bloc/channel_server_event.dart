@@ -40,12 +40,16 @@ class ServerChannelReadUpdated extends ChannelServerEvent {
   final int serverId;
   final int chatId;
   final int lastIdReadMessage;
+  final int? userId;
+  final bool isSelf;
   final int? newMessagesCount;
 
   const ServerChannelReadUpdated(
     this.serverId,
     this.chatId,
     this.lastIdReadMessage, {
+    this.userId,
+    this.isSelf = true,
     this.newMessagesCount,
   });
 
@@ -54,6 +58,8 @@ class ServerChannelReadUpdated extends ChannelServerEvent {
     serverId,
     chatId,
     lastIdReadMessage,
+    userId,
+    isSelf,
     newMessagesCount,
   ];
 }
@@ -86,4 +92,13 @@ class ServerChannelMessageRemoved extends ChannelServerEvent {
 
   @override
   List<Object?> get props => [serverId, chatId, messageId];
+}
+
+class SaveServerChannelOrder extends ChannelServerEvent {
+  final int serverId;
+  final List<ChannelServer> channels;
+  const SaveServerChannelOrder(this.serverId, this.channels);
+
+  @override
+  List<Object?> get props => [serverId, channels];
 }

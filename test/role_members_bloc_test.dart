@@ -33,10 +33,56 @@ class _RolesRepository implements RoleMemberRepository {
   }
 
   @override
+  Future<Either<Failure, List<RoleMember>>> reorder(
+    int entityId,
+    EntityType entityType,
+    List<int> roleIds,
+  ) async {
+    final key = EntityKey(entityId: entityId, entityType: entityType);
+    final byId = {
+      for (final role in cache[key] ?? <RoleMember>[]) role.id: role,
+    };
+    final roles = [
+      for (var index = 0; index < roleIds.length; index++)
+        byId[roleIds[index]]!.copyWith(sortOrder: index),
+    ];
+    updateCache(key, roles);
+    return Right(roles);
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
+  test('RoleMembersBloc saves and applies the reordered role list', () async {
+    final repo = _RolesRepository();
+    final key = EntityKey(entityId: 7, entityType: EntityType.server);
+    repo.updateCache(key, const [
+      RoleMember(id: 1, name: 'Первая', sortOrder: 0),
+      RoleMember(id: 2, name: 'Вторая', sortOrder: 1),
+    ]);
+    final bus = WsEventBus();
+    final bloc = RoleMembersBloc(
+      repo,
+      bus,
+      entityId: 7,
+      entityType: EntityType.server,
+    );
+    final reordered = bloc.stream.firstWhere(
+      (state) =>
+          state is RoleMembersLoaded &&
+          !state.isSavingOrder &&
+          state.roles.first.id == 2,
+    );
+    bloc.add(const ReorderRoleMembers([2, 1]));
+    final state = await reordered as RoleMembersLoaded;
+    expect(state.roles.map((role) => role.id), [2, 1]);
+    expect(state.roles.map((role) => role.sortOrder), [0, 1]);
+    await bloc.close();
+    bus.dispose();
+  });
+
   test(
     'RoleMembersBloc filters entities and replays WS changes during load',
     () async {

@@ -26,6 +26,7 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     on<GetRoleMembers>(_load);
     on<RoleMemberUpserted>(_upsert);
     on<RoleMemberRemoved>(_remove);
+    on<ReorderRoleMembers>(_reorder);
     _subscription = eventBus.subscribeToTable(
       table: 'RoleMembers',
       onData: _onWsEvent,
@@ -38,6 +39,7 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
   StreamSubscription<WsEvent>? _subscription;
   final List<RoleMembersEvent> _changesDuringLoad = [];
   bool _loading = false;
+  bool _savingOrder = false;
 
   EntityKey get _key => EntityKey(entityId: entityId, entityType: entityType);
 
@@ -66,7 +68,8 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     if (_loading) return;
     _loading = true;
     _changesDuringLoad.clear();
-    final cached = _repository.getCached(_key);
+    final cached = _sortRoles(_repository.getCached(_key));
+    if (cached.isNotEmpty) _repository.updateCache(_key, cached);
     emit(
       cached.isEmpty ? const RoleMembersLoading() : RoleMembersLoaded(cached),
     );
@@ -74,7 +77,7 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     _loading = false;
     result.fold(
       (failure) {
-        final current = _repository.getCached(_key);
+        final current = _sortRoles(_repository.getCached(_key));
         emit(
           current.isEmpty
               ? RoleMembersFailure(failure.message)
@@ -90,8 +93,9 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
             merged.removeWhere((role) => role.id == change.roleId);
           }
         }
-        _repository.updateCache(_key, merged);
-        emit(RoleMembersLoaded(List.unmodifiable(merged)));
+        final sorted = _sortRoles(merged);
+        _repository.updateCache(_key, sorted);
+        emit(RoleMembersLoaded(List.unmodifiable(sorted)));
       },
     );
     _changesDuringLoad.clear();
@@ -101,8 +105,11 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     if (_loading) _changesDuringLoad.add(event);
     final roles = List<RoleMember>.from(_repository.getCached(_key));
     _applyUpsert(roles, event.roleData);
-    _repository.updateCache(_key, roles);
-    emit(RoleMembersLoaded(List.unmodifiable(roles)));
+    final sorted = _sortRoles(roles);
+    _repository.updateCache(_key, sorted);
+    emit(
+      RoleMembersLoaded(List.unmodifiable(sorted), isSavingOrder: _savingOrder),
+    );
   }
 
   void _applyUpsert(List<RoleMember> roles, Map<String, dynamic> data) {
@@ -128,9 +135,66 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     if (_loading) _changesDuringLoad.add(event);
     final roles = List<RoleMember>.from(_repository.getCached(_key))
       ..removeWhere((role) => role.id == event.roleId);
-    _repository.updateCache(_key, roles);
-    emit(RoleMembersLoaded(List.unmodifiable(roles)));
+    final sorted = _sortRoles(roles);
+    _repository.updateCache(_key, sorted);
+    emit(
+      RoleMembersLoaded(List.unmodifiable(sorted), isSavingOrder: _savingOrder),
+    );
   }
+
+  Future<void> _reorder(
+    ReorderRoleMembers event,
+    Emitter<RoleMembersState> emit,
+  ) async {
+    if (entityType != EntityType.server || _savingOrder) return;
+    final current = List<RoleMember>.from(_repository.getCached(_key));
+    final currentIds = current.map((role) => role.id).whereType<int>().toSet();
+    if (event.roleIds.length != current.length ||
+        event.roleIds.toSet().length != event.roleIds.length ||
+        event.roleIds.toSet().difference(currentIds).isNotEmpty ||
+        currentIds.difference(event.roleIds.toSet()).isNotEmpty) {
+      return;
+    }
+    final byId = {for (final role in current) role.id!: role};
+    final optimistic = [
+      for (var index = 0; index < event.roleIds.length; index++)
+        byId[event.roleIds[index]]!.copyWith(sortOrder: index),
+    ];
+    _savingOrder = true;
+    _repository.updateCache(_key, optimistic);
+    emit(RoleMembersLoaded(List.unmodifiable(optimistic), isSavingOrder: true));
+
+    final result = await _repository.reorder(
+      entityId,
+      entityType,
+      event.roleIds,
+    );
+    _savingOrder = false;
+    result.fold(
+      (failure) {
+        final restored = _sortRoles(current);
+        _repository.updateCache(_key, restored);
+        emit(
+          RoleMembersLoaded(
+            List.unmodifiable(restored),
+            orderError: failure.message,
+          ),
+        );
+      },
+      (roles) {
+        final sorted = _sortRoles(roles);
+        _repository.updateCache(_key, sorted);
+        emit(RoleMembersLoaded(List.unmodifiable(sorted)));
+      },
+    );
+  }
+
+  List<RoleMember> _sortRoles(Iterable<RoleMember> roles) =>
+      List<RoleMember>.from(roles)..sort((a, b) {
+        final order = a.sortOrder.compareTo(b.sortOrder);
+        if (order != 0) return order;
+        return (a.id ?? 0).compareTo(b.id ?? 0);
+      });
 
   Future<Either<Failure, RoleMember>> createRole() async {
     final result = await _repository.create(entityId, entityType);
@@ -142,6 +206,10 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
     RoleMember role, {
     required String name,
     required String? emoji,
+    String? color,
+    String? gradientStart,
+    String? gradientEnd,
+    int gradientAngle = 90,
     required Map<String, bool> permissions,
   }) async {
     final result = await _repository.update(
@@ -150,6 +218,10 @@ class RoleMembersBloc extends Bloc<RoleMembersEvent, RoleMembersState> {
       entityType,
       name: name,
       emoji: emoji ?? '',
+      color: color,
+      gradientStart: gradientStart,
+      gradientEnd: gradientEnd,
+      gradientAngle: gradientAngle,
       permissions: permissions,
     );
     result.fold((_) {}, (updated) => add(RoleMemberUpserted(updated.toMap())));

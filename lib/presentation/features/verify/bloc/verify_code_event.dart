@@ -15,6 +15,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
   final String? username;
   final String? displayName;
   final String? password;
+  final bool useTotp;
 
   const VerifyCodeInit({
     required this.email,
@@ -24,6 +25,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
     this.username,
     this.displayName,
     this.password,
+    this.useTotp = false,
   });
 
   @override
@@ -35,6 +37,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
     username,
     displayName,
     password,
+    useTotp,
   ];
 }
 

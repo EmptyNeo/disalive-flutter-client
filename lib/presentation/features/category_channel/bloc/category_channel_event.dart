@@ -35,3 +35,12 @@ class ChannelCategoryRemoved extends CategoryChannelEvent {
   @override
   List<Object?> get props => [serverId, id];
 }
+
+class SaveChannelCategoryOrder extends CategoryChannelEvent {
+  final int serverId;
+  final List<CategoryChannel> categories;
+  const SaveChannelCategoryOrder(this.serverId, this.categories);
+
+  @override
+  List<Object?> get props => [serverId, categories];
+}

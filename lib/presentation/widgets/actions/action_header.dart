@@ -1,4 +1,5 @@
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:flutter/cupertino.dart';
 
 class ActionHeader extends StatelessWidget {
@@ -33,8 +34,14 @@ class ActionHeader extends StatelessWidget {
                 ),
                 if (_subtitle != null) ...[
                   const SizedBox(height: 4),
-                  Text(
-                    _subtitle,
+                  Text.rich(
+                    TextSpan(
+                      children: EmojiTextParser.parse(
+                        _subtitle,
+                        emojiSize: 13,
+                        animateEmoji: false,
+                      ),
+                    ),
                     style: TextStyle(
                       color: AppColors.greyple,
                       fontSize: 13,

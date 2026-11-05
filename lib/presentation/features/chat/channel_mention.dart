@@ -10,7 +10,10 @@ class ChannelMention {
   final String name;
   final int chatId;
 
-  static final RegExp _pattern = RegExp(r'#([^\s:#]+):([1-9]\d*)');
+  static final RegExp _pattern = RegExp(
+    r'#((?:\[[a-zA-Z0-9_]+:\d+\]|[^\s:#])+):([1-9]\d*)',
+  );
+  static final RegExp _emojiCode = RegExp(r'\[[a-zA-Z0-9_]+:\d+\]');
 
   static Iterable<ChannelMention> findAll(String text) sync* {
     for (final match in _pattern.allMatches(text)) {
@@ -48,10 +51,7 @@ class ChannelMention {
   ) {
     final chatId = channel.chatId;
     if (chatId == null) return value;
-    final name = (channel.chatName ?? 'Канал').trim().replaceAll(
-      RegExp(r'[\s:#]+'),
-      '-',
-    );
+    final name = _linkName((channel.chatName ?? 'Канал').trim());
     final suffix = value.text.substring(query.end);
     final mention =
         '#$name:$chatId${suffix.isEmpty || !RegExp(r'\s').hasMatch(suffix[0]) ? ' ' : ''}';
@@ -60,6 +60,20 @@ class ChannelMention {
       text: text,
       selection: TextSelection.collapsed(offset: query.start + mention.length),
     );
+  }
+
+  static String _linkName(String name) {
+    final result = StringBuffer();
+    var cursor = 0;
+    for (final emoji in _emojiCode.allMatches(name)) {
+      result.write(
+        name.substring(cursor, emoji.start).replaceAll(RegExp(r'[\s:#]+'), '-'),
+      );
+      result.write(emoji.group(0));
+      cursor = emoji.end;
+    }
+    result.write(name.substring(cursor).replaceAll(RegExp(r'[\s:#]+'), '-'));
+    return result.toString();
   }
 }
 

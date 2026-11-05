@@ -19,6 +19,36 @@ class HttpClientService {
   }) : _client = client ?? UserAgentClient(http.Client()),
        _secureStorage = secureStorage;
 
+  Future<Either<Failure, T>> postJson<T>({
+    required String endpoint,
+    required Map<String, dynamic> data,
+    required T Function(dynamic json) fromJson,
+    ApiType apiType = ApiType.v1,
+    bool requireAuth = true,
+  }) async {
+    try {
+      final payload = <String, dynamic>{...data};
+      if (requireAuth) {
+        final keySession = await _secureStorage.getKeySession();
+        if (keySession == null) return const Left(UnauthorizedFailure());
+        payload['keySession'] = keySession;
+      }
+      final response = await _client.post(
+        Uri.parse('${_getBaseUrl(apiType)}$endpoint'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+      return _handleResponse<T>(
+        response: response,
+        fromJson: fromJson,
+        endpoint: endpoint,
+        requireAuth: requireAuth,
+      );
+    } catch (_) {
+      return const Left(NetworkFailure());
+    }
+  }
+
   Future<Either<Failure, T>> postFormData<T>({
     required String endpoint,
     Map<String, dynamic>? data,

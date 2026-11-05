@@ -92,6 +92,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               emailType: EmailType.reset,
               newPassword: state.newPassword,
               verifyPassword: state.verifyPassword,
+              useTotp: state.useTotp,
             );
             // Сбрасываем флаг, чтобы при возврате назад не триггерить навигацию снова
             context.read<ResetPasswordBloc>().add(
@@ -417,6 +418,27 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               style: AppText.lowTextStyle.copyWith(color: AppColors.errorRed),
             ),
           ],
+          const SizedBox(height: 20),
+          CupertinoSlidingSegmentedControl<bool>(
+            groupValue: state.useTotp,
+            children: const {
+              false: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('Код из письма'),
+              ),
+              true: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('Код из приложения'),
+              ),
+            },
+            onValueChanged: (value) {
+              if (value != null) {
+                context.read<ResetPasswordBloc>().add(
+                  ResetVerificationMethodChanged(value),
+                );
+              }
+            },
+          ),
           const SizedBox(height: 32),
 
           // 🎯 ОБНОВЛЕННАЯ КНОПКА С ИНДИКАТОРОМ ЗАГРУЗКИ
@@ -443,7 +465,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       ),
                     )
                   : const Text(
-                      'Отправить код',
+                      'Продолжить',
                       style: TextStyle(
                         color: CupertinoColors.white,
                         fontSize: 16,

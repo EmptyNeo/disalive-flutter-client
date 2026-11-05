@@ -3,6 +3,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/role_member.dart';
+import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
@@ -26,6 +27,7 @@ class ChannelAccessScreen extends StatefulWidget {
     this.maxParticipants,
     this.slowModeSeconds = 0,
     required this.channelsBloc,
+    this.channel,
   });
 
   final int serverId;
@@ -36,8 +38,9 @@ class ChannelAccessScreen extends StatefulWidget {
   final int? maxParticipants;
   final int slowModeSeconds;
   final ChannelServerBloc channelsBloc;
+  final ChannelServer? channel;
 
-  static Future<bool> open(
+  static Future<ChannelServer?> open(
     BuildContext context, {
     required int serverId,
     required String serverName,
@@ -47,21 +50,22 @@ class ChannelAccessScreen extends StatefulWidget {
     int? maxParticipants,
     int slowModeSeconds = 0,
     required ChannelServerBloc channelsBloc,
+    ChannelServer? channel,
   }) async {
-    return await SwipeToDismissRoute.push<bool>(
-          context,
-          (_) => ChannelAccessScreen(
-            serverId: serverId,
-            serverName: serverName,
-            name: name,
-            type: type,
-            categoryId: categoryId,
-            maxParticipants: maxParticipants,
-            slowModeSeconds: slowModeSeconds,
-            channelsBloc: channelsBloc,
-          ),
-        ) ??
-        false;
+    return SwipeToDismissRoute.push<ChannelServer>(
+      context,
+      (_) => ChannelAccessScreen(
+        serverId: serverId,
+        serverName: serverName,
+        name: name,
+        type: type,
+        categoryId: categoryId,
+        maxParticipants: maxParticipants,
+        slowModeSeconds: slowModeSeconds,
+        channelsBloc: channelsBloc,
+        channel: channel,
+      ),
+    );
   }
 
   @override
@@ -78,9 +82,13 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
   bool _loading = true;
   bool _creating = false;
 
+  bool get _isEditing => widget.channel != null;
+
   @override
   void initState() {
     super.initState();
+    _selectedUsers.addAll(widget.channel?.allowedUsers ?? const []);
+    _selectedRoles.addAll(widget.channel?.allowedRoles ?? const []);
     _load();
   }
 
@@ -114,17 +122,29 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
   Future<void> _create() async {
     if (_creating || _loading || _loadError != null) return;
     setState(() => _creating = true);
-    final result = await sl<ChannelServerRepository>().create(
-      widget.serverId,
-      widget.name,
-      type: widget.type,
-      categoryId: widget.categoryId,
-      maxParticipants: widget.maxParticipants,
-      slowModeSeconds: widget.slowModeSeconds,
-      isPrivate: true,
-      userIds: _selectedUsers.toList(),
-      roleIds: _selectedRoles.toList(),
-    );
+    final repository = sl<ChannelServerRepository>();
+    final result = _isEditing
+        ? await repository.update(
+            widget.channel!.id!,
+            name: widget.name,
+            categoryId: widget.categoryId ?? 0,
+            maxParticipants: widget.maxParticipants,
+            slowModeSeconds: widget.slowModeSeconds,
+            isPrivate: true,
+            userIds: _selectedUsers.toList(),
+            roleIds: _selectedRoles.toList(),
+          )
+        : await repository.create(
+            widget.serverId,
+            widget.name,
+            type: widget.type,
+            categoryId: widget.categoryId,
+            maxParticipants: widget.maxParticipants,
+            slowModeSeconds: widget.slowModeSeconds,
+            isPrivate: true,
+            userIds: _selectedUsers.toList(),
+            roleIds: _selectedRoles.toList(),
+          );
     if (!mounted) return;
     setState(() => _creating = false);
     result.fold(
@@ -133,7 +153,7 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
         widget.channelsBloc.add(
           ServerChannelUpserted(widget.serverId, channel.toMap()),
         );
-        Navigator.of(context).pop(true);
+        Navigator.of(context).pop(channel);
       },
     );
   }
@@ -152,9 +172,9 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
     }).toList();
 
     return RoleScreenShell(
-      title: 'Добавить участников или роли',
+      title: _isEditing ? 'Настроить доступ' : 'Добавить участников или роли',
       subtitle: '${widget.serverName} · ${widget.name}',
-      actionTitle: 'Создать',
+      actionTitle: _isEditing ? 'Сохранить' : 'Создать',
       onAction: _create,
       actionEnabled: !_creating && !_loading && _loadError == null,
       actionLoading: _creating,

@@ -4,6 +4,7 @@ import 'package:disalive/domain/models/user.dart';
 import 'package:disalive/presentation/features/profile/items/badge_item.dart';
 import 'package:disalive/presentation/features/profile/user_profile_screen.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -125,8 +126,9 @@ class _MemberItemState extends State<MemberItem> {
             Flexible(
               flex: nameFlex,
               fit: FlexFit.loose,
-              child: Text(
-                user.getDisplayName,
+              child: RoleColoredText(
+                text: user.getDisplayName,
+                role: widget.member.role,
                 style: nameStyle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

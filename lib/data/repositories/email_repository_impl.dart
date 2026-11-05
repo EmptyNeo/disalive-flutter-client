@@ -12,6 +12,19 @@ class EmailRepositoryImpl implements EmailRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
 
   @override
+  Future<Either<Failure, String>> requestPasswordResetMethod(String email) =>
+      _httpClient.postFormData<String>(
+        endpoint: 'mail/send.php',
+        data: {'type': EmailType.reset.value, 'email': email},
+        apiType: ApiType.v1,
+        requireAuth: false,
+        fromJson: (json) {
+          final method = json is Map ? json['verificationMethod'] : null;
+          return method == 'totp' ? 'totp' : 'email';
+        },
+      );
+
+  @override
   Future<Either<Failure, bool>> sendVerificationEmail({
     required String email,
     required EmailType type,

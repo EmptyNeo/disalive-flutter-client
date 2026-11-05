@@ -28,6 +28,7 @@ class CategoryChannelBloc
     on<GetChannelCategories>(_onGetChannelCategories);
     on<ChannelCategoryUpserted>(_onUpserted);
     on<ChannelCategoryRemoved>(_onRemoved);
+    on<SaveChannelCategoryOrder>(_onSaveOrder);
     setupListeners();
   }
 
@@ -169,6 +170,49 @@ class CategoryChannelBloc
     emit(
       ChannelCategoriesLoaded(event.serverId, List.unmodifiable(categories)),
     );
+  }
+
+  Future<void> _onSaveOrder(
+    SaveChannelCategoryOrder event,
+    Emitter<CategoryChannelState> emit,
+  ) async {
+    if (event.serverId != _serverId) return;
+    final previous = _repository.getCached(event.serverId);
+    emit(
+      ChannelCategoriesLoaded(
+        event.serverId,
+        event.categories,
+        savingOrder: true,
+      ),
+    );
+    for (var index = 0; index < event.categories.length; index++) {
+      final category = event.categories[index];
+      if (category.id == null || category.sortOrder == index) continue;
+      final result = await _repository.updateSortOrder(category.id!, index);
+      if (isClosed || event.serverId != _serverId) return;
+      final failure = result.fold<Failure?>((error) => error, (_) => null);
+      if (failure != null) {
+        _repository.updateCache(event.serverId, previous);
+        emit(
+          ChannelCategoriesLoaded(
+            event.serverId,
+            previous,
+            orderFailure: failure,
+          ),
+        );
+        add(GetChannelCategories(event.serverId));
+        return;
+      }
+    }
+    final saved = [
+      for (var i = 0; i < event.categories.length; i++)
+        CategoryChannel.fromMap({
+          ...event.categories[i].toMap(),
+          'sortOrder': i,
+        }),
+    ];
+    _repository.updateCache(event.serverId, saved);
+    emit(ChannelCategoriesLoaded(event.serverId, List.unmodifiable(saved)));
   }
 
   @override

@@ -62,6 +62,26 @@ int? historyActionIndexInMessages(
   return hasMoreMessages ? null : messages.length - 1;
 }
 
+bool isMessageReadByAny({
+  required Message message,
+  required int currentUserId,
+  required List<Member>? members,
+}) {
+  if (message.userId != currentUserId || message.id == null) return false;
+  if (members == null || members.isEmpty) return false;
+
+  final otherMembers = members
+      .where(
+        (member) => !member.isCurrentUser && member.fkUser != currentUserId,
+      )
+      .toList();
+  if (otherMembers.isEmpty) return false;
+
+  return otherMembers.any(
+    (member) => (member.lastIdReadMessage ?? 0) >= message.id!,
+  );
+}
+
 class MessagesList extends StatefulWidget {
   final MessageBloc messageBloc;
   final ChatBloc chatBloc;
@@ -1407,29 +1427,6 @@ class MessagesListState extends State<MessagesList> {
       initialPosition: position,
       sourceRect: sourceRect,
     );
-  }
-
-  bool isMessageReadByAny({
-    required Message message,
-    required int currentUserId,
-    required List<Member>? members,
-  }) {
-    if (message.userId != currentUserId) return false;
-
-    final otherMembers =
-        members?.where((m) => m.fkUser != currentUserId).toList() ?? [];
-    if (otherMembers.isEmpty) return true;
-
-    final msgId = message.id ?? 0;
-
-    for (final member in otherMembers) {
-      final lastReadId = member.lastIdReadMessage ?? 0;
-      if (lastReadId >= msgId) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   void onToggleReaction(Message message, ReactionMessage reaction) {

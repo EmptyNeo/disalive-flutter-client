@@ -41,13 +41,13 @@ class Member extends Equatable {
   factory Member.fromMap(Map<String, dynamic> map) {
     return Member(
       id: map['id'],
-      fkUser: map['fkUser'],
+      fkUser: _parseInt(map['fkUser'] ?? map['userId']),
       fkRole: map['fkRole'],
-      lastIdReadMessage: map['lastIdReadMessage'],
+      lastIdReadMessage: _parseInt(map['lastIdReadMessage']),
       muted: map['muted'],
       fixed: map['fixed'],
       orderFixed: map['orderFixed'],
-      isSelf: map['isSelf'],
+      isSelf: _parseBool(map['isSelf']),
       isCreator: map['isCreator'],
       isBanned: _parseBool(map['isBanned']),
       banExpiresAt: map['banExpiresAt'] as String?,
@@ -157,5 +157,12 @@ bool? _parseBool(Object? value) {
     if (normalized == 'true' || normalized == '1') return true;
     if (normalized == 'false' || normalized == '0') return false;
   }
+  return null;
+}
+
+int? _parseInt(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
   return null;
 }

@@ -55,6 +55,7 @@ class _ServerMembersScreenState extends State<ServerMembersScreen> {
           canManageRoles:
               widget.server.isServerOwner ||
               widget.server.hasPermission(ServerPermissions.manageRoles),
+          canReorderRoles: widget.server.isServerOwner,
         ),
       ],
     ),

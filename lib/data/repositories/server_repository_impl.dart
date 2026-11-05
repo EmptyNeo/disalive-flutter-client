@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
@@ -6,6 +7,7 @@ import 'package:disalive/domain/enums/api_type.dart';
 import 'package:disalive/domain/enums/server_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/server_tag.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
 
@@ -13,6 +15,21 @@ class ServerRepositoryImpl implements ServerRepository {
   final HttpClientService _httpClient = sl<HttpClientService>();
   List<Server>? _servers;
   int? _selectedServerId;
+
+  @override
+  Future<Either<Failure, List<ServerTag>>> searchTags(String query) =>
+      _httpClient.postFormData<List<ServerTag>>(
+        endpoint: 'servers/tags.php',
+        data: {'query': query.trim()},
+        apiType: ApiType.v1,
+        requireAuth: true,
+        fromJson: (json) => (json as List)
+            .map(
+              (item) =>
+                  ServerTag.fromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList(),
+      );
 
   @override
   Future<Either<Failure, List<Server>>> get({
@@ -52,6 +69,7 @@ class ServerRepositoryImpl implements ServerRepository {
     ServerType? category,
     File? avatar,
     File? banner,
+    List<String> tags = const [],
   }) async {
     final data = <String, dynamic>{
       'name': name,
@@ -59,6 +77,7 @@ class ServerRepositoryImpl implements ServerRepository {
       'canInvite': canInvite,
       'private': isPrivate,
       'category': ?category?.value,
+      'tags': jsonEncode(tags),
     };
 
     final result = avatar == null && banner == null
@@ -104,6 +123,7 @@ class ServerRepositoryImpl implements ServerRepository {
     File? avatar,
     File? banner,
     bool deleteBanner = false,
+    List<String>? tags,
   }) async {
     final data = <String, dynamic>{
       'id': id,
@@ -112,6 +132,7 @@ class ServerRepositoryImpl implements ServerRepository {
       'canInvite': ?canInvite,
       'private': ?isPrivate,
       'category': ?category?.value,
+      if (tags != null) 'tags': jsonEncode(tags),
       'fkMainChannel': ?fkMainChannel,
       if (isSetNullMainChannel) 'isSetNullMainChannel': 1,
       if (deleteBanner && banner == null) 'deleteBanner': 1,

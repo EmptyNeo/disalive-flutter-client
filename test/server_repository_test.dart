@@ -155,6 +155,33 @@ void main() {
     },
   );
 
+  test('tag search parses usage counts and sends the query', () async {
+    final client = MockClient((request) async {
+      expect(request.url.path, '/v1/servers/tags.php');
+      expect(request.bodyFields['keySession'], 'session-key');
+      expect(request.bodyFields['query'], 'игры');
+      return http.Response(
+        jsonEncode({
+          'success': true,
+          'data': [
+            {'id': 12, 'name': 'Игры', 'usageCount': 7},
+          ],
+        }),
+        200,
+      );
+    });
+    sl.registerSingleton<HttpClientService>(
+      HttpClientService(client: client, secureStorage: _TestStorage()),
+    );
+
+    final result = await ServerRepositoryImpl().searchTags(' игры ');
+    expect(result.isRight(), isTrue);
+    final tag = result.getOrElse(() => []).single;
+    expect(tag.id, 12);
+    expect(tag.name, 'Игры');
+    expect(tag.usageCount, 7);
+  });
+
   test(
     'main role is parsed and update sends its id or an explicit reset',
     () async {
@@ -237,6 +264,9 @@ void main() {
                   'fkOwner': 8,
                   'fkMainChannel': 11,
                   'newMessagesCount': 6,
+                  'tags': [
+                    {'id': 10, 'name': 'Старый', 'usageCount': 2},
+                  ],
                 },
               ],
             }),
@@ -252,6 +282,9 @@ void main() {
                 'name': 'Created',
                 'description': 'Created description',
                 'fkOwner': 8,
+                'tags': [
+                  {'id': 11, 'name': 'Новый', 'usageCount': 1},
+                ],
               },
             }),
             201,
@@ -266,6 +299,9 @@ void main() {
               'description': null,
               'fkMainChannel': null,
               'category': 'GAMES',
+              'tags': [
+                {'id': 12, 'name': 'Игры', 'usageCount': 5},
+              ],
             },
           }),
           200,
@@ -281,14 +317,17 @@ void main() {
         'Created',
         description: 'Created description',
         category: ServerType.games,
+        tags: const ['Новый'],
       );
       expect(created.isRight(), isTrue);
       expect(sent[1].bodyFields['name'], 'Created');
       expect(sent[1].bodyFields['description'], 'Created description');
       expect(sent[1].bodyFields['category'], 'GAMES');
+      expect(jsonDecode(sent[1].bodyFields['tags']!), ['Новый']);
       expect(sent[1].bodyFields['keySession'], 'session-key');
       expect(repository.getByIdCached(5)?.name, 'Created');
       expect(repository.getByIdCached(5)?.description, 'Created description');
+      expect(repository.getByIdCached(5)?.tags.single.name, 'Новый');
 
       final updated = await repository.update(
         4,
@@ -296,9 +335,12 @@ void main() {
         description: '',
         isSetNullMainChannel: true,
         category: ServerType.games,
+        tags: const ['Игры'],
       );
       expect(updated.isRight(), isTrue);
       expect(sent[2].bodyFields['description'], '');
+      expect(jsonDecode(sent[2].bodyFields['tags']!), ['Игры']);
+      expect(repository.getByIdCached(4)?.tags.single.usageCount, 5);
       expect(repository.getByIdCached(4)?.description, isNull);
       expect(sent[2].bodyFields['isSetNullMainChannel'], '1');
       expect(repository.getByIdCached(4)?.fkMainChannel, isNull);
@@ -314,6 +356,7 @@ void main() {
       );
       expect(mainChannelUpdated.isRight(), isTrue);
       expect(sent[3].bodyFields['fkMainChannel'], '12');
+      expect(sent[3].bodyFields.containsKey('tags'), isFalse);
       expect(repository.getByIdCached(4)?.fkMainChannel, 12);
     },
   );

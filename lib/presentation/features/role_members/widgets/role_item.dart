@@ -1,6 +1,7 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:flutter/cupertino.dart';
 
 class RoleItem extends StatelessWidget {
@@ -43,8 +44,9 @@ class RoleItem extends StatelessWidget {
                     const SizedBox(width: 11),
                     if (role.name?.trim().isNotEmpty == true)
                       Flexible(
-                        child: Text(
-                          role.name!,
+                        child: RoleColoredText(
+                          text: role.name!,
+                          role: role,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

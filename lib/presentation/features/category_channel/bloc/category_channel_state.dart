@@ -20,11 +20,18 @@ class ChannelCategoriesLoading extends CategoryChannelState {
 class ChannelCategoriesLoaded extends CategoryChannelState {
   final int serverId;
   final List<CategoryChannel> categories;
+  final bool savingOrder;
+  final Failure? orderFailure;
 
-  const ChannelCategoriesLoaded(this.serverId, this.categories);
+  const ChannelCategoriesLoaded(
+    this.serverId,
+    this.categories, {
+    this.savingOrder = false,
+    this.orderFailure,
+  });
 
   @override
-  List<Object?> get props => [serverId, categories];
+  List<Object?> get props => [serverId, categories, savingOrder, orderFailure];
 }
 
 class ChannelCategoriesFailure extends CategoryChannelState {

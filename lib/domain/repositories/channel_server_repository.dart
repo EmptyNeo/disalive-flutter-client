@@ -22,8 +22,16 @@ abstract class ChannelServerRepository {
     int? categoryId,
     int? maxParticipants,
     int? slowModeSeconds,
+    bool? isPrivate,
+    List<int>? userIds,
+    List<int>? roleIds,
   });
   Future<Either<Failure, int>> delete(int id);
+  Future<Either<Failure, ChannelServer>> updatePosition(
+    int id,
+    int? categoryId,
+    int sortOrder,
+  );
   List<ChannelServer> getCached(int serverId);
   ChannelServer? getByIdCached(int id);
   void updateCache(int serverId, List<ChannelServer> channels);

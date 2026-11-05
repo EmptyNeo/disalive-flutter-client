@@ -124,6 +124,7 @@ class ChatScreen extends StatefulWidget {
           member: (cachedChat.member ?? const Member()).copyWith(
             lastIdReadMessage: channel.lastIdReadMessage,
           ),
+          members: channel.members,
         ) ??
         Chat(
           id: chatId,
@@ -131,6 +132,7 @@ class ChatScreen extends StatefulWidget {
           type: ChatType.channel,
           newMessagesCount: channel.newMessagesCount,
           member: Member(lastIdReadMessage: channel.lastIdReadMessage),
+          members: channel.members,
         );
     await open(context, chat, isReconnect, entityAccess: access);
   }
@@ -697,14 +699,53 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           }
         }
         if (event.data['entityType'] != 'server' ||
-            !(DataParser.parseBool(event.data['isSelf']) ?? event.isSelf) ||
             DataParser.parseInt(event.data['chatId']) != _currentChat.id) {
           return;
         }
         final raw = event.data['member'];
         if (raw is! Map) return;
         final memberData = Map<String, dynamic>.from(raw);
+        final isSelf =
+            DataParser.parseBool(event.data['isSelf']) ?? event.isSelf;
+        final readerId = DataParser.parseInt(
+          event.data['userId'] ?? memberData['userId'] ?? memberData['fkUser'],
+        );
         final readId = DataParser.parseInt(memberData['lastIdReadMessage']);
+        if (readId != null && (readerId != null || isSelf)) {
+          final currentMembers = List<Member>.from(
+            _currentChat.members ?? const [],
+          );
+          final readerIndex = readerId == null
+              ? -1
+              : currentMembers.indexWhere(
+                  (member) => member.fkUser == readerId,
+                );
+          final currentReaderRead = readerIndex < 0
+              ? -1
+              : (currentMembers[readerIndex].lastIdReadMessage ?? 0);
+          if (readId > currentReaderRead) {
+            final updatedReader = readerIndex < 0
+                ? Member(
+                    fkUser: readerId,
+                    lastIdReadMessage: readId,
+                    isSelf: isSelf,
+                  )
+                : currentMembers[readerIndex].copyWith(
+                    lastIdReadMessage: readId,
+                    isSelf: isSelf,
+                  );
+            if (readerIndex < 0) {
+              currentMembers.add(updatedReader);
+            } else {
+              currentMembers[readerIndex] = updatedReader;
+            }
+            _currentChat = _currentChat.copyWith(members: currentMembers);
+          }
+        }
+        if (!isSelf) {
+          if (mounted) setState(() {});
+          return;
+        }
         if (readId == null) return;
         final previousRead = _currentChat.member?.lastIdReadMessage ?? 0;
         if (readId < previousRead) return;

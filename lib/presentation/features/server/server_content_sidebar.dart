@@ -43,6 +43,7 @@ import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show ReorderableListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ServerContentSidebar extends StatefulWidget {
@@ -66,10 +67,15 @@ class ServerContentSidebar extends StatefulWidget {
 class _ServerContentSidebarState extends State<ServerContentSidebar> {
   final Set<int> _collapsedCategories = {};
   final Set<int> _collapsedCalls = {};
+  bool _ordering = false;
+  List<CategoryChannel> _draftCategories = [];
+  List<ChannelServer> _draftChannels = [];
   late final ChannelServerBloc _channelsBloc;
   late final CategoryChannelBloc _categoriesBloc;
   late final CallParticipantsBloc _callParticipantsBloc;
   StreamSubscription? _moderationSubscription;
+  StreamSubscription? _categoryOrderSubscription;
+  StreamSubscription? _channelOrderSubscription;
   bool _checkingServerAccess = true;
 
   int get _serverId => widget.server.id!;
@@ -87,6 +93,16 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       sl<CategoryChannelRepository>(),
       sl<WsEventBus>(),
     )..add(GetChannelCategories(_serverId));
+    _categoryOrderSubscription = _categoriesBloc.stream.listen((state) {
+      if (state is ChannelCategoriesLoaded && state.orderFailure != null) {
+        _showMessage(state.orderFailure!.message);
+      }
+    });
+    _channelOrderSubscription = _channelsBloc.stream.listen((state) {
+      if (state is ServerChannelsLoaded && state.orderFailure != null) {
+        _showMessage(state.orderFailure!.message);
+      }
+    });
     _callParticipantsBloc = CallParticipantsBloc(sl<CallsRepository>())
       ..add(
         WatchCallParticipants(
@@ -105,6 +121,9 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
       _verifyServerAccess();
       _collapsedCategories.clear();
       _collapsedCalls.clear();
+      _ordering = false;
+      _draftCategories = [];
+      _draftChannels = [];
       _channelsBloc.add(GetServerChannels(_serverId));
       _categoriesBloc.add(GetChannelCategories(_serverId));
       _callParticipantsBloc.add(
@@ -186,6 +205,8 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
   @override
   void dispose() {
     _moderationSubscription?.cancel();
+    _categoryOrderSubscription?.cancel();
+    _channelOrderSubscription?.cancel();
     _channelsBloc.close();
     _categoriesBloc.close();
     _callParticipantsBloc.close();
@@ -518,6 +539,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               entityId: _serverId,
               entityType: EntityType.server,
               entityName: widget.server.name ?? 'Сервер',
+              canReorderRoles: widget.server.isServerOwner,
             ),
           ),
         if (rights.canManageChannels)
@@ -531,6 +553,12 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             icon: CupertinoIcons.folder_badge_plus,
             label: 'Создать категорию',
             onTap: _createCategory,
+          ),
+        if (rights.canManageChannels || rights.canManageCategories)
+          ActionItem(
+            icon: CupertinoIcons.list_bullet,
+            label: 'Упорядочить каналы и категории',
+            onTap: _startOrdering,
           ),
         ActionItem(
           icon: CupertinoIcons.smiley,
@@ -570,6 +598,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               entityId: _serverId,
               entityType: EntityType.server,
               entityName: widget.server.name ?? 'Сервер',
+              canReorderRoles: widget.server.isServerOwner,
             ),
           ),
         if (rights.canManageMembers)
@@ -585,6 +614,12 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             label: 'Управлять приглашениями',
             onTap: () =>
                 ManageServerInvitesScreen.open(context, server: widget.server),
+          ),
+        if (rights.canManageChannels || rights.canManageCategories)
+          ActionItem(
+            icon: CupertinoIcons.list_bullet,
+            label: 'Упорядочить каналы и категории',
+            onTap: _startOrdering,
           ),
         if (widget.server.isServerOwner)
           ActionItem(
@@ -786,6 +821,169 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     );
   }
 
+  void _startOrdering() {
+    final categoryState = _categoriesBloc.state;
+    final channelState = _channelsBloc.state;
+    if (categoryState is! ChannelCategoriesLoaded ||
+        channelState is! ServerChannelsLoaded) {
+      return;
+    }
+    setState(() {
+      _draftCategories = [...categoryState.categories]
+        ..sort(
+          (a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
+              ? a.sortOrder.compareTo(b.sortOrder)
+              : (a.id ?? 0).compareTo(b.id ?? 0),
+        );
+      _draftChannels = [...channelState.channels]
+        ..sort(
+          (a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
+              ? a.sortOrder.compareTo(b.sortOrder)
+              : (a.id ?? 0).compareTo(b.id ?? 0),
+        );
+      _ordering = true;
+    });
+  }
+
+  List<Object> _orderedRows() {
+    final rows = <Object>[
+      ..._draftChannels.where(
+        (channel) =>
+            channel.categoryId == null ||
+            !_draftCategories.any(
+              (category) => category.id == channel.categoryId,
+            ),
+      ),
+    ];
+    for (final category in _draftCategories) {
+      rows.add(category);
+      rows.addAll(
+        _draftChannels.where((channel) => channel.categoryId == category.id),
+      );
+    }
+    return rows;
+  }
+
+  void _reorderRows(int oldIndex, int newIndex) {
+    final rows = _orderedRows();
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) {
+      return;
+    }
+    final moved = rows.removeAt(oldIndex);
+    rows.insert(newIndex, moved);
+    setState(() {
+      if (moved is CategoryChannel) {
+        _draftCategories = rows.whereType<CategoryChannel>().toList();
+      } else {
+        int? categoryId;
+        final reordered = <ChannelServer>[];
+        for (final row in rows) {
+          if (row is CategoryChannel) {
+            categoryId = row.id;
+          } else if (row is ChannelServer) {
+            reordered.add(
+              ChannelServer.fromMap({...row.toMap(), 'categoryId': categoryId}),
+            );
+          }
+        }
+        _draftChannels = reordered;
+      }
+    });
+  }
+
+  Widget _buildOrderList() {
+    final rows = _orderedRows();
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Зажмите значок справа и перетащите',
+                  style: AppText.lowTextStyle.copyWith(
+                    color: AppColors.greyple,
+                  ),
+                ),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                onPressed: () {
+                  final categories = _draftCategories;
+                  final channels = _draftChannels;
+                  setState(() => _ordering = false);
+                  if (_rights.canManageCategories) {
+                    _categoriesBloc.add(
+                      SaveChannelCategoryOrder(_serverId, categories),
+                    );
+                  }
+                  if (_rights.canManageChannels) {
+                    _channelsBloc.add(
+                      SaveServerChannelOrder(_serverId, channels),
+                    );
+                  }
+                },
+                child: const Text('Готово'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ReorderableListView.builder(
+            padding: const EdgeInsets.fromLTRB(7, 0, 7, 120),
+            buildDefaultDragHandles: false,
+            itemCount: rows.length,
+            onReorder: _reorderRows,
+            itemBuilder: (context, index) {
+              final row = rows[index];
+              final canMove = row is CategoryChannel
+                  ? _rights.canManageCategories
+                  : _rights.canManageChannels;
+              return Container(
+                key: ValueKey(
+                  row is CategoryChannel
+                      ? 'order_category_${row.id}'
+                      : 'order_channel_${(row as ChannelServer).id}',
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: row is CategoryChannel
+                          ? CategoryChannelItem(
+                              category: row,
+                              isCollapsed: false,
+                            )
+                          : _channelItem(
+                              row as ChannelServer,
+                              interactive: false,
+                            ),
+                    ),
+                    if (canMove)
+                      ReorderableDragStartListener(
+                        index: index,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          child: Icon(
+                            CupertinoIcons.line_horizontal_3,
+                            size: 19,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStructure() {
     return BlocBuilder<CategoryChannelBloc, CategoryChannelState>(
       builder: (context, categoryState) {
@@ -814,8 +1012,19 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               return const SizedBox.shrink();
             }
 
-            final categories = categoryState.categories;
-            final channels = channelState.channels;
+            final categories = [...categoryState.categories]
+              ..sort(
+                (a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
+                    ? a.sortOrder.compareTo(b.sortOrder)
+                    : (a.id ?? 0).compareTo(b.id ?? 0),
+              );
+            final channels = [...channelState.channels]
+              ..sort(
+                (a, b) => a.sortOrder.compareTo(b.sortOrder) != 0
+                    ? a.sortOrder.compareTo(b.sortOrder)
+                    : (a.id ?? 0).compareTo(b.id ?? 0),
+              );
+            if (_ordering) return _buildOrderList();
             if (categories.isEmpty && channels.isEmpty) {
               return Center(
                 child: Column(
@@ -903,7 +1112,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     );
   }
 
-  Widget _channelItem(ChannelServer channel) {
+  Widget _channelItem(ChannelServer channel, {bool interactive = true}) {
     return BlocBuilder<CallParticipantsBloc, CallParticipantsState>(
       bloc: _callParticipantsBloc,
       builder: (context, state) {
@@ -918,8 +1127,12 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               key: ValueKey('channel_${channel.id}'),
               channel: channel,
               participantCount: participants.length,
-              onTap: () => widget.onChannelTap?.call(channel),
-              onLongPress: () => _showChannelActions(channel),
+              onTap: interactive
+                  ? () => widget.onChannelTap?.call(channel)
+                  : null,
+              onLongPress: interactive
+                  ? () => _showChannelActions(channel)
+                  : null,
             ),
             if (chatId != null && participants.isNotEmpty)
               ChannelCallParticipants(

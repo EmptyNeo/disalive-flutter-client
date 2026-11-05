@@ -26,3 +26,11 @@ class RoleMemberRemoved extends RoleMembersEvent {
   @override
   List<Object?> get props => [roleId];
 }
+
+class ReorderRoleMembers extends RoleMembersEvent {
+  const ReorderRoleMembers(this.roleIds);
+  final List<int> roleIds;
+
+  @override
+  List<Object?> get props => [roleIds];
+}

@@ -65,6 +65,10 @@ class RoleMemberRepositoryImpl implements RoleMemberRepository {
     EntityType entityType, {
     String? name,
     String? emoji,
+    String? color,
+    String? gradientStart,
+    String? gradientEnd,
+    int gradientAngle = 90,
     required Map<String, bool> permissions,
   }) async {
     final result = await _httpClient.postFormData<Map<String, dynamic>>(
@@ -75,6 +79,10 @@ class RoleMemberRepositoryImpl implements RoleMemberRepository {
         'entityType': entityType.value,
         'name': ?name,
         'emoji': ?emoji,
+        'color': color ?? '',
+        'gradientStart': gradientStart ?? '',
+        'gradientEnd': gradientEnd ?? '',
+        'gradientAngle': gradientAngle,
         'permissions': jsonEncode(permissions),
       },
       apiType: ApiType.v1,
@@ -140,6 +148,43 @@ class RoleMemberRepositoryImpl implements RoleMemberRepository {
     'entityType': entityType.value,
     'userId': userId,
   });
+
+  @override
+  Future<Either<Failure, List<RoleMember>>> reorder(
+    int entityId,
+    EntityType entityType,
+    List<int> roleIds,
+  ) async {
+    if (entityType != EntityType.server) {
+      return Left(
+        ClientFailure('Порядок ролей можно менять только на сервере'),
+      );
+    }
+    final result = await _httpClient.postFormData<List<RoleMember>>(
+      endpoint: 'roleMembers/reorder.php',
+      data: {
+        'entityId': entityId,
+        'entityType': entityType.value,
+        'roleIds': jsonEncode(roleIds),
+      },
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) {
+        final response = json as Map<String, dynamic>;
+        return (response['roles'] as List)
+            .map((item) => RoleMember.fromMap(item as Map<String, dynamic>))
+            .toList();
+      },
+    );
+    result.fold(
+      (_) {},
+      (roles) => updateCache(
+        EntityKey(entityId: entityId, entityType: entityType),
+        roles,
+      ),
+    );
+    return result;
+  }
 
   Future<Either<Failure, bool>> _postSuccess(
     String endpoint,

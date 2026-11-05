@@ -168,7 +168,7 @@ class _ServerDiscoverySidebarState extends State<ServerDiscoverySidebar> {
             key: const ValueKey('public_server_search'),
             controller: _searchController,
             onChanged: _onSearchChanged,
-            placeholder: 'Поиск серверов',
+            placeholder: 'Поиск по названию или тегу',
             prefix: const Padding(
               padding: EdgeInsets.only(left: 12),
               child: Icon(CupertinoIcons.search, size: 18),
@@ -290,7 +290,12 @@ class _ServerDiscoverySidebarState extends State<ServerDiscoverySidebar> {
                         padding: const EdgeInsets.only(bottom: spacing),
                         child: _servers[index].pathBanner?.isNotEmpty == true
                             ? cardAt(index)
-                            : SizedBox(height: 184, child: cardAt(index)),
+                            : SizedBox(
+                                height: _servers[index].tags.isEmpty
+                                    ? 184
+                                    : 300,
+                                child: cardAt(index),
+                              ),
                       ),
                     ),
             ),
@@ -392,6 +397,7 @@ class _DiscoveryServerCard extends StatelessWidget {
               const SizedBox(height: 5),
               _description(compact: true),
             ],
+            if (server.tags.isNotEmpty) ...[const SizedBox(height: 6), _tags()],
             const SizedBox(height: 8),
             _actionButton(),
           ] else ...[
@@ -406,6 +412,7 @@ class _DiscoveryServerCard extends StatelessWidget {
               const SizedBox(height: 8),
               _description(compact: false),
             ],
+            if (server.tags.isNotEmpty) ...[const SizedBox(height: 8), _tags()],
             const SizedBox(height: 12),
             Wrap(
               spacing: 14,
@@ -460,6 +467,31 @@ class _DiscoveryServerCard extends StatelessWidget {
     ),
   );
 
+  Widget _tags() => Wrap(
+    spacing: 5,
+    runSpacing: 5,
+    children: [
+      for (final tag in server.tags)
+        Container(
+          constraints: const BoxConstraints(maxWidth: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.blurple.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Text(
+            tag.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.lowTextStyle.copyWith(
+              color: AppColors.white,
+              fontSize: compact ? 10 : 11,
+            ),
+          ),
+        ),
+    ],
+  );
+
   Widget _bannerDetails() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -475,6 +507,7 @@ class _DiscoveryServerCard extends StatelessWidget {
         const SizedBox(height: 6),
         _description(compact: false),
       ],
+      if (server.tags.isNotEmpty) ...[const SizedBox(height: 7), _tags()],
       const SizedBox(height: 8),
       Wrap(
         spacing: 14,

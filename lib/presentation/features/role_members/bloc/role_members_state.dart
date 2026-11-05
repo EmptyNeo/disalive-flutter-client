@@ -17,11 +17,17 @@ class RoleMembersLoading extends RoleMembersState {
 }
 
 class RoleMembersLoaded extends RoleMembersState {
-  const RoleMembersLoaded(this.roles);
+  const RoleMembersLoaded(
+    this.roles, {
+    this.isSavingOrder = false,
+    this.orderError,
+  });
   final List<RoleMember> roles;
+  final bool isSavingOrder;
+  final String? orderError;
 
   @override
-  List<Object?> get props => [roles];
+  List<Object?> get props => [roles, isSavingOrder, orderError];
 }
 
 class RoleMembersFailure extends RoleMembersState {

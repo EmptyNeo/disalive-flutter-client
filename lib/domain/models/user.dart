@@ -5,6 +5,7 @@ import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/models/badge.dart';
 import 'package:disalive/domain/models/badge_user.dart';
 import 'package:disalive/domain/models/friend_request.dart';
+import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/user_status.dart';
@@ -45,6 +46,7 @@ class UserModel extends Equatable {
   final List<BadgeUserModel>? badges;
   final int? fkMainBadge;
   final BadgeModel? mainBadge;
+  final RoleMember? role;
   final bool? isNsfw;
   final bool? hasFcm;
   final File? fileAvatar;
@@ -88,6 +90,7 @@ class UserModel extends Equatable {
     this.badges,
     this.fkMainBadge,
     this.mainBadge,
+    this.role,
     this.isNsfw,
     this.hasFcm,
     this.fileAvatar,
@@ -147,6 +150,9 @@ class UserModel extends Equatable {
       mainBadge: map['mainBadge'] != null
           ? BadgeModel.fromMap(map['mainBadge'] as Map<String, dynamic>)
           : null,
+      role: map['role'] is Map
+          ? RoleMember.fromMap(Map<String, dynamic>.from(map['role']))
+          : null,
       isNsfw: DataParser.parseBool(map['isNsfw']),
       hasFcm: DataParser.parseBool(map['hasFcm']),
     );
@@ -193,6 +199,7 @@ class UserModel extends Equatable {
       if (badges != null) 'badges': badges?.map((e) => e.toMap()).toList(),
       if (fkMainBadge != null) 'fkMainBadge': fkMainBadge,
       if (mainBadge != null) 'mainBadge': mainBadge?.toMap(),
+      if (role != null) 'role': role?.toMap(),
       if (deleteAvatar != null) 'deleteAvatar': deleteAvatar ?? false ? 1 : 0,
       if (deleteBanner != null) 'deleteBanner': deleteBanner ?? false ? 1 : 0,
     };
@@ -241,6 +248,7 @@ class UserModel extends Equatable {
     List<BadgeUserModel>? badges,
     int? fkMainBadge,
     BadgeModel? mainBadge,
+    RoleMember? role,
     File? fileAvatar,
     File? fileBanner,
     bool? deleteAvatar,
@@ -285,6 +293,7 @@ class UserModel extends Equatable {
       badges: badges ?? this.badges,
       fkMainBadge: fkMainBadge ?? this.fkMainBadge,
       mainBadge: mainBadge ?? this.mainBadge,
+      role: role ?? this.role,
       hasFcm: hasFcm ?? this.hasFcm,
       fileAvatar: fileAvatar ?? this.fileAvatar,
       fileBanner: fileBanner ?? this.fileBanner,
@@ -328,6 +337,7 @@ class UserModel extends Equatable {
     personalChatId,
     friendRequest,
     mainBadge,
+    role,
     badges,
     canSendMeRequest,
     allowComments,

@@ -7,6 +7,7 @@ import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/channel_server.dart';
+import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/ws/ws_event.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
@@ -39,6 +40,7 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     on<ServerChannelReadUpdated>(_onReadUpdated);
     on<ServerChannelMessageAdded>(_onMessageAdded);
     on<ServerChannelMessageRemoved>(_onMessageRemoved);
+    on<SaveServerChannelOrder>(_onSaveOrder);
     setupListeners();
   }
 
@@ -80,12 +82,11 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
       table: 'ChatMembers',
       action: ActionType.update,
       onData: (event) {
-        if (event.data['entityType'] != EntityType.server.value ||
-            !(DataParser.parseBool(event.data['isSelf']) ?? event.isSelf)) {
-          return;
-        }
+        if (event.data['entityType'] != EntityType.server.value) return;
         final serverId = DataParser.parseInt(event.data['entityId']);
         final chatId = DataParser.parseInt(event.data['chatId']);
+        final isSelf =
+            DataParser.parseBool(event.data['isSelf']) ?? event.isSelf;
         final rawMember = event.data['member'];
         if (serverId == null ||
             serverId != _serverId ||
@@ -96,15 +97,20 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
         final member = Map<String, dynamic>.from(rawMember);
         final readId = DataParser.parseInt(member['lastIdReadMessage']);
         if (readId == null) return;
+        final userId = DataParser.parseInt(
+          event.data['userId'] ?? member['userId'] ?? member['fkUser'],
+        );
         add(
           ServerChannelReadUpdated(
             serverId,
             chatId,
             readId,
+            userId: userId,
+            isSelf: isSelf,
             newMessagesCount: DataParser.parseInt(member['newMessagesCount']),
           ),
         );
-        _scheduleRefresh();
+        if (userId == null || isSelf) _scheduleRefresh();
       },
     );
     _messageSubscription?.cancel();
@@ -269,6 +275,68 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(channels)));
   }
 
+  Future<void> _onSaveOrder(
+    SaveServerChannelOrder event,
+    Emitter<ChannelServerState> emit,
+  ) async {
+    if (event.serverId != _serverId) return;
+    final previous = _repository.getCached(event.serverId);
+    emit(
+      ServerChannelsLoaded(event.serverId, event.channels, savingOrder: true),
+    );
+    final nextOrder = <int?, int>{};
+    final saved = <ChannelServer>[];
+    for (final channel in event.channels) {
+      final order = nextOrder.update(
+        channel.categoryId,
+        (value) => value + 1,
+        ifAbsent: () => 0,
+      );
+      saved.add(
+        ChannelServer.fromMap({...channel.toMap(), 'sortOrder': order}),
+      );
+    }
+    for (final channel in saved) {
+      if (channel.id == null) continue;
+      final old = previous.where((item) => item.id == channel.id).firstOrNull;
+      if (old != null &&
+          old.categoryId == channel.categoryId &&
+          old.sortOrder == channel.sortOrder) {
+        continue;
+      }
+      final result = await _repository.updatePosition(
+        channel.id!,
+        channel.categoryId,
+        channel.sortOrder,
+      );
+      if (isClosed || event.serverId != _serverId) return;
+      final failure = result.fold<Failure?>((error) => error, (_) => null);
+      if (failure != null) {
+        _repository.updateCache(event.serverId, previous);
+        emit(
+          ServerChannelsLoaded(event.serverId, previous, orderFailure: failure),
+        );
+        add(GetServerChannels(event.serverId));
+        return;
+      }
+    }
+    final latest = _repository.getCached(event.serverId);
+    final merged = [
+      for (final desired in saved)
+        ChannelServer.fromMap({
+          ...(latest
+                  .where((item) => item.id == desired.id)
+                  .firstOrNull
+                  ?.toMap() ??
+              desired.toMap()),
+          'categoryId': desired.categoryId,
+          'sortOrder': desired.sortOrder,
+        }),
+    ];
+    _repository.updateCache(event.serverId, merged);
+    emit(ServerChannelsLoaded(event.serverId, List.unmodifiable(merged)));
+  }
+
   void _onReadUpdated(
     ServerChannelReadUpdated event,
     Emitter<ChannelServerState> emit,
@@ -361,22 +429,72 @@ class ChannelServerBloc extends Bloc<ChannelServerEvent, ChannelServerState> {
     final index = channels.indexWhere((item) => item.chatId == event.chatId);
     if (index < 0) return false;
     final previous = channels[index];
-    final currentRead = previous.lastIdReadMessage ?? 0;
-    if (event.lastIdReadMessage < currentRead) return false;
-    final latestMessageId = _latestMessageIds[event.chatId] ?? 0;
-    final unread =
-        event.newMessagesCount ??
-        (latestMessageId > 0 && event.lastIdReadMessage >= latestMessageId
-            ? 0
-            : math.max(
-                0,
-                previous.newMessagesCount -
-                    (event.lastIdReadMessage - currentRead),
-              ));
+    var members = previous.members;
+    var didChange = false;
+    if (event.userId != null) {
+      final memberIndex = members.indexWhere(
+        (member) => member.fkUser == event.userId,
+      );
+      final previousMemberRead = memberIndex < 0
+          ? -1
+          : (members[memberIndex].lastIdReadMessage ?? 0);
+      if (event.lastIdReadMessage > previousMemberRead) {
+        final updatedMember = memberIndex < 0
+            ? Member(
+                fkUser: event.userId,
+                lastIdReadMessage: event.lastIdReadMessage,
+                isSelf: event.isSelf,
+              )
+            : members[memberIndex].copyWith(
+                lastIdReadMessage: event.lastIdReadMessage,
+                isSelf: event.isSelf,
+              );
+        members = [...members];
+        if (memberIndex < 0) {
+          members.add(updatedMember);
+        } else {
+          members[memberIndex] = updatedMember;
+        }
+        didChange = true;
+      }
+    }
+
+    var nextLastRead = previous.lastIdReadMessage;
+    var nextUnreadCount = previous.newMessagesCount;
+    if (event.isSelf) {
+      final currentRead = previous.lastIdReadMessage ?? 0;
+      if (event.lastIdReadMessage >= currentRead) {
+        final latestMessageId = _latestMessageIds[event.chatId] ?? 0;
+        nextUnreadCount =
+            event.newMessagesCount ??
+            (latestMessageId > 0 && event.lastIdReadMessage >= latestMessageId
+                ? 0
+                : math.max(
+                    0,
+                    previous.newMessagesCount -
+                        (event.lastIdReadMessage - currentRead),
+                  ));
+        nextLastRead = event.lastIdReadMessage;
+        didChange =
+            didChange ||
+            nextLastRead != previous.lastIdReadMessage ||
+            nextUnreadCount != previous.newMessagesCount;
+      }
+    }
+    if (!didChange) return false;
     channels[index] = ChannelServer.fromMap({
       ...previous.toMap(),
-      'lastIdReadMessage': event.lastIdReadMessage,
-      'newMessagesCount': math.max(0, unread),
+      'lastIdReadMessage': nextLastRead,
+      'newMessagesCount': math.max(0, nextUnreadCount),
+      'members': members
+          .map(
+            (member) => {
+              'userId': member.fkUser,
+              'lastIdReadMessage': member.lastIdReadMessage,
+              if (member.isSelf != null) 'isSelf': member.isSelf,
+            },
+          )
+          .toList(),
     });
     return true;
   }

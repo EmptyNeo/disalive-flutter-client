@@ -9,6 +9,7 @@ import 'package:disalive/presentation/features/role_members/bloc/role_members_bl
 import 'package:disalive/presentation/features/role_members/role_permission_meta.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_emoji_picker.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_member_tile.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_permission_tile.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_screen_shell.dart';
@@ -52,6 +53,11 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
   late TextEditingController _nameController;
   late Map<String, bool> _permissions;
   late String? _emoji;
+  late TextEditingController _colorController;
+  late TextEditingController _gradientStartController;
+  late TextEditingController _gradientEndController;
+  late int _gradientAngle;
+  int _colorMode = 0;
   late final MembersBloc _membersBloc;
   int _tab = 0;
   String _memberQuery = '';
@@ -69,6 +75,17 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
     _nameController = TextEditingController(text: _role.name ?? '')
       ..addListener(() => setState(() {}));
     _emoji = _role.emoji;
+    _colorController = TextEditingController(text: _role.color ?? '');
+    _gradientStartController = TextEditingController(
+      text: _role.gradientStart ?? '',
+    );
+    _gradientEndController = TextEditingController(
+      text: _role.gradientEnd ?? '',
+    );
+    _gradientAngle = _role.gradientAngle;
+    _colorMode = _role.gradientStart != null && _role.gradientEnd != null
+        ? 2
+        : (_role.color != null ? 1 : 0);
     _permissions = normalizeRolePermissions(
       EntityType.fromString(_role.entityType),
       _role.permissions ?? {},
@@ -86,6 +103,9 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _colorController.dispose();
+    _gradientStartController.dispose();
+    _gradientEndController.dispose();
     _membersBloc.close();
     super.dispose();
   }
@@ -100,11 +120,32 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
       );
       return;
     }
+    final color = _colorMode == 1
+        ? _normalizedHex(_colorController.text)
+        : null;
+    final gradientStart = _colorMode == 2
+        ? _normalizedHex(_gradientStartController.text)
+        : null;
+    final gradientEnd = _colorMode == 2
+        ? _normalizedHex(_gradientEndController.text)
+        : null;
+    if ((_colorMode == 1 && color == null) ||
+        (_colorMode == 2 && (gradientStart == null || gradientEnd == null))) {
+      CustomToast.open(
+        context: context,
+        message: 'Введите цвет в формате HEX, например #7C5CFF',
+      );
+      return;
+    }
     setState(() => _saving = true);
     final result = await _rolesBloc.updateRole(
       _role,
       name: name,
       emoji: _emoji,
+      color: color,
+      gradientStart: gradientStart,
+      gradientEnd: gradientEnd,
+      gradientAngle: _gradientAngle,
       permissions: _permissions,
     );
     if (!mounted) return;
@@ -118,6 +159,13 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
   Future<void> _pickEmoji() async {
     final selected = await RoleEmojiPicker.show(context);
     if (selected != null && mounted) setState(() => _emoji = selected);
+  }
+
+  String? _normalizedHex(String value) {
+    final hex = value.trim();
+    return RegExp(r'^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$').hasMatch(hex)
+        ? hex.toUpperCase()
+        : null;
   }
 
   Future<void> _unassign(Member member) async {
@@ -248,6 +296,49 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
         padding: const EdgeInsets.all(14),
       ),
       const SizedBox(height: 22),
+      Text(
+        'Цвет ника',
+        style: TextStyle(color: AppColors.greyple, fontSize: 13),
+      ),
+      const SizedBox(height: 8),
+      CupertinoSlidingSegmentedControl<int>(
+        groupValue: _colorMode,
+        children: const {0: Text('Нет'), 1: Text('Цвет'), 2: Text('Градиент')},
+        onValueChanged: (value) => setState(() => _colorMode = value ?? 0),
+      ),
+      if (_colorMode == 1) ...[
+        const SizedBox(height: 10),
+        _hexField(_colorController, 'Цвет HEX, например #7C5CFF'),
+      ],
+      if (_colorMode == 2) ...[
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _hexField(_gradientStartController, 'Начало #HEX')),
+            const SizedBox(width: 8),
+            Expanded(child: _hexField(_gradientEndController, 'Конец #HEX')),
+          ],
+        ),
+        Row(
+          children: [
+            Text(
+              'Угол: $_gradientAngle°',
+              style: TextStyle(color: AppColors.greyple),
+            ),
+            Expanded(
+              child: CupertinoSlider(
+                min: 0,
+                max: 360,
+                divisions: 36,
+                value: _gradientAngle.toDouble(),
+                onChanged: (value) =>
+                    setState(() => _gradientAngle = value.round()),
+              ),
+            ),
+          ],
+        ),
+      ],
+      const SizedBox(height: 22),
       Text('Эмодзи', style: TextStyle(color: AppColors.greyple, fontSize: 13)),
       const SizedBox(height: 8),
       Container(
@@ -310,8 +401,9 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
             const SizedBox(width: 11),
             if (_nameController.text.trim().isNotEmpty)
               Flexible(
-                child: Text(
-                  _nameController.text.trim(),
+                child: RoleColoredText(
+                  text: _nameController.text.trim(),
+                  role: _previewRole(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: AppColors.white, fontSize: 15),
@@ -327,6 +419,32 @@ class _RoleEditScreenState extends State<RoleEditScreen> {
       ),
     ],
   );
+
+  RoleMember _previewRole() => RoleMember(
+    color: _colorMode == 1 ? _normalizedHex(_colorController.text) : null,
+    gradientStart: _colorMode == 2
+        ? _normalizedHex(_gradientStartController.text)
+        : null,
+    gradientEnd: _colorMode == 2
+        ? _normalizedHex(_gradientEndController.text)
+        : null,
+    gradientAngle: _gradientAngle,
+  );
+
+  Widget _hexField(TextEditingController controller, String placeholder) =>
+      CupertinoTextField(
+        controller: controller,
+        textCapitalization: TextCapitalization.characters,
+        maxLength: 7,
+        placeholder: placeholder,
+        style: TextStyle(color: AppColors.white),
+        decoration: BoxDecoration(
+          color: AppColors.actionGrey,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.all(12),
+        onChanged: (_) => setState(() {}),
+      );
 
   Widget _permissionList() => ListView(
     children: [

@@ -23,6 +23,10 @@ abstract class RoleMemberRepository {
     EntityType entityType, {
     String? name,
     String? emoji,
+    String? color,
+    String? gradientStart,
+    String? gradientEnd,
+    int gradientAngle = 90,
     required Map<String, bool> permissions,
   });
 
@@ -44,6 +48,12 @@ abstract class RoleMemberRepository {
     int entityId,
     EntityType entityType,
     int userId,
+  );
+
+  Future<Either<Failure, List<RoleMember>>> reorder(
+    int entityId,
+    EntityType entityType,
+    List<int> roleIds,
   );
 
   List<RoleMember> getCached(EntityKey entityKey);

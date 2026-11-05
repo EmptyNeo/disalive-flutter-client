@@ -27,8 +27,8 @@ void main() {
         matching: find.byType(RichText),
       ),
     );
-    final spans = ((richText.text as TextSpan).children!.single as TextSpan)
-        .children!;
+    final spans =
+        ((richText.text as TextSpan).children!.single as TextSpan).children!;
     final link = spans.whereType<TextSpan>().firstWhere(
       (span) => span.text == '#общий-чат',
     );
@@ -42,6 +42,53 @@ void main() {
     ).toList();
     expect(mentions.map((mention) => mention.chatId), [123, 456]);
     expect(mentions.map((mention) => mention.name), ['общий-чат', 'голосовой']);
+  });
+
+  test('keeps custom emoji codes inside channel links', () {
+    final mentions = ChannelMention.findAll(
+      'Откройте #[people:0]общий[custom_emoji:12]:73 и #чат😀:74',
+    ).toList();
+    expect(mentions.map((mention) => mention.chatId), [73, 74]);
+    expect(mentions.map((mention) => mention.name), [
+      '[people:0]общий[custom_emoji:12]',
+      'чат😀',
+    ]);
+  });
+
+  testWidgets('channel link with custom emoji remains tappable', (
+    tester,
+  ) async {
+    int? openedChatId;
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: Center(
+          child: MessageLinkText(
+            text: 'Смотрите #[people:0]общий:73',
+            style: const TextStyle(),
+            onChannelTap: (id) => openedChatId = id,
+          ),
+        ),
+      ),
+    );
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(MessageLinkText),
+        matching: find.byType(RichText),
+      ),
+    );
+    final spans =
+        ((richText.text as TextSpan).children!.single as TextSpan).children!;
+    final emoji = spans.whereType<TextSpan>().firstWhere(
+      (span) => span.text == '[people:0]',
+    );
+    final channelName = spans.whereType<TextSpan>().firstWhere(
+      (span) => span.text == 'общий',
+    );
+    (emoji.recognizer as TapGestureRecognizer).onTap!();
+    expect(openedChatId, 73);
+    openedChatId = null;
+    (channelName.recognizer as TapGestureRecognizer).onTap!();
+    expect(openedChatId, 73);
   });
 
   test('detects the active query and inserts a stable channel link', () {
@@ -60,6 +107,24 @@ void main() {
     expect(inserted.text, 'Привет #Общий-чат:73 ');
     expect(inserted.selection.baseOffset, inserted.text.length);
     expect(ChannelMention.queryAtCaret(inserted), isNull);
+  });
+
+  test('inserts the custom emoji code without changing its colon', () {
+    const value = TextEditingValue(
+      text: '#об',
+      selection: TextSelection.collapsed(offset: 3),
+    );
+    final inserted = ChannelMention.insert(
+      value,
+      ChannelMention.queryAtCaret(value)!,
+      const ChannelServer(chatId: 73, chatName: '[people:0] Общий чат'),
+    );
+    expect(inserted.text, '#[people:0]-Общий-чат:73 ');
+    expect(ChannelMention.findAll(inserted.text).single.chatId, 73);
+    expect(
+      ChannelMention.findAll(inserted.text).single.name,
+      '[people:0]-Общий-чат',
+    );
   });
 
   test('does not open suggestions inside a word or an existing link', () {

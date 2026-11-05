@@ -8,6 +8,7 @@ import 'package:disalive/presentation/features/profile/edit_profile_screen.dart'
 import 'package:disalive/presentation/features/settings/screens/notification_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/privacy_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/sessions_settings_screen.dart';
+import 'package:disalive/presentation/features/settings/screens/security_settings_screen.dart';
 import 'package:disalive/presentation/features/settings/screens/theme_settings_screen.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
@@ -95,6 +96,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 onTap: () {
                                   PrivacySettingsScreen.open(context);
                                 },
+                              ),
+
+                              _buildNavigationTile(
+                                icon: CupertinoIcons.shield_lefthalf_fill,
+                                title: 'Безопасность',
+                                subtitle: 'Двухфакторная аутентификация',
+                                onTap: () =>
+                                    SecuritySettingsScreen.open(context),
                               ),
 
                               const SliverToBoxAdapter(

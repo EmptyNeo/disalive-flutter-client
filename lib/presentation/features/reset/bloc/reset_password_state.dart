@@ -10,6 +10,7 @@ class ResetPasswordState extends Equatable {
   final String? emailError;
   final String? passwordError;
   final bool isReadyToVerify; // Флаг для навигации на экран кода
+  final bool useTotp;
 
   const ResetPasswordState({
     this.currentStep = 1,
@@ -20,6 +21,7 @@ class ResetPasswordState extends Equatable {
     this.emailError,
     this.passwordError,
     this.isReadyToVerify = false,
+    this.useTotp = false,
   });
 
   ResetPasswordState copyWith({
@@ -31,6 +33,7 @@ class ResetPasswordState extends Equatable {
     String? emailError,
     String? passwordError,
     bool? isReadyToVerify,
+    bool? useTotp,
   }) {
     return ResetPasswordState(
       currentStep: currentStep ?? this.currentStep,
@@ -41,12 +44,20 @@ class ResetPasswordState extends Equatable {
       emailError: emailError,
       passwordError: passwordError,
       isReadyToVerify: isReadyToVerify ?? this.isReadyToVerify,
+      useTotp: useTotp ?? this.useTotp,
     );
   }
 
   @override
   List<Object?> get props => [
-    currentStep, email, newPassword, verifyPassword, isLoading,
-    emailError, passwordError, isReadyToVerify,
+    currentStep,
+    email,
+    newPassword,
+    verifyPassword,
+    isLoading,
+    emailError,
+    passwordError,
+    isReadyToVerify,
+    useTotp,
   ];
 }

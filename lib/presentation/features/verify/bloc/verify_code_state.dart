@@ -13,6 +13,7 @@ class VerifyCodeState extends Equatable {
   final String? username;
   final String? displayName;
   final String? password;
+  final bool useTotp;
 
   const VerifyCodeState({
     this.email = '',
@@ -27,6 +28,7 @@ class VerifyCodeState extends Equatable {
     this.username,
     this.displayName,
     this.password,
+    this.useTotp = false,
   });
 
   VerifyCodeState copyWith({
@@ -42,6 +44,7 @@ class VerifyCodeState extends Equatable {
     String? username,
     String? displayName,
     String? password,
+    bool? useTotp,
   }) {
     return VerifyCodeState(
       email: email ?? this.email,
@@ -56,6 +59,7 @@ class VerifyCodeState extends Equatable {
       username: username ?? this.username,
       displayName: displayName ?? this.displayName,
       password: password ?? this.password,
+      useTotp: useTotp ?? this.useTotp,
     );
   }
 
@@ -77,5 +81,6 @@ class VerifyCodeState extends Equatable {
     username,
     displayName,
     password,
+    useTotp,
   ];
 }

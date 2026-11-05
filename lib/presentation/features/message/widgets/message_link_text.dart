@@ -159,16 +159,45 @@ class _MessageLinkTextState extends State<MessageLinkText> {
               ? () => widget.onChannelTap?.call(match.channelId!)
               : () => LinkOpener.confirmAndOpen(context, match.url!);
         _recognizers.add(recognizer);
-        spans.add(
-          TextSpan(
-            text: match.text,
-            style: widget.style.copyWith(
-              color: AppColors.linkBlue,
-              decoration: TextDecoration.underline,
-            ),
-            recognizer: recognizer,
-          ),
+        final linkStyle = widget.style.copyWith(
+          color: AppColors.linkBlue,
+          decoration: TextDecoration.underline,
         );
+        if (match.channelId != null) {
+          for (final part in EmojiTextParser.parse(
+            match.text,
+            baseTextStyle: linkStyle,
+            emojiSize: 20,
+          )) {
+            if (part is WidgetSpan) {
+              spans.add(
+                WidgetSpan(
+                  alignment: part.alignment,
+                  child: GestureDetector(
+                    onTap: () => widget.onChannelTap?.call(match.channelId!),
+                    child: part.child,
+                  ),
+                ),
+              );
+            } else if (part is TextSpan) {
+              spans.add(
+                TextSpan(
+                  text: part.text,
+                  style: linkStyle,
+                  recognizer: recognizer,
+                ),
+              );
+            }
+          }
+        } else {
+          spans.add(
+            TextSpan(
+              text: match.text,
+              style: linkStyle,
+              recognizer: recognizer,
+            ),
+          );
+        }
       }
       cursor = match.end;
     }

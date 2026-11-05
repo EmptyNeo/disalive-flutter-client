@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:disalive/domain/models/member.dart';
 
 class ChannelServer extends Equatable {
   final int? id;
@@ -9,10 +10,12 @@ class ChannelServer extends Equatable {
   final bool isPrivate;
   final int? maxParticipants;
   final int slowModeSeconds;
+  final int sortOrder;
   final String? slowModeLastSentAt;
   final String? chatName;
   final int newMessagesCount;
   final int? lastIdReadMessage;
+  final List<Member> members;
   final List<int> allowedUsers;
   final List<int> allowedRoles;
 
@@ -25,10 +28,12 @@ class ChannelServer extends Equatable {
     this.isPrivate = false,
     this.maxParticipants,
     this.slowModeSeconds = 0,
+    this.sortOrder = 0,
     this.slowModeLastSentAt,
     this.chatName,
     this.newMessagesCount = 0,
     this.lastIdReadMessage,
+    this.members = const [],
     this.allowedUsers = const [],
     this.allowedRoles = const [],
   });
@@ -42,10 +47,15 @@ class ChannelServer extends Equatable {
     isPrivate: map['isPrivate'] == true || map['isPrivate'] == 1,
     maxParticipants: (map['maxParticipants'] as num?)?.toInt(),
     slowModeSeconds: (map['slowModeSeconds'] as num?)?.toInt() ?? 0,
+    sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
     slowModeLastSentAt: map['slowModeLastSentAt'] as String?,
     chatName: map['chatName'] as String?,
     newMessagesCount: (map['newMessagesCount'] as num?)?.toInt() ?? 0,
     lastIdReadMessage: (map['lastIdReadMessage'] as num?)?.toInt(),
+    members: (map['members'] as List? ?? const [])
+        .whereType<Map>()
+        .map((member) => Member.fromMap(Map<String, dynamic>.from(member)))
+        .toList(),
     allowedUsers: (map['allowedUsers'] as List? ?? const [])
         .map((value) => (value as num).toInt())
         .toList(),
@@ -63,30 +73,43 @@ class ChannelServer extends Equatable {
     'isPrivate': isPrivate,
     'maxParticipants': maxParticipants,
     'slowModeSeconds': slowModeSeconds,
+    'sortOrder': sortOrder,
     'slowModeLastSentAt': slowModeLastSentAt,
     'chatName': chatName,
     'newMessagesCount': newMessagesCount,
     'lastIdReadMessage': lastIdReadMessage,
+    'members': members
+        .map(
+          (member) => {
+            'userId': member.fkUser,
+            'lastIdReadMessage': member.lastIdReadMessage,
+            if (member.isSelf != null) 'isSelf': member.isSelf,
+          },
+        )
+        .toList(),
     'allowedUsers': allowedUsers,
     'allowedRoles': allowedRoles,
   };
 
-  ChannelServer copyWith({String? slowModeLastSentAt}) => ChannelServer(
-    id: id,
-    serverId: serverId,
-    chatId: chatId,
-    type: type,
-    categoryId: categoryId,
-    isPrivate: isPrivate,
-    maxParticipants: maxParticipants,
-    slowModeSeconds: slowModeSeconds,
-    slowModeLastSentAt: slowModeLastSentAt ?? this.slowModeLastSentAt,
-    chatName: chatName,
-    newMessagesCount: newMessagesCount,
-    lastIdReadMessage: lastIdReadMessage,
-    allowedUsers: allowedUsers,
-    allowedRoles: allowedRoles,
-  );
+  ChannelServer copyWith({String? slowModeLastSentAt, List<Member>? members}) =>
+      ChannelServer(
+        id: id,
+        serverId: serverId,
+        chatId: chatId,
+        type: type,
+        categoryId: categoryId,
+        isPrivate: isPrivate,
+        maxParticipants: maxParticipants,
+        slowModeSeconds: slowModeSeconds,
+        sortOrder: sortOrder,
+        slowModeLastSentAt: slowModeLastSentAt ?? this.slowModeLastSentAt,
+        chatName: chatName,
+        newMessagesCount: newMessagesCount,
+        lastIdReadMessage: lastIdReadMessage,
+        members: members ?? this.members,
+        allowedUsers: allowedUsers,
+        allowedRoles: allowedRoles,
+      );
 
   @override
   List<Object?> get props => [
@@ -98,10 +121,12 @@ class ChannelServer extends Equatable {
     isPrivate,
     maxParticipants,
     slowModeSeconds,
+    sortOrder,
     slowModeLastSentAt,
     chatName,
     newMessagesCount,
     lastIdReadMessage,
+    members,
     allowedUsers,
     allowedRoles,
   ];

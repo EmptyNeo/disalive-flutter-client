@@ -7,6 +7,7 @@ import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/role_member.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/server_tag.dart';
 import 'package:disalive/domain/repositories/role_member_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -32,6 +33,9 @@ class _Roles implements RoleMemberRepository {
 }
 
 class _Servers implements ServerRepository {
+  @override
+  Future<Either<Failure, List<ServerTag>>> searchTags(String query) async =>
+      const Right([]);
   List<Server> cached = [];
   int? _selectedServerId;
   @override
@@ -50,6 +54,7 @@ class _Servers implements ServerRepository {
   int? savedMainRoleId;
   bool savedClearMainRole = false;
   bool savedDeleteBanner = false;
+  List<String> savedTags = [];
 
   @override
   Future<Either<Failure, Server>> create(
@@ -60,7 +65,9 @@ class _Servers implements ServerRepository {
     ServerType? category,
     File? avatar,
     File? banner,
+    List<String> tags = const [],
   }) async {
+    savedTags = tags;
     _save(null, name, description, canInvite, isPrivate, category);
     return Right(
       Server(
@@ -89,7 +96,9 @@ class _Servers implements ServerRepository {
     File? avatar,
     File? banner,
     bool deleteBanner = false,
+    List<String>? tags,
   }) async {
+    savedTags = tags ?? [];
     _save(id, name, description ?? '', canInvite, isPrivate, category);
     savedMainRoleId = fkMainRole;
     savedClearMainRole = isSetNullMainRole;
@@ -258,6 +267,14 @@ void main() {
       find.byKey(const ValueKey('server_description_field')),
       'Описание команды',
     );
+    await _reveal(tester, find.byKey(const ValueKey('server_tag_input')));
+    await tester.enterText(
+      find.byKey(const ValueKey('server_tag_input')),
+      '  Игры  ',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('server_tag_add')));
+    await tester.pump();
     await tester.tap(find.byKey(const ValueKey('server_category_picker')));
     await tester.pumpAndSettle();
     expect(
@@ -278,6 +295,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(setup.repository.savedName, 'Команда');
     expect(setup.repository.savedDescription, 'Описание команды');
+    expect(setup.repository.savedTags, ['Игры']);
     expect(setup.repository.savedCategory, ServerType.games);
     expect(setup.repository.savedCanInvite, 0);
     expect(setup.repository.savedPrivate, 1);

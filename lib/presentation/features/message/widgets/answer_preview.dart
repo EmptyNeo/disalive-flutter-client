@@ -1,6 +1,7 @@
 // lib/presentation/features/message/widgets/answer_preview.dart
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/models/message.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:disalive/presentation/utils/ui/pluralize.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart'; // 🎯 ДОБАВЛЕНО
 import 'package:flutter/cupertino.dart';
@@ -48,7 +49,6 @@ class AnswerPreview extends StatelessWidget {
     }
 
     final accentColor = isMine ? AppColors.onBlurple : AppColors.blurple;
-    final nameColor = accentColor;
     final textColor = AppColors.onBlurple.withValues(alpha: 0.7);
 
     return GestureDetector(
@@ -81,10 +81,11 @@ class AnswerPreview extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      message?.user?.displayName ?? 'Пользователь',
+                    RoleColoredText(
+                      text: message?.user?.displayName ?? 'Пользователь',
+                      role: message?.user?.role,
                       style: AppText.lowTextStyle.copyWith(
-                        color: nameColor,
+                        color: accentColor,
                         fontWeight: FontWeight.w600,
                       ),
                       maxLines: 1,

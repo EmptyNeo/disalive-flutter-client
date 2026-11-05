@@ -73,12 +73,14 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
   late int? _categoryId;
   bool _isPrivate = false;
   bool _submitting = false;
+  late ChannelServer? _currentChannel;
 
   bool get _isEditing => widget.channel != null;
 
   @override
   void initState() {
     super.initState();
+    _currentChannel = widget.channel;
     _nameController = EmojiTextEditingController()
       ..text = widget.channel?.chatName ?? ''
       ..addListener(() => setState(() {}));
@@ -88,6 +90,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     _slowModeSeconds = widget.channel?.slowModeSeconds ?? 0;
     _type = widget.channel?.type ?? 'text';
     _categoryId = widget.channel?.categoryId ?? widget.initialCategoryId;
+    _isPrivate = widget.channel?.isPrivate ?? false;
   }
 
   @override
@@ -156,6 +159,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
       options: options,
     );
     if (selected == -1) {
+      if (!mounted) return;
       final customValue = await showCupertinoDialog<int>(
         context: context,
         builder: (_) => const _CustomSlowModeDialog(),
@@ -218,8 +222,9 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
         maxParticipants: _type == 'voice' ? maxParticipants : null,
         slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
         channelsBloc: widget.channelsBloc,
+        channel: widget.channel,
       );
-      if (created && mounted) Navigator.of(context).pop();
+      if (created != null && mounted) Navigator.of(context).pop();
       return;
     }
 
@@ -227,11 +232,12 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     final repository = sl<ChannelServerRepository>();
     final result = _isEditing
         ? await repository.update(
-            widget.channel!.id!,
+            _currentChannel!.id!,
             name: name,
             categoryId: _categoryId ?? 0,
             maxParticipants: _type == 'voice' ? maxParticipants : null,
             slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
+            isPrivate: _isPrivate,
           )
         : await repository.create(
             widget.serverId,
@@ -252,6 +258,27 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
         Navigator.of(context).pop();
       },
     );
+  }
+
+  Future<void> _openAccessSettings() async {
+    if (!_isEditing || !_isPrivate || _submitting) return;
+    final name = _nameController.text.trim();
+    final limitText = _maxParticipantsController.text.trim();
+    final maxParticipants = limitText.isEmpty ? null : int.tryParse(limitText);
+    final updatedChannel = await ChannelAccessScreen.open(
+      context,
+      serverId: widget.serverId,
+      serverName: widget.serverName,
+      name: name,
+      type: _type,
+      categoryId: _categoryId,
+      maxParticipants: _type == 'voice' ? maxParticipants : null,
+      slowModeSeconds: _type == 'text' ? _slowModeSeconds : 0,
+      channelsBloc: widget.channelsBloc,
+      channel: _currentChannel,
+    );
+    if (!mounted || updatedChannel == null) return;
+    setState(() => _currentChannel = updatedChannel);
   }
 
   @override
@@ -422,27 +449,50 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
               );
             },
           ),
-          if (!_isEditing) ...[
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.lightGrey,
-                borderRadius: BorderRadius.circular(13),
-              ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.lightGrey,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Приватный канал',
+                    style: TextStyle(color: AppColors.white),
+                  ),
+                ),
+                CupertinoSwitch(
+                  key: const ValueKey('private_channel_switch'),
+                  value: _isPrivate,
+                  activeTrackColor: AppColors.blurple,
+                  onChanged: (value) => setState(() => _isPrivate = value),
+                ),
+              ],
+            ),
+          ),
+          if (_isEditing && _isPrivate) ...[
+            const SizedBox(height: 8),
+            CupertinoButton(
+              key: const ValueKey('channel_access_settings_button'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              onPressed: _submitting ? null : _openAccessSettings,
               child: Row(
                 children: [
+                  Icon(CupertinoIcons.lock_shield, color: AppColors.blurple),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Приватный канал',
-                      style: TextStyle(color: AppColors.white),
+                      'Настроить доступ',
+                      style: TextStyle(color: AppColors.blurple),
                     ),
                   ),
-                  CupertinoSwitch(
-                    key: const ValueKey('private_channel_switch'),
-                    value: _isPrivate,
-                    activeTrackColor: AppColors.blurple,
-                    onChanged: (value) => setState(() => _isPrivate = value),
+                  Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 16,
+                    color: AppColors.greyple,
                   ),
                 ],
               ),

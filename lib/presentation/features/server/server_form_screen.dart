@@ -13,6 +13,7 @@ import 'package:disalive/presentation/features/role_members/widgets/role_emoji.d
 import 'package:disalive/presentation/features/role_members/widgets/role_screen_shell.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/widgets/server_main_role_sheet.dart';
+import 'package:disalive/presentation/features/server/widgets/server_tags_field.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:disalive/presentation/widgets/app_selection_sheet.dart';
@@ -46,6 +47,7 @@ class ServerFormScreen extends StatefulWidget {
 class _ServerFormScreenState extends State<ServerFormScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _descriptionController;
+  late List<String> _tags;
   late ServerType _category;
   late bool _canInvite;
   late bool _isPrivate;
@@ -93,6 +95,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     _descriptionController = TextEditingController(
       text: widget.server?.description ?? '',
     );
+    _tags = widget.server?.tags.map((tag) => tag.name).toList() ?? [];
     _category = widget.server?.category ?? ServerType.none;
     _canInvite = (widget.server?.canInvite ?? 1) == 1;
     _isPrivate = widget.server?.isPrivate ?? false;
@@ -372,6 +375,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             avatar: _avatar,
             banner: _banner,
             deleteBanner: _deleteBanner,
+            tags: _tags,
           )
         : await repository.create(
             name,
@@ -381,6 +385,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             category: _category,
             avatar: _avatar,
             banner: _banner,
+            tags: _tags,
           );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -479,6 +484,13 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             color: AppColors.actionGrey,
             borderRadius: BorderRadius.circular(13),
           ),
+        ),
+        const SizedBox(height: 22),
+        _sectionTitle('Теги сервера'),
+        const SizedBox(height: 8),
+        ServerTagsField(
+          initialTags: widget.server?.tags ?? const [],
+          onChanged: (tags) => _tags = tags,
         ),
         const SizedBox(height: 22),
         _sectionTitle('Категория сервера'),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dartz/dartz.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/domain/enums/api_type.dart';
@@ -86,6 +88,9 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     int? categoryId,
     int? maxParticipants,
     int? slowModeSeconds,
+    bool? isPrivate,
+    List<int>? userIds,
+    List<int>? roleIds,
   }) async {
     final result = await _httpClient.postFormData<Map<String, dynamic>>(
       endpoint: 'channelsServer/update.php',
@@ -95,6 +100,11 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
         'categoryId': ?categoryId,
         'maxParticipants': maxParticipants?.toString() ?? '',
         'slowModeSeconds': ?slowModeSeconds,
+        if (isPrivate != null) 'isPrivate': isPrivate ? 1 : 0,
+        if (isPrivate == true && userIds != null)
+          'userIds': jsonEncode(userIds),
+        if (isPrivate == true && roleIds != null)
+          'roleIds': jsonEncode(roleIds),
       },
       apiType: ApiType.v1,
       requireAuth: true,
@@ -127,6 +137,23 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
         channels.removeWhere((channel) => channel.id == deletedId);
       }
     });
+    return result;
+  }
+
+  @override
+  Future<Either<Failure, ChannelServer>> updatePosition(
+    int id,
+    int? categoryId,
+    int sortOrder,
+  ) async {
+    final result = await _httpClient.postFormData<ChannelServer>(
+      endpoint: 'channelsServer/update.php',
+      data: {'id': id, 'categoryId': categoryId ?? 0, 'sortOrder': sortOrder},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (json) => ChannelServer.fromMap(json as Map<String, dynamic>),
+    );
+    result.fold((failure) => null, _upsert);
     return result;
   }
 

@@ -39,10 +39,11 @@ class VerifyCodeBloc extends Bloc<VerifyCodeEvent, VerifyCodeState> {
         username: event.username,
         displayName: event.displayName,
         password: event.password,
+        useTotp: event.useTotp,
         resendTimer: 60,
       ),
     );
-    _startResendTimer();
+    if (!event.useTotp) _startResendTimer();
   }
 
   void _startResendTimer() {
@@ -143,6 +144,7 @@ class VerifyCodeBloc extends Bloc<VerifyCodeEvent, VerifyCodeState> {
     ResendCodePressed event,
     Emitter<VerifyCodeState> emit,
   ) async {
+    if (state.useTotp) return;
     emit(state.copyWith(resendTimer: 60, isLoading: true, error: null));
     _startResendTimer();
 
