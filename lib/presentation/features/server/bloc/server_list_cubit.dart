@@ -141,7 +141,9 @@ class ServerListCubit extends Cubit<ServerListState> {
           foundFolder = true;
           servers.add(serverId);
         }
-        items.add(item.copyFolder(servers: servers));
+        if (servers.isNotEmpty || item.folderId == folderId) {
+          items.add(item.copyFolder(servers: servers));
+        }
       } else if (item.serverId != serverId) {
         items.add(item);
       }
@@ -150,6 +152,109 @@ class ServerListCubit extends Cubit<ServerListState> {
       items.add(ServerListItem.server(serverId));
     }
     await _save(ServerListLayout(items));
+  }
+
+  /// A center drop on a root server creates a folder in its place.
+  Future<void> groupServers(int draggedId, int targetId) async {
+    if (state.saving || draggedId == targetId) return;
+    final current = state.layout.items;
+    if (!current.any((item) => item.serverId == targetId) ||
+        !_serverIds.contains(draggedId)) {
+      return;
+    }
+    final items = _withoutServer(current, draggedId);
+    final targetIndex = items.indexWhere((item) => item.serverId == targetId);
+    if (targetIndex < 0) return;
+    items[targetIndex] = ServerListItem.folder(
+      name: 'Новая папка',
+      servers: [targetId, draggedId],
+    );
+    await _save(ServerListLayout(items));
+  }
+
+  Future<void> placeServerInFolder(
+    int serverId,
+    int folderId, {
+    int? index,
+  }) async {
+    if (state.saving || !_serverIds.contains(serverId)) return;
+    final items = _withoutServer(state.layout.items, serverId);
+    final folderIndex = items.indexWhere(
+      (item) => item.isFolder && item.folderId == folderId,
+    );
+    if (folderIndex < 0) return;
+    final folder = items[folderIndex];
+    final servers = [...folder.servers];
+    var insertion = index ?? servers.length;
+    if (index != null) {
+      final originalFolder = state.layout.items.firstWhere(
+        (item) => item.isFolder && item.folderId == folderId,
+      );
+      final oldIndex = originalFolder.servers.indexOf(serverId);
+      if (oldIndex >= 0 && oldIndex < insertion) insertion--;
+    }
+    servers.insert(insertion.clamp(0, servers.length), serverId);
+    items[folderIndex] = folder.copyFolder(servers: servers);
+    if (ServerListLayout(items) != state.layout) {
+      await _save(ServerListLayout(items));
+    }
+  }
+
+  Future<void> placeAtRoot(
+    ServerListItem dragged,
+    ServerListItem target, {
+    required bool after,
+  }) async {
+    if (state.saving || dragged == target) return;
+    if (dragged.isFolder && dragged.folderId == null) return;
+    final items = dragged.isFolder
+        ? state.layout.items.where((item) => item != dragged).toList()
+        : _withoutServer(state.layout.items, dragged.serverId!);
+    final targetIndex = items.indexWhere(
+      (item) => target.isFolder
+          ? item.isFolder && item.folderId == target.folderId
+          : item.serverId == target.serverId,
+    );
+    if (targetIndex < 0) {
+      // Taking the last server out removes its source folder.
+      if (!target.isFolder || dragged.isFolder) return;
+      final originalIndex = state.layout.items.indexOf(target);
+      items.insert(originalIndex.clamp(0, items.length), dragged);
+    } else {
+      items.insert(targetIndex + (after ? 1 : 0), dragged);
+    }
+    if (ServerListLayout(items) != state.layout) {
+      await _save(ServerListLayout(items));
+    }
+  }
+
+  Future<void> appendAtRoot(ServerListItem dragged) async {
+    if (state.saving) return;
+    final items = dragged.isFolder
+        ? state.layout.items.where((item) => item != dragged).toList()
+        : _withoutServer(state.layout.items, dragged.serverId!);
+    items.add(dragged);
+    if (ServerListLayout(items) != state.layout) {
+      await _save(ServerListLayout(items));
+    }
+  }
+
+  List<ServerListItem> _withoutServer(
+    List<ServerListItem> current,
+    int serverId,
+  ) {
+    final result = <ServerListItem>[];
+    for (final item in current) {
+      if (item.isFolder) {
+        final remaining = item.servers.where((id) => id != serverId).toList();
+        if (remaining.isNotEmpty) {
+          result.add(item.copyFolder(servers: remaining));
+        }
+      } else if (item.serverId != serverId) {
+        result.add(item);
+      }
+    }
+    return result;
   }
 
   Future<void> reorderRoot(int oldIndex, int newIndex) async {

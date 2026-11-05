@@ -40,14 +40,6 @@ class ResetVerifyPasswordChanged extends ResetPasswordEvent {
 
 class ResetSubmitPressed extends ResetPasswordEvent {}
 
-class ResetVerificationMethodChanged extends ResetPasswordEvent {
-  final bool useTotp;
-  const ResetVerificationMethodChanged(this.useTotp);
-
-  @override
-  List<Object?> get props => [useTotp];
-}
-
 class ResetGoBack extends ResetPasswordEvent {}
 
 class ResetReset extends ResetPasswordEvent {

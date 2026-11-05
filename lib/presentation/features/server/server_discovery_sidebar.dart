@@ -397,7 +397,6 @@ class _DiscoveryServerCard extends StatelessWidget {
               const SizedBox(height: 5),
               _description(compact: true),
             ],
-            if (server.tags.isNotEmpty) ...[const SizedBox(height: 6), _tags()],
             const SizedBox(height: 8),
             _actionButton(),
           ] else ...[

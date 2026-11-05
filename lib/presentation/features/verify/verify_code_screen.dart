@@ -304,7 +304,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Text(
-                                      state.useTotp
+                                      widget.useTotp
                                           ? 'Подтверждение 2FA'
                                           : 'Подтверждение email',
                                       style: AppText.highTextStyle.copyWith(
@@ -316,7 +316,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      state.useTotp
+                                      widget.useTotp
                                           ? 'Введите 6-значный код из приложения-аутентификатора'
                                           : 'Введите 6-значный код из письма',
                                       style: AppText.mediumTextStyle.copyWith(
@@ -405,14 +405,14 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                     const SizedBox(height: 24),
 
                                     Text(
-                                      state.useTotp
+                                      widget.useTotp
                                           ? 'Код из приложения-аутентификатора'
                                           : 'Код отправлен на',
                                       style: AppText.mediumTextStyle.copyWith(
                                         color: AppColors.greyple,
                                       ),
                                     ),
-                                    if (!state.useTotp) ...[
+                                    if (!widget.useTotp) ...[
                                       const SizedBox(height: 4),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
@@ -438,83 +438,86 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
                                       ),
                                     ],
 
-                                    const SizedBox(height: 40),
-
-                                    if (!state.useTotp) ...[
+                                    if (!widget.useTotp) ...[
+                                      const SizedBox(height: 40),
                                       Text(
                                         'Не получили код?',
                                         style: AppText.mediumTextStyle.copyWith(
                                           color: AppColors.greyple,
                                         ),
                                       ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: CupertinoButton(
-                                        onPressed:
-                                            state.resendTimer > 0 ||
-                                                state.isLoading
-                                            ? null
-                                            : () {
-                                                context
-                                                    .read<VerifyCodeBloc>()
-                                                    .add(
-                                                      ResendCodePressed(
-                                                        state.email,
-                                                        state.emailType,
-                                                        state.username,
-                                                        state.password,
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: CupertinoButton(
+                                          onPressed:
+                                              state.resendTimer > 0 ||
+                                                  state.isLoading
+                                              ? null
+                                              : () {
+                                                  context
+                                                      .read<VerifyCodeBloc>()
+                                                      .add(
+                                                        ResendCodePressed(
+                                                          state.email,
+                                                          state.emailType,
+                                                          state.username,
+                                                          state.password,
+                                                        ),
+                                                      );
+                                                },
+                                          color: AppColors.actionGrey,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              // 🎯 Показываем лоадер, если идёт отправка
+                                              if (state.isLoading) ...[
+                                                const SizedBox(
+                                                  height: 18,
+                                                  width: 18,
+                                                  child:
+                                                      CupertinoActivityIndicator(
+                                                        color:
+                                                            AppColors.blurple,
                                                       ),
-                                                    );
-                                              },
-                                        color: AppColors.actionGrey,
-                                        borderRadius: BorderRadius.circular(12),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            // 🎯 Показываем лоадер, если идёт отправка
-                                            if (state.isLoading) ...[
-                                              const SizedBox(
-                                                height: 18,
-                                                width: 18,
-                                                child:
-                                                    CupertinoActivityIndicator(
-                                                      color: AppColors.blurple,
-                                                    ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              const Text('Отправка...'),
-                                            ] else ...[
-                                              Icon(
-                                                CupertinoIcons.refresh,
-                                                color: state.resendTimer > 0
-                                                    ? AppColors.greyple
-                                                    : AppColors.blurple,
-                                                size: 18,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                state.resendTimer > 0
-                                                    ? 'Отправить код повторно (${state.resendTimer})'
-                                                    : 'Отправить код повторно',
-                                                style: AppText.mediumTextStyle
-                                                    .copyWith(
-                                                      color:
-                                                          state.resendTimer > 0
-                                                          ? AppColors.greyple
-                                                          : AppColors.blurple,
-                                                    ),
-                                              ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Text('Отправка...'),
+                                              ] else ...[
+                                                Icon(
+                                                  CupertinoIcons.refresh,
+                                                  color: state.resendTimer > 0
+                                                      ? AppColors.greyple
+                                                      : AppColors.blurple,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  state.resendTimer > 0
+                                                      ? 'Отправить код повторно (${state.resendTimer})'
+                                                      : 'Отправить код повторно',
+                                                  style: AppText.mediumTextStyle
+                                                      .copyWith(
+                                                        color:
+                                                            state.resendTimer >
+                                                                0
+                                                            ? AppColors.greyple
+                                                            : AppColors.blurple,
+                                                      ),
+                                                ),
+                                              ],
                                             ],
-                                          ],
+                                          ),
                                         ),
                                       ),
-                                    ),
+                                    ],
 
                                     const SizedBox(height: 24),
 

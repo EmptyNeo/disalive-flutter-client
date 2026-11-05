@@ -19,9 +19,6 @@ class ResetPasswordBloc extends Bloc<ResetPasswordEvent, ResetPasswordState> {
     on<ResetNewPasswordChanged>(_onNewPasswordChanged);
     on<ResetVerifyPasswordChanged>(_onVerifyPasswordChanged);
     on<ResetSubmitPressed>(_onSubmitPressed);
-    on<ResetVerificationMethodChanged>(
-      (event, emit) => emit(state.copyWith(useTotp: event.useTotp)),
-    );
     on<ResetGoBack>(_onGoBack);
     on<ResetReset>(_onReset);
   }
@@ -106,27 +103,17 @@ class ResetPasswordBloc extends Bloc<ResetPasswordEvent, ResetPasswordState> {
       return;
     }
 
-    if (state.useTotp) {
-      emit(state.copyWith(isReadyToVerify: true));
-      return;
-    }
-
     // Включаем индикатор загрузки на кнопке
     emit(state.copyWith(isLoading: true, passwordError: null));
 
-    // 🎯 РЕАЛЬНАЯ ОТПРАВКА КОДА НА ПОЧТУ
+    // Сервер сообщает, нужен код из письма или из приложения.
     final result = await _emailRepository.requestPasswordResetMethod(
       state.email,
     );
 
     result.fold(
       (failure) {
-        emit(
-          state.copyWith(
-            isLoading: false,
-            passwordError: 'Не удалось отправить код. Попробуйте позже.',
-          ),
-        );
+        emit(state.copyWith(isLoading: false, passwordError: failure.message));
       },
       (method) {
         // Если код успешно отправлен, разрешаем переход на экран подтверждения

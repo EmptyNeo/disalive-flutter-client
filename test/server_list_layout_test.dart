@@ -75,4 +75,51 @@ void main() {
       await cubit.close();
     },
   );
+
+  test(
+    'dragging onto a server creates a folder at the target position',
+    () async {
+      final repo = _ServerListRepository();
+      final cubit = ServerListCubit(repo);
+      cubit.syncServers([1, 2, 3]);
+      await Future<void>.delayed(Duration.zero);
+
+      await cubit.groupServers(3, 1);
+      expect(cubit.state.layout.items[1].servers, [1, 3]);
+      expect(cubit.state.layout.items[1].folderId, 9);
+      expect(cubit.state.layout.items.length, 2);
+      await cubit.close();
+    },
+  );
+
+  test('dragging the last server out removes its empty folder', () async {
+    final repo = _ServerListRepository();
+    final cubit = ServerListCubit(repo);
+    cubit.syncServers([1, 2]);
+    await Future<void>.delayed(Duration.zero);
+
+    await cubit.placeAtRoot(
+      const ServerListItem.server(2),
+      const ServerListItem.folder(folderId: 8, name: 'Работа', servers: [2]),
+      after: true,
+    );
+    expect(cubit.state.layout.items.map((item) => item.serverId), [2, 1]);
+    await cubit.close();
+  });
+
+  test('reordering inside a folder accounts for the removed source', () async {
+    final repo = _ServerListRepository();
+    repo.stored = const ServerListLayout([
+      ServerListItem.folder(folderId: 8, name: 'Работа', servers: [1, 2, 3]),
+    ]);
+    final cubit = ServerListCubit(repo);
+    cubit.syncServers([1, 2, 3]);
+    await Future<void>.delayed(Duration.zero);
+
+    await cubit.placeServerInFolder(2, 8, index: 2);
+    expect(cubit.state.layout.items.single.servers, [1, 2, 3]);
+    await cubit.placeServerInFolder(2, 8, index: 3);
+    expect(cubit.state.layout.items.single.servers, [1, 3, 2]);
+    await cubit.close();
+  });
 }

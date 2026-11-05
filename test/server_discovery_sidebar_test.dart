@@ -6,6 +6,7 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/models/server_tag.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/server/server_discovery_sidebar.dart';
@@ -248,7 +249,25 @@ void main() {
     tester,
   ) async {
     await sl.reset();
-    sl.registerSingleton<ServerRepository>(_Servers());
+    sl.registerSingleton<ServerRepository>(
+      _Servers()
+        ..records = const [
+          Server(
+            id: 1,
+            name: 'Open',
+            memberId: 7,
+            memberCount: 12,
+            onlineMemberCount: 3,
+            tags: [ServerTag(name: 'Игры')],
+          ),
+          Server(
+            id: 2,
+            name: 'Long name of server',
+            memberCount: 8,
+            onlineMemberCount: 2,
+          ),
+        ],
+    );
     Future<void> showLayout(bool gridView) async {
       await tester.pumpWidget(
         CupertinoApp(
@@ -279,9 +298,15 @@ void main() {
           .isNotEmpty,
     );
     expect(columns(), 1);
+    final cardTag = find.descendant(
+      of: find.byKey(const ValueKey('public_server_1')),
+      matching: find.text('Игры'),
+    );
+    expect(cardTag, findsOneWidget);
 
     await showLayout(true);
     expect(columns(), 2);
+    expect(cardTag, findsNothing);
     expect(tester.widget<Text>(find.text('Long name of server')).maxLines, 1);
     expect(
       find.byKey(const ValueKey('public_servers_columns_2')),

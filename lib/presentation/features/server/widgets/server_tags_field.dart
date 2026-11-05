@@ -22,6 +22,10 @@ class ServerTagsField extends StatefulWidget {
 
 class _ServerTagsFieldState extends State<ServerTagsField> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  final LayerLink _suggestionsLink = LayerLink();
+  final GlobalKey _fieldKey = GlobalKey();
+  OverlayEntry? _suggestionsOverlay;
   late final List<String> _selected = widget.initialTags
       .map((tag) => tag.name)
       .toList();
@@ -32,10 +36,105 @@ class _ServerTagsFieldState extends State<ServerTagsField> {
   bool _searching = false;
 
   @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_syncSuggestionsOverlay);
+  }
+
+  @override
   void dispose() {
     _debounce?.cancel();
+    _removeSuggestionsOverlay();
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _removeSuggestionsOverlay() {
+    _suggestionsOverlay?.remove();
+    _suggestionsOverlay?.dispose();
+    _suggestionsOverlay = null;
+  }
+
+  void _syncSuggestionsOverlay() {
+    if (!mounted) return;
+    if (!_focusNode.hasFocus || _suggestions.isEmpty) {
+      _removeSuggestionsOverlay();
+      return;
+    }
+    if (_suggestionsOverlay == null) {
+      _suggestionsOverlay = OverlayEntry(builder: _buildSuggestionsOverlay);
+      Overlay.of(context).insert(_suggestionsOverlay!);
+    } else {
+      _suggestionsOverlay!.markNeedsBuild();
+    }
+  }
+
+  Widget _buildSuggestionsOverlay(BuildContext context) {
+    final box = _fieldKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return const SizedBox.shrink();
+    final size = box.size;
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          CompositedTransformFollower(
+            link: _suggestionsLink,
+            showWhenUnlinked: false,
+            offset: Offset(0, size.height + 5),
+            child: SizedBox(
+              width: size.width,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.actionGrey,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: CupertinoColors.black.withValues(alpha: 0.28),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 240),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final tag in _suggestions)
+                          CupertinoButton(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            minimumSize: const Size(double.infinity, 40),
+                            onPressed: () => _add(tag.name),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    tag.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  '${tag.usageCount} исп.',
+                                  style: TextStyle(color: AppColors.greyple),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onQueryChanged(String value) {
@@ -48,12 +147,15 @@ class _ServerTagsFieldState extends State<ServerTagsField> {
         _searching = false;
         _error = null;
       });
+      _syncSuggestionsOverlay();
       return;
     }
     setState(() {
       _searching = true;
+      _suggestions = const [];
       _error = null;
     });
+    _syncSuggestionsOverlay();
     _debounce = Timer(const Duration(milliseconds: 300), () async {
       final result = await sl<ServerRepository>().searchTags(query);
       if (!mounted || version != _searchVersion) return;
@@ -71,6 +173,7 @@ class _ServerTagsFieldState extends State<ServerTagsField> {
               .toList();
         }),
       );
+      _syncSuggestionsOverlay();
     });
   }
 
@@ -101,6 +204,7 @@ class _ServerTagsFieldState extends State<ServerTagsField> {
     });
     ++_searchVersion;
     _debounce?.cancel();
+    _syncSuggestionsOverlay();
     widget.onChanged(List.unmodifiable(_selected));
   }
 
@@ -114,133 +218,108 @@ class _ServerTagsFieldState extends State<ServerTagsField> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Container(
+      CompositedTransformTarget(
         key: const ValueKey('server_tags_field'),
-        width: double.infinity,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: AppColors.actionGrey,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (final name in _selected)
-              Semantics(
-                button: true,
-                label: 'Удалить тег $name',
-                child: GestureDetector(
-                  onTap: () => _remove(name),
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.sizeOf(context).width - 64,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.blurple.withValues(alpha: 0.24),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: AppColors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                        Icon(
-                          CupertinoIcons.xmark,
-                          color: AppColors.white,
-                          size: 12,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            if (_selected.length < 3)
-              SizedBox(
-                width: 160,
-                child: CupertinoTextField(
-                  key: const ValueKey('server_tag_input'),
-                  controller: _controller,
-                  onChanged: _onQueryChanged,
-                  onSubmitted: _add,
-                  placeholder: 'Добавить тег',
-                  maxLength: 32,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 6,
-                  ),
-                  style: TextStyle(color: AppColors.white),
-                  decoration: null,
-                  suffix: _controller.text.trim().isEmpty
-                      ? null
-                      : CupertinoButton(
-                          key: const ValueKey('server_tag_add'),
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(28, 28),
-                          onPressed: () => _add(_controller.text),
-                          child: const Icon(
-                            CupertinoIcons.add_circled,
-                            size: 22,
-                          ),
-                        ),
-                ),
-              ),
-          ],
-        ),
-      ),
-      if (_searching)
-        const Padding(
-          padding: EdgeInsets.only(top: 7),
-          child: CupertinoActivityIndicator(),
-        ),
-      if (_suggestions.isNotEmpty)
-        Container(
-          margin: const EdgeInsets.only(top: 6),
+        link: _suggestionsLink,
+        child: Container(
+          key: _fieldKey,
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: AppColors.actionGrey,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(13),
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final tag in _suggestions)
-                CupertinoButton(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  minimumSize: const Size(double.infinity, 40),
-                  onPressed: () => _add(tag.name),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          tag.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+              if (_selected.isNotEmpty) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final name in _selected)
+                      Semantics(
+                        button: true,
+                        label: 'Удалить тег $name',
+                        child: GestureDetector(
+                          onTap: () => _remove(name),
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width - 64,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.blurple.withValues(alpha: 0.24),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: AppColors.white),
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Icon(
+                                  CupertinoIcons.xmark,
+                                  color: AppColors.white,
+                                  size: 12,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        '${tag.usageCount} исп.',
-                        style: TextStyle(color: AppColors.greyple),
+                  ],
+                ),
+                if (_selected.length < 3) const SizedBox(height: 6),
+              ],
+              if (_selected.length < 3)
+                Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoTextField(
+                        key: const ValueKey('server_tag_input'),
+                        focusNode: _focusNode,
+                        controller: _controller,
+                        onChanged: _onQueryChanged,
+                        onSubmitted: _add,
+                        placeholder: 'Добавить тег',
+                        maxLength: 32,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 6,
+                        ),
+                        style: TextStyle(color: AppColors.white),
+                        decoration: null,
                       ),
-                    ],
-                  ),
+                    ),
+                    if (_searching)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: CupertinoActivityIndicator(),
+                      ),
+                    if (_controller.text.trim().isNotEmpty)
+                      CupertinoButton(
+                        key: const ValueKey('server_tag_add'),
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(28, 28),
+                        onPressed: () => _add(_controller.text),
+                        child: const Icon(CupertinoIcons.add_circled, size: 22),
+                      ),
+                  ],
                 ),
             ],
           ),
         ),
+      ),
       if (_error != null)
         Padding(
           padding: const EdgeInsets.only(top: 6),

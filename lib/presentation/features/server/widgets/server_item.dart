@@ -12,6 +12,7 @@ class ServerItem extends StatelessWidget {
   final bool isActive;
   final bool isSpecial;
   final bool isAction;
+  final bool compact;
   final int unreadCount;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -26,6 +27,7 @@ class ServerItem extends StatelessWidget {
     this.pathAvatar,
     this.isSpecial = false,
     this.isAction = false,
+    this.compact = false,
     this.onTap,
     this.onLongPress,
   });
@@ -43,21 +45,24 @@ class ServerItem extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 4,
-              height: isActive ? 32 : 0,
-              decoration: BoxDecoration(
-                color: AppColors.blurple,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(4),
+            if (!compact)
+              Container(
+                width: 4,
+                height: isActive ? 32 : 0,
+                decoration: BoxDecoration(
+                  color: AppColors.blurple,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(4),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
+            if (!compact) const SizedBox(width: 8),
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Container(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
                   width: 48,
                   height: 48,
                   alignment: Alignment.center,
@@ -65,6 +70,12 @@ class ServerItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isActive ? AppColors.blurple : AppColors.actionGrey,
                     borderRadius: BorderRadius.circular(isActive ? 16 : 24),
+                  ),
+                  foregroundDecoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(isActive ? 16 : 24),
+                    border: compact && isActive
+                        ? Border.all(color: AppColors.blurple, width: 2)
+                        : null,
                   ),
                   child: _buildContent(),
                 ),
@@ -76,7 +87,7 @@ class ServerItem extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(width: 12),
+            if (!compact) const SizedBox(width: 12),
           ],
         ),
       ),

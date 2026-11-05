@@ -318,6 +318,7 @@ Future<void> _pumpSidebar(
   sl.registerSingleton<WsEventBus>(WsEventBus());
   sl.registerSingleton<CallsRepository>(_Calls());
   sl.registerSingleton<PreferredEmojisRepository>(_PreferredEmojis());
+  sl.registerSingleton<MembersRepository>(_Members());
   sl.registerSingleton<ChannelServerRepository>(_Channels(channels));
   sl.registerSingleton<CategoryChannelRepository>(_Categories(categories));
   await tester.pumpWidget(
@@ -346,6 +347,31 @@ Future<void> _pumpSidebar(
 void main() {
   tearDown(() async {
     await sl.reset();
+  });
+
+  testWidgets('режим сортировки открывается в CupertinoApp', (tester) async {
+    await _pumpSidebar(
+      tester,
+      server: const Server(id: 2, name: 'Team', isOwner: true),
+      categories: const [CategoryChannel(id: 7, serverId: 2, name: 'News')],
+      channels: const [
+        ChannelServer(id: 11, serverId: 2, chatId: 90, chatName: 'General'),
+      ],
+    );
+    await tester.tap(find.byKey(const ValueKey('server_settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Упорядочить каналы и категории'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('order_category_7')), findsOneWidget);
+    expect(find.byKey(const ValueKey('order_channel_11')), findsOneWidget);
+    final handle = find.byType(ReorderableDragStartListener).first;
+    final drag = await tester.startGesture(tester.getCenter(handle));
+    await drag.moveBy(const Offset(0, 40));
+    await tester.pump();
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('название и кнопки находятся поверх баннера сервера', (
@@ -419,6 +445,7 @@ void main() {
     final bloc = ServersBloc(repository, bus);
     sl.registerSingleton<WsEventBus>(bus);
     sl.registerSingleton<CallsRepository>(_Calls());
+    sl.registerSingleton<MembersRepository>(_Members());
     sl.registerSingleton<ServerRepository>(repository);
     sl.registerSingleton<ChannelServerRepository>(
       _Channels(const [
@@ -470,6 +497,7 @@ void main() {
     final bloc = ServersBloc(repository, bus);
     sl.registerSingleton<WsEventBus>(bus);
     sl.registerSingleton<CallsRepository>(_Calls());
+    sl.registerSingleton<MembersRepository>(_Members());
     sl.registerSingleton<ServerRepository>(repository);
     sl.registerSingleton<ChannelServerRepository>(
       _Channels(const [
@@ -711,6 +739,7 @@ void main() {
     expect(find.text('Управлять ролями'), findsNothing);
     expect(find.text('Управлять приглашениями'), findsNothing);
     expect(find.text('Пригласить на сервер'), findsNothing);
+    expect(find.text('Удалить сервер'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -727,9 +756,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('owner settings contains four management actions', (
-    tester,
-  ) async {
+  testWidgets('owner settings contains server deletion action', (tester) async {
     await _pumpSidebar(
       tester,
       server: const Server(id: 2, name: 'Team', isOwner: true),
@@ -740,6 +767,7 @@ void main() {
     expect(find.text('Управлять ролями'), findsOneWidget);
     expect(find.text('Управлять участниками'), findsOneWidget);
     expect(find.text('Управлять приглашениями'), findsOneWidget);
+    expect(find.text('Удалить сервер'), findsOneWidget);
     expect(find.text('Покинуть сервер'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -916,7 +944,6 @@ void main() {
     );
     final repository = sl<ChannelServerRepository>() as _Channels;
     sl.registerSingleton<RoleMemberRepository>(_Roles());
-    sl.registerSingleton<MembersRepository>(_Members());
     await tester.tap(find.byKey(const ValueKey('add_channel_to_category')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Создать'));

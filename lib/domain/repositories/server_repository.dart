@@ -7,6 +7,10 @@ import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/server_tag.dart';
 
 abstract class ServerRepository {
+  Future<Either<Failure, String>> requestDeletionCode(int serverId);
+
+  Future<Either<Failure, bool>> delete(int serverId, String verificationCode);
+
   Future<Either<Failure, List<ServerTag>>> searchTags(String query);
   Future<Either<Failure, List<Server>>> get({
     bool isPublic = false,

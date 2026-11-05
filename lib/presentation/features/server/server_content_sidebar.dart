@@ -30,6 +30,7 @@ import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/invites/manage_server_invites_screen.dart';
 import 'package:disalive/presentation/features/server/server_members_screen.dart';
+import 'package:disalive/presentation/features/server/server_deletion_screen.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
@@ -43,7 +44,8 @@ import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show ReorderableListView;
+import 'package:flutter/material.dart'
+    show DefaultMaterialLocalizations, ReorderableListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class ServerContentSidebar extends StatefulWidget {
@@ -313,6 +315,18 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
         widget.onLeave?.call();
       }
     });
+  }
+
+  Future<void> _deleteServer() async {
+    final serverId = _serverId;
+    final deleted = await ServerDeletionScreen.open(
+      context,
+      serverId: serverId,
+      serverName: widget.server.name ?? 'Сервер',
+    );
+    if (!mounted || !deleted) return;
+    context.read<ServersBloc>().add(ServerRemoved(serverId));
+    widget.onLeave?.call();
   }
 
   void _editChannel(ChannelServer channel) {
@@ -628,6 +642,13 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
             onTap: () =>
                 ServerEmojiPackScreen.open(context, server: widget.server),
           ),
+        if (widget.server.isServerOwner)
+          ActionItem(
+            icon: CupertinoIcons.delete,
+            label: 'Удалить сервер',
+            isDestructive: true,
+            onTap: _deleteServer,
+          ),
       ],
     );
   }
@@ -931,53 +952,57 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
           ),
         ),
         Expanded(
-          child: ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(7, 0, 7, 120),
-            buildDefaultDragHandles: false,
-            itemCount: rows.length,
-            onReorder: _reorderRows,
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              final canMove = row is CategoryChannel
-                  ? _rights.canManageCategories
-                  : _rights.canManageChannels;
-              return Container(
-                key: ValueKey(
-                  row is CategoryChannel
-                      ? 'order_category_${row.id}'
-                      : 'order_channel_${(row as ChannelServer).id}',
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: row is CategoryChannel
-                          ? CategoryChannelItem(
-                              category: row,
-                              isCollapsed: false,
-                            )
-                          : _channelItem(
-                              row as ChannelServer,
-                              interactive: false,
+          child: Localizations.override(
+            context: context,
+            delegates: const [DefaultMaterialLocalizations.delegate],
+            child: ReorderableListView.builder(
+              padding: const EdgeInsets.fromLTRB(7, 0, 7, 120),
+              buildDefaultDragHandles: false,
+              itemCount: rows.length,
+              onReorder: _reorderRows,
+              itemBuilder: (context, index) {
+                final row = rows[index];
+                final canMove = row is CategoryChannel
+                    ? _rights.canManageCategories
+                    : _rights.canManageChannels;
+                return Container(
+                  key: ValueKey(
+                    row is CategoryChannel
+                        ? 'order_category_${row.id}'
+                        : 'order_channel_${(row as ChannelServer).id}',
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: row is CategoryChannel
+                            ? CategoryChannelItem(
+                                category: row,
+                                isCollapsed: false,
+                              )
+                            : _channelItem(
+                                row as ChannelServer,
+                                interactive: false,
+                              ),
+                      ),
+                      if (canMove)
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
                             ),
-                    ),
-                    if (canMove)
-                      ReorderableDragStartListener(
-                        index: index,
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                          child: Icon(
-                            CupertinoIcons.line_horizontal_3,
-                            size: 19,
+                            child: Icon(
+                              CupertinoIcons.line_horizontal_3,
+                              size: 19,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            },
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],

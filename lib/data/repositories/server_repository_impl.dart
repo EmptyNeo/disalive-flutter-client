@@ -17,6 +17,39 @@ class ServerRepositoryImpl implements ServerRepository {
   int? _selectedServerId;
 
   @override
+  Future<Either<Failure, String>> requestDeletionCode(int serverId) =>
+      _httpClient.postFormData<String>(
+        endpoint: 'mail/send.php',
+        data: {'serverId': serverId, 'type': 'delete-server'},
+        apiType: ApiType.v1,
+        requireAuth: true,
+        fromJson: (json) {
+          final method = json is Map ? json['verificationMethod'] : null;
+          if (method == 'email' || method == 'totp') return method as String;
+          throw const FormatException('Сервер не указал способ подтверждения');
+        },
+      );
+
+  @override
+  Future<Either<Failure, bool>> delete(
+    int serverId,
+    String verificationCode,
+  ) async {
+    final result = await _httpClient.postFormData<bool>(
+      endpoint: 'servers/delete.php',
+      data: {'serverId': serverId, 'verificationCode': verificationCode},
+      apiType: ApiType.v1,
+      requireAuth: true,
+      fromJson: (_) => true,
+    );
+    result.fold((_) => null, (_) {
+      _servers?.removeWhere((server) => server.id == serverId);
+      if (_selectedServerId == serverId) _selectedServerId = null;
+    });
+    return result;
+  }
+
+  @override
   Future<Either<Failure, List<ServerTag>>> searchTags(String query) =>
       _httpClient.postFormData<List<ServerTag>>(
         endpoint: 'servers/tags.php',

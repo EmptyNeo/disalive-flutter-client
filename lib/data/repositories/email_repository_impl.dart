@@ -20,7 +20,8 @@ class EmailRepositoryImpl implements EmailRepository {
         requireAuth: false,
         fromJson: (json) {
           final method = json is Map ? json['verificationMethod'] : null;
-          return method == 'totp' ? 'totp' : 'email';
+          if (method == 'totp' || method == 'email') return method as String;
+          throw const FormatException('Сервер не указал способ подтверждения');
         },
       );
 

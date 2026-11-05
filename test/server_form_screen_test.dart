@@ -13,6 +13,7 @@ import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
 import 'package:disalive/presentation/features/server/server_form_screen.dart';
+import 'package:disalive/presentation/features/server/widgets/server_tags_field.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,9 +34,10 @@ class _Roles implements RoleMemberRepository {
 }
 
 class _Servers implements ServerRepository {
+  List<ServerTag> suggestions = const [];
   @override
   Future<Either<Failure, List<ServerTag>>> searchTags(String query) async =>
-      const Right([]);
+      Right(suggestions);
   List<Server> cached = [];
   int? _selectedServerId;
   @override
@@ -184,10 +186,14 @@ Future<({ServersBloc bloc, WsEventBus bus, _Servers repository})> _pump(
   return (bloc: bloc, bus: bus, repository: repository);
 }
 
-Future<void> _reveal(WidgetTester tester, Finder finder) async {
+Future<void> _reveal(
+  WidgetTester tester,
+  Finder finder, {
+  double delta = 150,
+}) async {
   await tester.scrollUntilVisible(
     finder,
-    150,
+    delta,
     scrollable: find
         .descendant(
           of: find.byType(ServerFormScreen),
@@ -199,6 +205,58 @@ Future<void> _reveal(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('подсказки тегов перекрывают форму, а плюс стоит справа', (
+    tester,
+  ) async {
+    await sl.reset();
+    final repository = _Servers()
+      ..suggestions = const [ServerTag(name: 'Игры', usageCount: 4)];
+    sl.registerSingleton<ServerRepository>(repository);
+    List<String> selected = const [];
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: CupertinoPageScaffold(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                ServerTagsField(
+                  initialTags: const [],
+                  onChanged: (tags) => selected = tags,
+                ),
+                const SizedBox(height: 12),
+                const Text('Следующее поле'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final nextTop = tester.getTopLeft(find.text('Следующее поле')).dy;
+    await tester.enterText(
+      find.byKey(const ValueKey('server_tag_input')),
+      'Иг',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(tester.getTopLeft(find.text('Следующее поле')).dy, nextTop);
+    final field = tester.getRect(
+      find.byKey(const ValueKey('server_tags_field')),
+    );
+    final add = tester.getRect(find.byKey(const ValueKey('server_tag_add')));
+    expect(field.right - add.right, closeTo(10, 1));
+    expect(
+      tester.getTopLeft(find.text('4 исп.')).dy,
+      greaterThan(field.bottom),
+    );
+    await tester.tap(find.text('Игры'));
+    await tester.pump();
+    expect(selected, ['Игры']);
+    expect(find.text('4 исп.'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await sl.reset();
+  });
+
   test(
     'баннер читается из ответа и nullable поля передаются при обновлении состояния',
     () {
@@ -272,6 +330,8 @@ void main() {
       find.byKey(const ValueKey('server_tag_input')),
       '  Игры  ',
     );
+    await tester.pump();
+    await tester.drag(find.byType(ListView).last, const Offset(0, 100));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('server_tag_add')));
     await tester.pump();
@@ -365,6 +425,11 @@ void main() {
             )
             .value,
         isTrue,
+      );
+      await _reveal(
+        tester,
+        find.byKey(const ValueKey('server_name_field')),
+        delta: -150,
       );
       await tester.enterText(
         find.byKey(const ValueKey('server_name_field')),
