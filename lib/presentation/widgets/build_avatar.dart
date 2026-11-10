@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/constants/assets.dart';
+import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/enums/user_status.dart';
 import 'package:disalive/presentation/widgets/status_dot.dart';
 import 'package:flutter/cupertino.dart';
@@ -22,6 +23,7 @@ class BuildAvatar extends StatefulWidget {
 
   final bool isBookmark;
   final bool isGroup;
+  final ChatType? chatType;
 
   const BuildAvatar({
     super.key,
@@ -29,6 +31,7 @@ class BuildAvatar extends StatefulWidget {
     this.file,
     this.isBookmark = false,
     this.isGroup = false,
+    this.chatType,
     required this.wh,
     required this.size,
     this.status,
@@ -122,6 +125,9 @@ class _BuildAvatarState extends State<BuildAvatar> {
   }
 
   Widget _buildImage(bool hasValidUrl, bool hasDefaultImage) {
+    if (widget.chatType == ChatType.service) {
+      return Image.asset('assets/icons/icon.png', fit: BoxFit.cover);
+    }
     if (widget.isBookmark) {
       return SvgPicture.asset(
         AppAssets.bookmarkIcon,

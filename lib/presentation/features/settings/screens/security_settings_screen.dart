@@ -210,6 +210,14 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       ),
                     ),
                   const SizedBox(height: 20),
+                  Text(
+                    'Код подтверждения',
+                    style: AppText.mediumTextStyle.copyWith(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   CupertinoTextField(
                     controller: _codeController,
                     placeholder: 'Код из 6 цифр',
@@ -219,7 +227,15 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                       LengthLimitingTextInputFormatter(6),
                     ],
                     style: TextStyle(color: AppColors.white),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.actionGrey,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.divider, width: 0.5),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   CupertinoButton.filled(

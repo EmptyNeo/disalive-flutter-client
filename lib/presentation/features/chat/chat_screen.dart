@@ -7,6 +7,7 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
 import 'package:disalive/domain/enums/chat_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/appeal_target_type.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/enums/file_content_type.dart';
 import 'package:disalive/domain/enums/file_type.dart';
@@ -31,6 +32,7 @@ import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
+import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dart';
 import 'package:disalive/presentation/features/chat/channel_send_access.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
@@ -100,6 +102,17 @@ class ChatScreen extends StatefulWidget {
     final serverId =
         channel.serverId ?? sl<ServerRepository>().selectedServerId;
     if (serverId == null) return;
+    for (final server in sl<ServerRepository>().getCached()) {
+      if (server.id == serverId && server.isServerBlocked) {
+        await BlockedEntityNotice.show(
+          context,
+          type: AppealTargetType.server,
+          id: serverId,
+          name: server.name ?? 'Сервер',
+        );
+        return;
+      }
+    }
     final access = await checkEntityAccess(
       context,
       EntityKey(entityId: serverId, entityType: EntityType.server),
@@ -143,6 +156,15 @@ class ChatScreen extends StatefulWidget {
     bool isReconnect, {
     EntityAccess? entityAccess,
   }) async {
+    if (chat.isGroup && chat.isChatBlocked) {
+      await BlockedEntityNotice.show(
+        context,
+        type: AppealTargetType.group,
+        id: chat.id,
+        name: chat.name,
+      );
+      return;
+    }
     var access = entityAccess;
     if (access == null && chat.type == ChatType.group) {
       access = await checkEntityAccess(
@@ -321,6 +343,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   late Chat _currentChat;
+  bool _blockedNoticeOpen = false;
+
+  Future<void> _showBlockedAndLeave(
+    AppealTargetType type,
+    int id,
+    String name,
+  ) async {
+    if (_blockedNoticeOpen || !mounted) return;
+    _blockedNoticeOpen = true;
+    await BlockedEntityNotice.show(context, type: type, id: id, name: name);
+    if (mounted) Navigator.of(context).pop();
+  }
+
   int? _channelServerId;
   ChannelServer? _channel;
   int? _channelRoleId;
@@ -333,6 +368,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   late bool _isModerationMuted;
 
   bool get _canSendMessages =>
+      !_currentChat.isService &&
       !_isModerationMuted &&
       (_currentChat.type != ChatType.channel ||
           canSendToChannel(
@@ -1073,6 +1109,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 (server) => server.id == _channelServerId,
               );
               if (matching.isEmpty) return;
+              if (matching.first.isServerBlocked) {
+                unawaited(
+                  _showBlockedAndLeave(
+                    AppealTargetType.server,
+                    matching.first.id!,
+                    matching.first.name ?? 'Сервер',
+                  ),
+                );
+                return;
+              }
               setState(() {
                 if (!_channelRoleFromMemberEvent) {
                   _channelRoleId = matching.first.roleId;
@@ -1094,6 +1140,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   setState(() {
                     _currentChat = updatedChat;
                   });
+                  if (updatedChat.isGroup && updatedChat.isChatBlocked) {
+                    unawaited(
+                      _showBlockedAndLeave(
+                        AppealTargetType.group,
+                        updatedChat.id,
+                        updatedChat.name,
+                      ),
+                    );
+                  }
                 }
               }
             },
@@ -1172,7 +1227,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   onAnswerMessage: _onAnswerMessage,
                                   canReply: _canSendMessages,
                                   canManageMessages: _canManageMessages,
-                                  canReact: !_isModerationMuted,
+                                  canReact:
+                                      !_currentChat.isService &&
+                                      !_isModerationMuted,
                                   onFocusInput: _focusInput,
                                   onUnfocusInput: _unfocusInput,
                                   onStickerTap: onTapSticker,

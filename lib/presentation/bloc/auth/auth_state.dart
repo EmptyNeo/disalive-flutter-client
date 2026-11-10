@@ -15,8 +15,9 @@ class AuthTotpRequired extends AuthState {
 
 class AuthAuthenticated extends AuthState {
   final String? keySession;
+  final bool accountBanned;
 
-  AuthAuthenticated({this.keySession});
+  AuthAuthenticated({this.keySession, this.accountBanned = false});
 }
 
 class AuthUnauthenticated extends AuthState {}

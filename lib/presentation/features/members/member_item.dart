@@ -154,8 +154,9 @@ class _MemberItemState extends State<MemberItem> {
                     children: [
                       if (roleName.isNotEmpty)
                         Flexible(
-                          child: Text(
-                            roleName,
+                          child: RoleColoredText(
+                            text: roleName,
+                            role: widget.member.role,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: roleStyle,

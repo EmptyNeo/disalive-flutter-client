@@ -16,6 +16,7 @@ class EmojisHandler {
   final Map<String, ServerEmojiPack> _serverPacks = {};
   bool _serverPacksLoaded = false;
   Future<void>? _serverPackLoadFuture;
+  final Map<String, Future<void>> _serverCategoryLoads = {};
 
   Map<String, EmojiSheetData> get sheets => _sheets;
 
@@ -140,6 +141,38 @@ class EmojisHandler {
       });
     } finally {
       _serverPackLoadFuture = null;
+    }
+  }
+
+  /// Resolves an emoji from a server pack that the viewer has not installed.
+  /// The category endpoint is also used to refresh a pack missing a new emoji.
+  Future<void> ensureServerCategory(
+    String categoryId,
+    String emojiId,
+    ServerEmojiPackRepository repository,
+  ) async {
+    if (!RegExp(r'^server_[a-z]+$').hasMatch(categoryId)) return;
+    if (_serverPackLoadFuture != null) await _serverPackLoadFuture;
+    if (getEmojiById(categoryId, emojiId) != null) return;
+
+    final future = _serverCategoryLoads.putIfAbsent(categoryId, () async {
+      final result = await repository.getPacks(categoryId: categoryId);
+      result.fold((_) {}, (packs) {
+        for (final pack in packs) {
+          if (pack.categoryId != categoryId) continue;
+          _serverPacks[categoryId] = pack;
+          final sheet = _sheetForPack(pack);
+          if (sheet != null) _serverSheets[categoryId] = sheet;
+          break;
+        }
+      });
+    });
+    try {
+      await future;
+    } finally {
+      if (identical(_serverCategoryLoads[categoryId], future)) {
+        _serverCategoryLoads.remove(categoryId);
+      }
     }
   }
 

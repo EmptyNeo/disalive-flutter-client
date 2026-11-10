@@ -41,6 +41,35 @@ void main() {
     await sl.reset();
   });
 
+  test('featured server choices include only owned public servers', () async {
+    final client = MockClient(
+      (request) async => http.Response(
+        jsonEncode({
+          'success': true,
+          'data': [
+            {'id': 1, 'fkOwner': 7, 'name': 'Z', 'private': 0},
+            {'id': 2, 'fkOwner': 7, 'name': 'Private', 'private': 1},
+            {'id': 3, 'fkOwner': 8, 'name': 'Other', 'private': 0},
+            {'id': 4, 'fkOwner': 7, 'name': 'A', 'private': 0},
+            {
+              'id': 5,
+              'fkOwner': 7,
+              'name': 'Blocked',
+              'private': 0,
+              'isBlocked': true,
+            },
+          ],
+        }),
+        200,
+      ),
+    );
+    sl.registerSingleton<HttpClientService>(
+      HttpClientService(client: client, secureStorage: _TestStorage()),
+    );
+    final choices = await ServerRepositoryImpl().getFeaturedServerChoices(7);
+    expect(choices.getOrElse(() => []).map((server) => server.id), [4, 1]);
+  });
+
   test(
     'public server query sends category without replacing joined cache',
     () async {
@@ -168,6 +197,7 @@ void main() {
           ],
         }),
         200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     });
     sl.registerSingleton<HttpClientService>(
@@ -175,7 +205,7 @@ void main() {
     );
 
     final result = await ServerRepositoryImpl().searchTags(' игры ');
-    expect(result.isRight(), isTrue);
+    expect(result.isRight(), isTrue, reason: result.fold((failure) => failure.message, (_) => ''));
     final tag = result.getOrElse(() => []).single;
     expect(tag.id, 12);
     expect(tag.name, 'Игры');
@@ -271,6 +301,7 @@ void main() {
               ],
             }),
             200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
           );
         }
         if (request.url.path.endsWith('/create.php')) {
@@ -288,6 +319,7 @@ void main() {
               },
             }),
             201,
+            headers: {'content-type': 'application/json; charset=utf-8'},
           );
         }
         return http.Response(
@@ -305,6 +337,7 @@ void main() {
             },
           }),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       });
       sl.registerSingleton<HttpClientService>(

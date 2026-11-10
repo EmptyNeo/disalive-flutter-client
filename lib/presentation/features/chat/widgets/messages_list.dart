@@ -4,6 +4,7 @@ import 'package:disalive/app/di/di.dart'; // 🎯 Для sl()
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/action_type.dart';
+import 'package:disalive/domain/enums/complaint_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/history_action.dart';
@@ -17,6 +18,7 @@ import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/forward_message_screen.dart';
+import 'package:disalive/presentation/features/complaints/complaint_screen.dart';
 import 'package:disalive/presentation/features/chat/widgets/separators/day_separator.dart';
 import 'package:disalive/presentation/features/history_actions/history_action_item.dart';
 import 'package:disalive/presentation/features/media/media_viewer_screen.dart';
@@ -1028,7 +1030,7 @@ class MessagesListState extends State<MessagesList> {
 
             final messageWidget = SwipeToReplyMessage(
               key: ValueKey(messageId),
-              enabled: widget.canReply,
+              enabled: widget.canReply && !widget.chat.isService,
               onReply: () => widget.onAnswerMessage(message),
               child: RepaintBoundary(
                 key: key,
@@ -1044,8 +1046,12 @@ class MessagesListState extends State<MessagesList> {
                   showTime: grouped.showTime,
                   tailDirection: grouped.tailDirection,
                   hasMessageAbove: grouped.hasMessageAbove,
-                  onTap: () => _showMessageActions(message),
-                  onLongPress: () => _showMessageActions(message),
+                  onTap: widget.chat.isService
+                      ? null
+                      : () => _showMessageActions(message),
+                  onLongPress: widget.chat.isService
+                      ? null
+                      : () => _showMessageActions(message),
                   isLoading: message.hasLoading,
                   hasError: message.hasErrorMessage,
                   isHighlighted: _highlightedMessageId == messageId,
@@ -1272,6 +1278,7 @@ class MessagesListState extends State<MessagesList> {
   }
 
   void _showMessageActions(Message message) {
+    if (widget.chat.isService) return;
     widget.onUnfocusInput?.call();
 
     final isMyMessage =
@@ -1364,6 +1371,18 @@ class MessagesListState extends State<MessagesList> {
           onTap: () {
             widget.onDeleteMessage(message);
           },
+        ),
+      if (message.id != null && !isMyMessage)
+        ActionItem(
+          icon: CupertinoIcons.flag,
+          label: 'Пожаловаться на сообщение',
+          onTap: () => ComplaintScreen.open(
+            context,
+            type: ComplaintType.message,
+            targetId: message.id!,
+            targetName:
+                'Сообщение от ${message.user?.displayName ?? 'пользователя'}',
+          ),
         ),
     ];
 

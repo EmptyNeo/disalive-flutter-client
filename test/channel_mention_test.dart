@@ -1,6 +1,8 @@
 import 'package:disalive/domain/models/channel_server.dart';
+import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/features/chat/channel_mention.dart';
 import 'package:disalive/presentation/features/message/widgets/message_link_text.dart';
+import 'package:disalive/presentation/widgets/emoji_token.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +57,37 @@ void main() {
     ]);
   });
 
+  test('finds channel links with spaces next to emoji tokens', () {
+    final mentions = ChannelMention.findAll(
+      '#└── [server_s:8] баг-репорты:626',
+    ).toList();
+    expect(mentions.map((mention) => mention.chatId), [626]);
+    expect(mentions.first.name, '└── [server_s:8] баг-репорты');
+  });
+
+  testWidgets('exact channel link with server emoji stays tappable', (
+    tester,
+  ) async {
+    int? openedChatId;
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: Center(
+          child: MessageLinkText(
+            text: '#└── [server_s:8] баг-репорты:626',
+            style: const TextStyle(),
+            onChannelTap: (id) => openedChatId = id,
+          ),
+        ),
+      ),
+    );
+    final emojiLink = find.byWidgetPredicate(
+      (widget) => widget is GestureDetector && widget.child is EmojiToken,
+    );
+    expect(emojiLink, findsOneWidget);
+    await tester.tap(emojiLink);
+    expect(openedChatId, 626);
+  });
+
   testWidgets('channel link with custom emoji remains tappable', (
     tester,
   ) async {
@@ -88,6 +121,32 @@ void main() {
     expect(openedChatId, 73);
     openedChatId = null;
     (channelName.recognizer as TapGestureRecognizer).onTap!();
+    expect(openedChatId, 73);
+  });
+
+  testWidgets('rendered emoji inside channel link opens the channel', (
+    tester,
+  ) async {
+    await tester.runAsync(() => EmojisHandler.instance.initialize());
+    int? openedChatId;
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: Center(
+          child: MessageLinkText(
+            text: 'Смотрите #[people:0] Общий чат:73',
+            style: const TextStyle(),
+            onChannelTap: (id) => openedChatId = id,
+          ),
+        ),
+      ),
+    );
+    final emojiLink = find.byWidgetPredicate(
+      (widget) =>
+          widget is GestureDetector &&
+          widget.child?.runtimeType.toString() == 'EmojiWidget',
+    );
+    expect(emojiLink, findsOneWidget);
+    await tester.tap(emojiLink);
     expect(openedChatId, 73);
   });
 

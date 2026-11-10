@@ -8,6 +8,7 @@ import 'package:disalive/presentation/features/profile/widgets/profile_banner.da
 import 'package:disalive/presentation/features/profile/widgets/profile_info_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
 import 'package:disalive/presentation/features/profile/widgets/profile_thoughts_bubble.dart';
+import 'package:disalive/presentation/features/profile/widgets/banned_user_badge.dart';
 import 'package:disalive/presentation/utils/ui/color_service.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -146,6 +147,10 @@ class DirectProfileContent extends StatelessWidget {
                             const SizedBox(width: 4),
                             if (badge != null) ...[
                               BadgeItem(badge: badge, size: 18),
+                            ],
+                            if (user.isBannedUser) ...[
+                              const SizedBox(width: 8),
+                              const BannedUserBadge(),
                             ],
                           ],
                         ),

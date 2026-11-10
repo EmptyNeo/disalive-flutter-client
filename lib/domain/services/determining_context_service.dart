@@ -7,6 +7,16 @@ import 'package:flutter/foundation.dart';
 
 class DeterminingContextService {
   static EntityKey? getEntityKey() {
+    // Служебные уведомления принадлежат чату, даже если ранее был выбран сервер.
+    if (sl.isRegistered<ChatRepository>()) {
+      final currentChat = sl<ChatRepository>().getCurrentChat();
+      if (currentChat?.isService == true) {
+        return EntityKey(
+          entityId: currentChat!.id,
+          entityType: EntityType.chat,
+        );
+      }
+    }
     if (sl.isRegistered<ServerRepository>()) {
       final selectedServerId = sl<ServerRepository>().selectedServerId;
       if (selectedServerId != null) {

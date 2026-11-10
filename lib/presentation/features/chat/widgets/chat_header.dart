@@ -5,6 +5,7 @@ import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_text.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
+import 'package:disalive/presentation/widgets/service_verified_badge.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:flutter/cupertino.dart';
 
@@ -98,9 +99,10 @@ class ChatHeader extends StatelessWidget {
                         else
                           BuildAvatar(
                             url: chat.urlAvatar,
+                            chatType: chat.type,
                             wh: 26,
                             size: 20,
-                            status: chat.user?.status,
+                            status: chat.isService ? null : chat.user?.status,
                             statusSize: 6,
                             isBookmark: chat.isSoloChat ?? false,
                           ),
@@ -110,17 +112,28 @@ class ChatHeader extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text.rich(
-                                TextSpan(
-                                  children: EmojiTextParser.parse(
-                                    title,
-                                    emojiSize: 18,
-                                    animateEmoji: false,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text.rich(
+                                      TextSpan(
+                                        children: EmojiTextParser.parse(
+                                          title,
+                                          emojiSize: 18,
+                                          animateEmoji: false,
+                                        ),
+                                      ),
+                                      style: AppText.mediumTextStyle,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                style: AppText.mediumTextStyle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                  if (chat.isService) ...[
+                                    const SizedBox(width: 4),
+                                    const ServiceVerifiedBadge(),
+                                  ],
+                                ],
                               ),
                               if (shouldShowLastVisit &&
                                   lastVisitText.isNotEmpty) ...[
@@ -145,7 +158,7 @@ class ChatHeader extends StatelessWidget {
             ),
           ),
 
-          if (chat.isSoloChat == false) ...[
+          if (chat.isSoloChat == false && !chat.isService) ...[
             GlassIconButton(
               icon: isCurrentCall
                   ? CupertinoIcons.arrow_up_left_arrow_down_right

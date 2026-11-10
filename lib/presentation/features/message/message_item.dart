@@ -192,15 +192,43 @@ class MessageItem extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (showSenderInfo && message.user != null) ...[
-                      RoleColoredText(
-                        text: message.user!.displayName ?? 'Пользователь',
-                        role: message.user!.role,
-                        style: AppText.lowTextStyle.copyWith(
-                          color: AppColors.blurple,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: RoleColoredText(
+                              text: message.user!.displayName ?? 'Пользователь',
+                              role: message.user!.role,
+                              style: AppText.lowTextStyle.copyWith(
+                                color: AppColors.blurple,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (message.user!.isBot) ...[
+                            const SizedBox(width: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.blurple,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'БОТ',
+                                style: TextStyle(
+                                  color: CupertinoColors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                     ],

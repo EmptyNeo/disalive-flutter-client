@@ -1,10 +1,12 @@
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/complaint_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/media_filter_item.dart';
 import 'package:disalive/domain/models/permissions.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/screens/add_members_screen.dart';
+import 'package:disalive/presentation/features/complaints/complaint_screen.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
@@ -125,50 +127,56 @@ class _GroupProfileScreenState extends State<GroupProfileScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (manageChat || manageMembers || canInvite) ...[
-                  Padding(
-                    padding: EdgeInsets.only(
-                      right: 12,
-                      left: 12,
-                      top: 12,
-                      bottom: 0,
-                    ),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        if (manageMembers) ...[
-                          ProfileVerticalActionTile(
-                            icon: CupertinoIcons.person_2_fill,
-                            title: 'Добавить',
-                            onTap: () {
-                              AddMembersScreen.open(context, chat);
-                            },
-                          ),
-                        ],
-                        if (canInvite)
-                          ProfileVerticalActionTile(
-                            icon: CupertinoIcons.person_add,
-                            title: 'Пригласить',
-                            onTap: () => InviteServerScreen.openChat(
-                              context,
-                              chat: chat,
-                            ),
-                          ),
-                        if (manageChat) ...[
-                          ProfileVerticalActionTile(
-                            icon: CupertinoIcons.pencil,
-                            title: 'Редактировать',
-                            onTap: () {
-                              EditGroupScreen.open(context, chat);
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: 12,
+                    left: 12,
+                    top: 12,
+                    bottom: 0,
                   ),
-                ],
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      if (manageMembers) ...[
+                        ProfileVerticalActionTile(
+                          icon: CupertinoIcons.person_2_fill,
+                          title: 'Добавить',
+                          onTap: () {
+                            AddMembersScreen.open(context, chat);
+                          },
+                        ),
+                      ],
+                      if (canInvite)
+                        ProfileVerticalActionTile(
+                          icon: CupertinoIcons.person_add,
+                          title: 'Пригласить',
+                          onTap: () =>
+                              InviteServerScreen.openChat(context, chat: chat),
+                        ),
+                      if (manageChat) ...[
+                        ProfileVerticalActionTile(
+                          icon: CupertinoIcons.pencil,
+                          title: 'Редактировать',
+                          onTap: () {
+                            EditGroupScreen.open(context, chat);
+                          },
+                        ),
+                      ],
+                      ProfileVerticalActionTile(
+                        icon: CupertinoIcons.flag,
+                        title: 'Пожаловаться',
+                        onTap: () => ComplaintScreen.open(
+                          context,
+                          type: ComplaintType.group,
+                          targetId: chat.id,
+                          targetName: chat.name,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

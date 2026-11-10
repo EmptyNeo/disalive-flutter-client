@@ -25,6 +25,7 @@ class HttpClientService {
     required T Function(dynamic json) fromJson,
     ApiType apiType = ApiType.v1,
     bool requireAuth = true,
+    Map<String, String>? headers,
   }) async {
     try {
       final payload = <String, dynamic>{...data};
@@ -35,7 +36,7 @@ class HttpClientService {
       }
       final response = await _client.post(
         Uri.parse('${_getBaseUrl(apiType)}$endpoint'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', ...?headers},
         body: jsonEncode(payload),
       );
       return _handleResponse<T>(
@@ -256,7 +257,9 @@ class HttpClientService {
       return _handleResponse<T>(
         response: response,
         fromJson: fromJson,
-        endpoint: endpoint,
+        endpoint: stringQueryParams['action'] == null
+            ? endpoint
+            : '$endpoint?action=${stringQueryParams['action']}',
         requireAuth: requireAuth,
         onUnauthorized: onUnauthorized,
         errorMessage: errorMessage,
@@ -279,7 +282,11 @@ class HttpClientService {
       try {
         jsonResponse = jsonDecode(response.body);
       } catch (e) {
-        return Left(ParsingFailure('Invalid JSON response'));
+        return Left(
+          ParsingFailure(
+            'Некорректный ответ $endpoint (HTTP ${response.statusCode})',
+          ),
+        );
       }
 
       final bool success = jsonResponse['success'];
@@ -287,7 +294,15 @@ class HttpClientService {
       if (!success) {
         final error = jsonResponse['error'].toString();
 
-        if (response.statusCode == 401 || response.statusCode == 403) {
+        final responseData = jsonResponse['data'];
+        final code =
+            jsonResponse['code'] ??
+            (responseData is Map ? responseData['code'] : null);
+        if (response.statusCode == 403 && code == 'ACCOUNT_BANNED') {
+          return Left(AccountBannedFailure(error));
+        }
+
+        if (response.statusCode == 401) {
           if (!requireAuth) {
             return Left(ClientFailure(error));
           }

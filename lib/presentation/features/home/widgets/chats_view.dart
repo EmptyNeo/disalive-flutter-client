@@ -4,6 +4,9 @@ import 'package:disalive/domain/models/channel_server.dart';
 import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/appeal_target_type.dart';
+import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dart';
+import 'package:disalive/presentation/features/appeals/bloc/appeal_bloc.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
@@ -107,6 +110,22 @@ class _ChatsViewState extends State<ChatsView> {
                               accessChecked: true,
                             ),
                           )
+                        : selectedServer != null &&
+                              selectedServer.isServerBlocked
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: BlocProvider(
+                                create: (_) =>
+                                    sl<AppealBloc>()..add(LoadAppeals()),
+                                child: BlockedEntityNotice(
+                                  type: AppealTargetType.server,
+                                  id: selectedServer.id,
+                                  name: selectedServer.name ?? 'Сервер',
+                                ),
+                              ),
+                            ),
+                          )
                         : selectedServer != null
                         ? ServerContentSidebar(
                             key: ValueKey(
@@ -159,6 +178,15 @@ class _ChatsViewState extends State<ChatsView> {
   Future<void> _selectServer(Server server) async {
     final id = server.id;
     if (id == null) return;
+    if (server.isServerBlocked) {
+      await BlockedEntityNotice.show(
+        context,
+        type: AppealTargetType.server,
+        id: id,
+        name: server.name ?? 'Сервер',
+      );
+      return;
+    }
     final access = await checkEntityAccess(
       context,
       EntityKey(entityId: id, entityType: EntityType.server),

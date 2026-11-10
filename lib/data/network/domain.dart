@@ -11,4 +11,12 @@ class Domain {
     }
     return path;
   }
+
+  static String resolveImageUrl(String path) {
+    final transformed = transformUrl(path);
+    final uri = Uri.tryParse(transformed);
+    if (uri == null || transformed.isEmpty) return '';
+    if (uri.hasScheme) return transformed;
+    return Uri.parse(imageDomain).resolve(transformed).toString();
+  }
 }

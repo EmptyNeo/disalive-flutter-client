@@ -1,6 +1,7 @@
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/complaint_type.dart';
 import 'package:disalive/domain/models/chat.dart';
 import 'package:disalive/domain/models/member.dart';
 import 'package:disalive/domain/models/permissions.dart';
@@ -9,6 +10,7 @@ import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/repositories/friends_repository.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/presentation/features/chat/widgets/chat_item.dart';
+import 'package:disalive/presentation/features/complaints/complaint_screen.dart';
 import 'package:disalive/presentation/features/chat/read_status_actions.dart';
 import 'package:disalive/presentation/features/home/screens/edit_group_screen.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
@@ -114,7 +116,33 @@ class DmListArea extends StatelessWidget {
   void _showChatActions(BuildContext context, Chat chat) {
     Member? member = chat.member;
     RoleMember? role = chat.role;
-    if (member == null) return;
+    if (member == null) {
+      final type = chat.isPersonalChat && chat.user?.id != null
+          ? ComplaintType.user
+          : chat.isGroup
+          ? ComplaintType.group
+          : null;
+      if (type == null) return;
+      ActionBottomSheet.show(
+        context,
+        title: chat.name,
+        actions: [
+          ActionItem(
+            icon: CupertinoIcons.flag,
+            label: 'Пожаловаться',
+            onTap: () => ComplaintScreen.open(
+              context,
+              type: type,
+              targetId: type == ComplaintType.user ? chat.user!.id! : chat.id,
+              targetName: type == ComplaintType.user
+                  ? chat.user!.getDisplayName
+                  : chat.name,
+            ),
+          ),
+        ],
+      );
+      return;
+    }
 
     final actions = <ActionItem>[
       if (chat.unreadCount > 0)
@@ -139,26 +167,6 @@ class DmListArea extends StatelessWidget {
               ? "Включить уведомления"
               : "Выключить уведомления",
           onTap: () => _toggleMuted(chat),
-        ),
-      ],
-      if (chat.isPersonalChat) ...[
-        ActionItem(
-          icon: CupertinoIcons.person_badge_minus_fill,
-          label: "Удалить из друзей",
-          isDestructive: true,
-          onTap: () => _deleteFriend(context, chat),
-        ),
-        ActionItem(
-          icon:
-              chat.user?.onlyIBlocked == true || chat.user?.bothBlocked == true
-              ? CupertinoIcons.lock_slash_fill
-              : CupertinoIcons.lock_fill,
-          label:
-              chat.user?.onlyIBlocked == true || chat.user?.bothBlocked == true
-              ? "Разблокировать"
-              : "Заблокировать",
-          isDestructive: true,
-          onTap: () => _toggleBlock(chat),
         ),
       ],
       if (chat.isGroup) ...[
@@ -189,13 +197,56 @@ class DmListArea extends StatelessWidget {
             onTap: () => EditGroupScreen.open(context, chat),
           ),
         ],
+      ],
+      if (chat.isPersonalChat && chat.user?.id != null)
+        ActionItem(
+          icon: CupertinoIcons.flag,
+          label: 'Пожаловаться на пользователя',
+          onTap: () => ComplaintScreen.open(
+            context,
+            type: ComplaintType.user,
+            targetId: chat.user!.id!,
+            targetName: chat.user!.getDisplayName,
+          ),
+        ),
+      if (chat.isGroup)
+        ActionItem(
+          icon: CupertinoIcons.flag,
+          label: 'Пожаловаться на группу',
+          onTap: () => ComplaintScreen.open(
+            context,
+            type: ComplaintType.group,
+            targetId: chat.id,
+            targetName: chat.name,
+          ),
+        ),
+      if (chat.isPersonalChat) ...[
+        ActionItem(
+          icon: CupertinoIcons.person_badge_minus_fill,
+          label: "Удалить из друзей",
+          isDestructive: true,
+          onTap: () => _deleteFriend(context, chat),
+        ),
+        ActionItem(
+          icon:
+              chat.user?.onlyIBlocked == true || chat.user?.bothBlocked == true
+              ? CupertinoIcons.lock_slash_fill
+              : CupertinoIcons.lock_fill,
+          label:
+              chat.user?.onlyIBlocked == true || chat.user?.bothBlocked == true
+              ? "Разблокировать"
+              : "Заблокировать",
+          isDestructive: true,
+          onTap: () => _toggleBlock(chat),
+        ),
+      ],
+      if (chat.isGroup)
         ActionItem(
           icon: CupertinoIcons.person_badge_minus_fill,
           label: "Покинуть группу",
           isDestructive: true,
           onTap: () => _leaveFromGroup(context, chat),
         ),
-      ],
     ];
 
     ActionBottomSheet.show(context, title: chat.name, actions: actions);

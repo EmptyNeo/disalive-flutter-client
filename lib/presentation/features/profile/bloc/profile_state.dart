@@ -13,13 +13,23 @@ class ProfileUpdating extends ProfileState {}
 class ProfileLoaded extends ProfileState {
   final UserModel user;
   final Set<String> loadingFields;
+  final bool saveSucceeded;
 
-  ProfileLoaded(this.user, {this.loadingFields = const {}});
+  ProfileLoaded(
+    this.user, {
+    this.loadingFields = const {},
+    this.saveSucceeded = false,
+  });
 
-  ProfileLoaded copyWith({UserModel? user, Set<String>? loadingFields}) {
+  ProfileLoaded copyWith({
+    UserModel? user,
+    Set<String>? loadingFields,
+    bool? saveSucceeded,
+  }) {
     return ProfileLoaded(
       user ?? this.user,
       loadingFields: loadingFields ?? this.loadingFields,
+      saveSucceeded: saveSucceeded ?? this.saveSucceeded,
     );
   }
 }

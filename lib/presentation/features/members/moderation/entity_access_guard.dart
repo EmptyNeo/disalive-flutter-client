@@ -1,4 +1,5 @@
 import 'package:disalive/app/di/di.dart';
+import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_access.dart';
 import 'package:disalive/domain/models/entity_key.dart';
@@ -29,20 +30,82 @@ Future<void> showEntityBanNotice(
   required EntityAccess access,
 }) async {
   if (!context.mounted) return;
-  await showCupertinoDialog<void>(
+  await showGeneralDialog<void>(
     context: context,
-    builder: (dialogContext) => CupertinoAlertDialog(
-      title: const Text('Доступ ограничен'),
-      content: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(_banMessage(entityKey.entityType, access)),
-      ),
-      actions: [
-        CupertinoDialogAction(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Понятно'),
+    barrierDismissible: true,
+    barrierLabel: 'Закрыть уведомление',
+    barrierColor: CupertinoColors.black.withValues(alpha: 0.7),
+    transitionDuration: const Duration(milliseconds: 220),
+    transitionBuilder: (_, animation, _, child) => FadeTransition(
+      opacity: animation,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.94, end: 1).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
         ),
-      ],
+        child: child,
+      ),
+    ),
+    pageBuilder: (dialogContext, _, _) => SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: AppColors.mainBackground,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.errorRed.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        CupertinoIcons.exclamationmark_shield,
+                        size: 26,
+                        color: AppColors.errorRed,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Доступ ограничен',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    _banMessage(entityKey.entityType, access),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.greyple, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  CupertinoButton(
+                    color: AppColors.blurple,
+                    borderRadius: BorderRadius.circular(16),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Понятно'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }

@@ -13,6 +13,7 @@ import 'package:disalive/presentation/features/members/moderation/member_moderat
 import 'package:disalive/presentation/features/members/member_item.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/features/role_members/widgets/role_emoji.dart';
+import 'package:disalive/presentation/features/role_members/widgets/role_colored_text.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
@@ -314,8 +315,9 @@ class _MemberRoleHeader extends StatelessWidget {
             child: Row(
               children: [
                 Flexible(
-                  child: Text(
-                    title.toUpperCase(),
+                  child: RoleColoredText(
+                    text: title.toUpperCase(),
+                    role: group.role,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.lowTextStyle.copyWith(

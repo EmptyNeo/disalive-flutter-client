@@ -4,6 +4,8 @@ import 'package:disalive/data/repositories/category_channel_repository_impl.dart
 import 'package:disalive/data/repositories/calls_repository_impl.dart';
 import 'package:disalive/data/repositories/channel_server_repository_impl.dart';
 import 'package:disalive/data/repositories/chat_repository_impl.dart';
+import 'package:disalive/data/repositories/complaint_repository_impl.dart';
+import 'package:disalive/data/repositories/appeal_repository_impl.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/data/repositories/chat_server_repository_impl.dart';
 import 'package:disalive/data/repositories/email_repository_impl.dart';
@@ -39,6 +41,8 @@ import 'package:disalive/domain/repositories/category_channel_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/channel_server_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
+import 'package:disalive/domain/repositories/complaint_repository.dart';
+import 'package:disalive/domain/repositories/appeal_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/email_repository.dart';
 import 'package:disalive/domain/repositories/friends_repository.dart';
@@ -77,6 +81,8 @@ import 'package:disalive/presentation/bloc/session/session_bloc.dart';
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc.dart';
+import 'package:disalive/presentation/features/complaints/bloc/complaint_bloc.dart';
+import 'package:disalive/presentation/features/appeals/bloc/appeal_bloc.dart';
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/members/bloc/members_bloc.dart';
@@ -148,6 +154,15 @@ Future<void> setupDependencies() async {
     () => CategoryChannelRepositoryImpl(),
   );
   sl.registerLazySingleton<ChatRepository>(() => ChatRepositoryImpl());
+  sl.registerLazySingleton<ComplaintRepository>(
+    () => ComplaintRepositoryImpl(sl<HttpClientService>()),
+  );
+  sl.registerLazySingleton<AppealRepository>(
+    () => AppealRepositoryImpl(
+      sl<HttpClientService>(),
+      sl<SecureStorageService>(),
+    ),
+  );
   sl.registerLazySingleton<CallsRepository>(() => CallsRepositoryImpl());
   sl.registerLazySingleton<MediaStatsRepository>(
     () => MediaStatsRepositoryImpl(),
@@ -199,6 +214,10 @@ Future<void> setupDependencies() async {
     () => ProfileCommentsBloc(sl(), sl()),
   );
   sl.registerFactory<ChatBloc>(() => ChatBloc(sl(), sl()));
+  sl.registerFactory<ComplaintBloc>(
+    () => ComplaintBloc(sl<ComplaintRepository>()),
+  );
+  sl.registerFactory<AppealBloc>(() => AppealBloc(sl<AppealRepository>()));
   sl.registerFactory<MessageBloc>(() => MessageBloc(sl(), sl(), sl(), sl()));
   sl.registerFactory<ChatServerBloc>(() => ChatServerBloc(sl()));
   sl.registerFactory<RequestsBloc>(() => RequestsBloc(sl(), sl()));

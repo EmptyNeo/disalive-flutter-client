@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
+import 'package:disalive/domain/enums/complaint_type.dart';
 import 'package:disalive/domain/models/call_data.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/entity_access.dart';
@@ -27,6 +28,7 @@ import 'package:disalive/presentation/features/channel_server/bloc/channel_serve
 import 'package:disalive/presentation/features/channel_server/channel_form_screen.dart';
 import 'package:disalive/presentation/features/channel_server/widgets/channel_server_item.dart';
 import 'package:disalive/presentation/features/chat/read_status_actions.dart';
+import 'package:disalive/presentation/features/complaints/complaint_screen.dart';
 import 'package:disalive/presentation/features/invites/invite_server_screen.dart';
 import 'package:disalive/presentation/features/invites/manage_server_invites_screen.dart';
 import 'package:disalive/presentation/features/server/server_members_screen.dart';
@@ -579,6 +581,16 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
           label: 'Эмодзи сервера',
           onTap: () =>
               ServerEmojiPackScreen.open(context, server: widget.server),
+        ),
+        ActionItem(
+          icon: CupertinoIcons.flag,
+          label: 'Пожаловаться на сервер',
+          onTap: () => ComplaintScreen.open(
+            context,
+            type: ComplaintType.server,
+            targetId: _serverId,
+            targetName: widget.server.name,
+          ),
         ),
         ActionItem(
           icon: CupertinoIcons.square_arrow_right,

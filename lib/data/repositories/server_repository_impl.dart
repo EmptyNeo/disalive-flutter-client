@@ -17,6 +17,26 @@ class ServerRepositoryImpl implements ServerRepository {
   int? _selectedServerId;
 
   @override
+  Future<Either<Failure, List<Server>>> getFeaturedServerChoices(
+    int ownerId,
+  ) async {
+    final result = await get();
+    return result.map((servers) {
+      final choices =
+          servers
+              .where(
+                (server) =>
+                    server.fkOwner == ownerId &&
+                    server.private == 0 &&
+                    server.isBlocked != true,
+              )
+              .toList()
+            ..sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
+      return choices;
+    });
+  }
+
+  @override
   Future<Either<Failure, String>> requestDeletionCode(int serverId) =>
       _httpClient.postFormData<String>(
         endpoint: 'mail/send.php',

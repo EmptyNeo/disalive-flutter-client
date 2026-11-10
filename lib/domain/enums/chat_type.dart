@@ -2,7 +2,8 @@ enum ChatType {
   personal("personal"),
   solo("solo"),
   group("group"),
-  channel("channel");
+  channel("channel"),
+  service("service");
 
   final String value;
 

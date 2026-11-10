@@ -426,6 +426,7 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   @override
   Widget build(BuildContext context) {
     final bool isInputAllowed =
+        !widget.chat.isService &&
         !widget.chat.isAnyBlocked &&
         !widget.isReconnect &&
         widget.canSendMessages &&
@@ -491,14 +492,18 @@ class _ChatInputAreaState extends State<ChatInputArea> {
                         color: AppColors.white.withValues(alpha: 0.08),
                       ),
                     ),
-                    child: !widget.canSendMessages && !widget.isReconnect
+                    child:
+                        (widget.chat.isService || !widget.canSendMessages) &&
+                            !widget.isReconnect
                         ? Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 10,
                             ),
                             child: Text(
-                              widget.isModerationMuted
+                              widget.chat.isService
+                                  ? 'Это служебный чат. Отправка сообщений недоступна.'
+                                  : widget.isModerationMuted
                                   ? 'Вам временно запрещено отправлять сообщения и реакции'
                                   : 'У вас недостаточно прав, чтобы отправлять сообщения на этом канале',
                               style: AppText.mediumTextStyle.copyWith(
@@ -648,6 +653,9 @@ class _ChatInputAreaState extends State<ChatInputArea> {
   String? getRestrictionMessage() {
     String? displayName = widget.chat.user?.displayName;
 
+    if (widget.chat.isService) {
+      return 'Это служебный чат. Отправка сообщений недоступна.';
+    }
     if (widget.isModerationMuted) {
       return 'Вам временно запрещено отправлять сообщения и реакции';
     }

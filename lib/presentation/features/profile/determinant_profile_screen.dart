@@ -16,6 +16,7 @@ import 'package:disalive/presentation/features/profile/direct_profile_screen.dar
 import 'package:disalive/presentation/features/profile/channel_profile_screen.dart';
 import 'package:disalive/presentation/features/profile/group_profile_screen.dart';
 import 'package:disalive/presentation/features/profile/solo_chat_profile_screen.dart';
+import 'package:disalive/presentation/features/profile/service_chat_profile_screen.dart';
 import 'package:disalive/presentation/features/profile/widgets/media_stats_section.dart';
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:flutter/cupertino.dart';
@@ -28,6 +29,12 @@ class DeterminantProfileScreen {
     ValueChanged<MediaStatsCategory>? onMediaCategoryTap,
     ValueChanged<int>? onMessageTap,
   }) {
+    if (chat.type == ChatType.service) {
+      return SwipeToDismissRoute.push(
+        context,
+        (_) => const ServiceChatProfileScreen(),
+      );
+    }
     if (chat.type == ChatType.channel) {
       final membersBloc = context.read<MembersBloc>();
       final server = sl.isRegistered<ServerRepository>()

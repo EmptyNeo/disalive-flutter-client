@@ -2,12 +2,15 @@ import 'package:disalive/app/theme/app_theme.dart';
 import 'package:disalive/app/di/di.dart';
 import 'package:disalive/data/repositories/local_chat_state_repository.dart';
 import 'package:disalive/domain/models/chat.dart';
+import 'package:disalive/domain/enums/appeal_target_type.dart';
+import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/presentation/features/chat/chat_screen.dart';
 import 'package:disalive/presentation/utils/ui/pluralize.dart';
 import 'package:disalive/presentation/utils/ui/emoji_text_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_date.dart';
 import 'package:disalive/presentation/widgets/build_avatar.dart';
+import 'package:disalive/presentation/widgets/service_verified_badge.dart';
 import 'package:flutter/cupertino.dart';
 
 class ChatItem extends StatefulWidget {
@@ -72,7 +75,18 @@ class _ChatItemState extends State<ChatItem> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => ChatScreen.open(context, chat, widget.isReconnect),
+      onTap: () {
+        if (chat.isGroup && chat.isChatBlocked) {
+          BlockedEntityNotice.show(
+            context,
+            type: AppealTargetType.group,
+            id: chat.id,
+            name: chat.name,
+          );
+        } else {
+          ChatScreen.open(context, chat, widget.isReconnect);
+        }
+      },
       onTapDown: (_) => _setPressed(true),
       onTapCancel: () => _setPressed(false),
       onTapUp: (_) => _setPressed(false),
@@ -93,6 +107,7 @@ class _ChatItemState extends State<ChatItem> {
           children: [
             BuildAvatar(
               url: chat.urlAvatar,
+              chatType: chat.type,
               isBookmark: chat.isSoloChat ?? false,
               isGroup: chat.isGroup,
               wh: 32,
@@ -111,17 +126,43 @@ class _ChatItemState extends State<ChatItem> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          chat.name,
-                          style: TextStyle(
-                            color: AppColors.white,
-                            fontSize: 14,
-                            fontWeight: hasUnread
-                                ? FontWeight.w700
-                                : FontWeight.w600,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  chat.name,
+                                  style: TextStyle(
+                                    color: AppColors.white,
+                                    fontSize: 14,
+                                    fontWeight: hasUnread
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (chat.isService) ...[
+                                const SizedBox(width: 4),
+                                const ServiceVerifiedBadge(size: 14),
+                              ],
+                              if (chat.isPersonalChat &&
+                                  chat.user?.isBannedUser == true) ...[
+                                const SizedBox(width: 4),
+                                Semantics(
+                                  label: 'Пользователь заблокирован',
+                                  child: Icon(
+                                    CupertinoIcons.exclamationmark_shield,
+                                    color: AppColors.errorRed,
+                                    size: 14,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (chat.isAnyBlocked) ...[

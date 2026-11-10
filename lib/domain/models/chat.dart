@@ -194,9 +194,12 @@ class Chat extends Equatable {
 
   bool get hasUnreadMessages => unreadCount > 0;
 
-  bool get isPersonalChat => isPersonal ?? false;
+  bool get isPersonalChat => !isService && (isPersonal ?? false);
 
-  bool get isGroup => !(isPersonal ?? false) && !(isSoloChat ?? false);
+  bool get isGroup =>
+      !isService && !(isPersonal ?? false) && !(isSoloChat ?? false);
+
+  bool get isService => type == ChatType.service;
 
   bool get isSolo => isSoloChat ?? false;
 

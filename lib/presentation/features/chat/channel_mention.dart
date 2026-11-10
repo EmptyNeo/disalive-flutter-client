@@ -11,7 +11,8 @@ class ChannelMention {
   final int chatId;
 
   static final RegExp _pattern = RegExp(
-    r'#((?:\[[a-zA-Z0-9_]+:\d+\]|[^\s:#])+):([1-9]\d*)',
+    r'#((?:\[[a-zA-Z0-9_]+:\d+\]|[^\s:#])+(?:[ \t]+(?:\[[a-zA-Z0-9_]+:\d+\]|[^\s:#])+)*)'
+    r':([1-9]\d*)',
   );
   static final RegExp _emojiCode = RegExp(r'\[[a-zA-Z0-9_]+:\d+\]');
 

@@ -21,5 +21,8 @@ class DeleteSession extends SessionEvent {
 
 class Logout extends SessionEvent {}
 
+/// Выход без запроса к API, когда заблокированному аккаунту он недоступен.
+class LogoutLocally extends SessionEvent {}
+
 // 🎯 Специальное событие для WebSocket: когда сессию закрыли с другого устройства
 class SessionClosedExternally extends SessionEvent {}

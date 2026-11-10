@@ -6,6 +6,7 @@ import 'package:disalive/domain/models/badge.dart';
 import 'package:disalive/domain/models/badge_user.dart';
 import 'package:disalive/domain/models/friend_request.dart';
 import 'package:disalive/domain/models/role_member.dart';
+import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:equatable/equatable.dart';
 import 'package:disalive/domain/enums/user_status.dart';
@@ -28,6 +29,7 @@ class UserModel extends Equatable {
   final String? myThink;
   final bool? canSendMeRequest;
   final int? isBanned;
+  final bool isBot;
   final String? banExpiresAt;
   final String? complaintsBlockedUntil;
   final bool? isMyFriend;
@@ -46,6 +48,9 @@ class UserModel extends Equatable {
   final List<BadgeUserModel>? badges;
   final int? fkMainBadge;
   final BadgeModel? mainBadge;
+  final int? featuredServerId;
+  final Server? featuredServer;
+  final bool changeFeaturedServer;
   final RoleMember? role;
   final bool? isNsfw;
   final bool? hasFcm;
@@ -72,6 +77,7 @@ class UserModel extends Equatable {
     this.myThink,
     this.canSendMeRequest,
     this.isBanned,
+    this.isBot = false,
     this.banExpiresAt,
     this.complaintsBlockedUntil,
     this.isMyFriend,
@@ -90,6 +96,9 @@ class UserModel extends Equatable {
     this.badges,
     this.fkMainBadge,
     this.mainBadge,
+    this.featuredServerId,
+    this.featuredServer,
+    this.changeFeaturedServer = false,
     this.role,
     this.isNsfw,
     this.hasFcm,
@@ -120,6 +129,7 @@ class UserModel extends Equatable {
       myThink: map['myThink'],
       canSendMeRequest: DataParser.parseBool(map['canSendMeRequest']),
       isBanned: DataParser.parseInt(map['isBanned']),
+      isBot: DataParser.parseBool(map['isBot']) ?? false,
       banExpiresAt: map['banExpiresAt'],
       complaintsBlockedUntil: map['complaintsBlockedUntil'],
       isMyFriend: DataParser.parseBool(map['isMyFriend']),
@@ -150,6 +160,12 @@ class UserModel extends Equatable {
       mainBadge: map['mainBadge'] != null
           ? BadgeModel.fromMap(map['mainBadge'] as Map<String, dynamic>)
           : null,
+      featuredServerId: DataParser.parseInt(map['featuredServerId']),
+      featuredServer: map['featuredServer'] is Map
+          ? Server.fromMap(
+              Map<String, dynamic>.from(map['featuredServer'] as Map),
+            )
+          : null,
       role: map['role'] is Map
           ? RoleMember.fromMap(Map<String, dynamic>.from(map['role']))
           : null,
@@ -179,6 +195,7 @@ class UserModel extends Equatable {
       if (canSendMeRequest != null)
         'canSendMeRequest': canSendMeRequest ?? false ? 1 : 0,
       if (isBanned != null) 'isBanned': isBanned,
+      'isBot': isBot,
       if (banExpiresAt != null) 'banExpiresAt': banExpiresAt,
       if (complaintsBlockedUntil != null)
         'complaintsBlockedUntil': complaintsBlockedUntil,
@@ -199,6 +216,7 @@ class UserModel extends Equatable {
       if (badges != null) 'badges': badges?.map((e) => e.toMap()).toList(),
       if (fkMainBadge != null) 'fkMainBadge': fkMainBadge,
       if (mainBadge != null) 'mainBadge': mainBadge?.toMap(),
+      if (changeFeaturedServer) 'featuredServerId': featuredServerId ?? 0,
       if (role != null) 'role': role?.toMap(),
       if (deleteAvatar != null) 'deleteAvatar': deleteAvatar ?? false ? 1 : 0,
       if (deleteBanner != null) 'deleteBanner': deleteBanner ?? false ? 1 : 0,
@@ -230,6 +248,7 @@ class UserModel extends Equatable {
     String? myThink,
     bool? canSendMeRequest,
     int? isBanned,
+    bool? isBot,
     String? banExpiresAt,
     String? complaintsBlockedUntil,
     bool? isMyFriend,
@@ -248,6 +267,10 @@ class UserModel extends Equatable {
     List<BadgeUserModel>? badges,
     int? fkMainBadge,
     BadgeModel? mainBadge,
+    int? featuredServerId,
+    Server? featuredServer,
+    bool clearFeaturedServer = false,
+    bool changeFeaturedServer = false,
     RoleMember? role,
     File? fileAvatar,
     File? fileBanner,
@@ -273,6 +296,7 @@ class UserModel extends Equatable {
       myThink: myThink ?? this.myThink,
       canSendMeRequest: canSendMeRequest ?? this.canSendMeRequest,
       isBanned: isBanned ?? this.isBanned,
+      isBot: isBot ?? this.isBot,
       banExpiresAt: banExpiresAt ?? this.banExpiresAt,
       complaintsBlockedUntil:
           complaintsBlockedUntil ?? this.complaintsBlockedUntil,
@@ -293,6 +317,13 @@ class UserModel extends Equatable {
       badges: badges ?? this.badges,
       fkMainBadge: fkMainBadge ?? this.fkMainBadge,
       mainBadge: mainBadge ?? this.mainBadge,
+      featuredServerId: clearFeaturedServer
+          ? null
+          : featuredServerId ?? this.featuredServerId,
+      featuredServer: clearFeaturedServer
+          ? null
+          : featuredServer ?? this.featuredServer,
+      changeFeaturedServer: changeFeaturedServer,
       role: role ?? this.role,
       hasFcm: hasFcm ?? this.hasFcm,
       fileAvatar: fileAvatar ?? this.fileAvatar,
@@ -333,10 +364,13 @@ class UserModel extends Equatable {
     displayName,
     email,
     status,
+    isBot,
     isMyFriend,
     personalChatId,
     friendRequest,
     mainBadge,
+    featuredServerId,
+    featuredServer,
     role,
     badges,
     canSendMeRequest,

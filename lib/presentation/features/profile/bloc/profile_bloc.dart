@@ -44,7 +44,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       onData: (event) {
         final map = event.data['user'];
         if (map is Map<String, dynamic>) {
-          final updatedUser = UserModel.fromMap(map);
+          final current = _userRepository.getCurrentUser();
+          final id =
+              map['id'] ?? event.data['userId'] ?? event.data['entityId'];
+          if (current == null || id?.toString() != current.id?.toString()) {
+            return;
+          }
+          final updatedUser = UserModel.fromMap({...current.toMap(), ...map});
           add(UpdateCurrentUser(updatedUser));
         }
       },
@@ -136,7 +142,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     if (event.loadingField != null) {
       newLoadingFields.add(event.loadingField!);
     }
-    emit(startState.copyWith(loadingFields: newLoadingFields));
+    emit(
+      startState.copyWith(
+        loadingFields: newLoadingFields,
+        saveSucceeded: false,
+      ),
+    );
 
     final result = await _userRepository.update(event.updateUser);
 
@@ -153,7 +164,12 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         if (event.loadingField != null) {
           revertedLoading.remove(event.loadingField!);
         }
-        emit(liveState.copyWith(loadingFields: revertedLoading));
+        emit(
+          liveState.copyWith(
+            loadingFields: revertedLoading,
+            saveSucceeded: false,
+          ),
+        );
       },
       (updatedUser) {
         _userRepository.setCurrentUser(updatedUser);
@@ -162,7 +178,13 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
         if (event.loadingField != null) {
           successLoading.remove(event.loadingField!);
         }
-        emit(ProfileLoaded(updatedUser, loadingFields: successLoading));
+        emit(
+          ProfileLoaded(
+            updatedUser,
+            loadingFields: successLoading,
+            saveSucceeded: true,
+          ),
+        );
       },
     );
   }

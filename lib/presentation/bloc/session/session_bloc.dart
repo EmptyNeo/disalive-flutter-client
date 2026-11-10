@@ -38,6 +38,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     on<LoadSessions>(_onLoadSessions);
     on<DeleteSession>(_onDeleteSession);
     on<Logout>(_onLogout);
+    on<LogoutLocally>(_onLogoutLocally);
     on<SessionClosedExternally>(_onSessionClosedExternally);
   }
 
@@ -133,6 +134,15 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
     }
   }
 
+  Future<void> _onLogoutLocally(
+    LogoutLocally event,
+    Emitter<SessionState> emit,
+  ) async {
+    emit(SessionLoading());
+    await _clearLocalSession();
+    emit(SessionLoggedOut());
+  }
+
   Future<void> _onSessionClosedExternally(
     SessionClosedExternally event,
     Emitter<SessionState> emit,
@@ -159,6 +169,7 @@ class SessionBloc extends Bloc<SessionEvent, SessionState> {
       );
     } finally {
       await _secureStorage.clearAll();
+      _userRepository.clearCurrentUser();
     }
   }
 

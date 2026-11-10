@@ -8,6 +8,11 @@ import 'package:disalive/domain/enums/user_response_type.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/domain/failures/failures.dart';
+import 'package:disalive/domain/enums/appeal_target_type.dart';
+import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dart';
+import 'package:disalive/presentation/features/appeals/bloc/appeal_bloc.dart';
+import 'package:disalive/domain/repositories/appeal_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/app_update_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
@@ -58,6 +63,7 @@ import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/stickers/bloc/stickers_pack_bloc.dart';
 import 'package:disalive/presentation/widgets/buttons/glass_icon_button.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
+import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -84,6 +90,53 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _discoveryGridView = false;
   bool _incomingCallDialogOpen = false;
   bool _checkedForUpdates = false;
+  bool _checkingBanStatus = false;
+  String? _banStatusError;
+
+  Future<void> _checkBanStatus(BuildContext context) async {
+    if (_checkingBanStatus) return;
+    setState(() {
+      _checkingBanStatus = true;
+      _banStatusError = null;
+    });
+    final result = await sl<AppealRepository>().getTargets();
+    if (!mounted || !context.mounted) return;
+    result.fold(
+      (failure) => setState(() {
+        _checkingBanStatus = false;
+        _banStatusError = failure.message;
+      }),
+      (targets) {
+        final stillBanned = targets.any(
+          (target) => target.type == AppealTargetType.user,
+        );
+        setState(() {
+          _checkingBanStatus = false;
+          _banStatusError = stillBanned
+              ? 'Учётная запись всё ещё заблокирована.'
+              : null;
+        });
+        if (!stillBanned) {
+          sl<UserRepository>().clearCurrentUser();
+          context.read<ProfileBloc>().add(
+            GetProfile(userResponseType: UserResponseType.user),
+          );
+        }
+      },
+    );
+  }
+
+  Future<void> _confirmBlockedLogout(BuildContext context) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Выйти из аккаунта?',
+      description: 'Для входа потребуется снова ввести данные учётной записи.',
+      confirmText: 'Выйти',
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<SessionBloc>().add(LogoutLocally());
+    }
+  }
 
   Future<void> _checkForUpdates() async {
     if (_checkedForUpdates || !Platform.isAndroid) return;
@@ -201,11 +254,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ..add(ConnectToChatServer()),
         ),
         BlocProvider<ProfileBloc>(
-          create: (_) => ProfileBloc(
-            sl<UserRepository>(),
-            sl<AuthBloc>(),
-            sl<WsEventBus>(),
-          )..add(GetProfile(userResponseType: UserResponseType.user)),
+          create: (_) {
+            final bloc = ProfileBloc(
+              sl<UserRepository>(),
+              sl<AuthBloc>(),
+              sl<WsEventBus>(),
+            );
+            final auth = context.read<AuthBloc>().state;
+            if (auth is! AuthAuthenticated || !auth.accountBanned) {
+              bloc.add(GetProfile(userResponseType: UserResponseType.user));
+            }
+            return bloc;
+          },
         ),
         BlocProvider<ChatBloc>(
           create: (_) =>
@@ -325,6 +385,68 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
             child: BlocBuilder<ProfileBloc, ProfileState>(
               builder: (context, state) {
+                final auth = context.watch<AuthBloc>().state;
+                final accountBanned = state is ProfileLoaded
+                    ? state.user.isBannedUser
+                    : (auth is AuthAuthenticated && auth.accountBanned) ||
+                          (state is ProfileFailure &&
+                              state.error is AccountBannedFailure);
+                if (accountBanned) {
+                  return PopScope(
+                    canPop: false,
+                    onPopInvokedWithResult: (didPop, _) {
+                      if (!didPop) unawaited(_confirmBlockedLogout(context));
+                    },
+                    child: CupertinoPageScaffold(
+                      backgroundColor: AppColors.mainBackground,
+                      child: SafeArea(
+                        child: Center(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                BlocProvider(
+                                  create: (_) =>
+                                      sl<AppealBloc>()..add(LoadAppeals()),
+                                  child: const BlockedEntityNotice(
+                                    type: AppealTargetType.user,
+                                    id: null,
+                                    name: 'Учётная запись',
+                                    message:
+                                        'Ваша учётная запись заблокирована. Вы можете подать апелляцию.',
+                                  ),
+                                ),
+                                CupertinoButton(
+                                  onPressed: _checkingBanStatus
+                                      ? null
+                                      : () => _checkBanStatus(context),
+                                  child: _checkingBanStatus
+                                      ? const CupertinoActivityIndicator()
+                                      : const Text('Проверить статус'),
+                                ),
+                                if (_banStatusError != null)
+                                  Text(
+                                    _banStatusError!,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: AppColors.errorRed),
+                                  ),
+                                CupertinoButton(
+                                  onPressed: () =>
+                                      _confirmBlockedLogout(context),
+                                  child: Text(
+                                    'Выйти из аккаунта',
+                                    style: TextStyle(color: AppColors.greyple),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 if (state is ProfileLoading) {
                   return CupertinoPageScaffold(
                     backgroundColor: AppColors.mainBackground,

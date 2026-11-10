@@ -12,6 +12,7 @@ abstract class ServerRepository {
   Future<Either<Failure, bool>> delete(int serverId, String verificationCode);
 
   Future<Either<Failure, List<ServerTag>>> searchTags(String query);
+  Future<Either<Failure, List<Server>>> getFeaturedServerChoices(int ownerId);
   Future<Either<Failure, List<Server>>> get({
     bool isPublic = false,
     ServerType? category,

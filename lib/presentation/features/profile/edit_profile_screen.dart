@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:disalive/app/di/di.dart';
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/data/network/domain.dart';
 import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/ui/action_item.dart';
 import 'package:disalive/domain/models/ui/font_option.dart';
 import 'package:disalive/domain/models/user.dart';
+import 'package:disalive/domain/models/server.dart';
+import 'package:disalive/domain/repositories/members_repository.dart';
+import 'package:disalive/domain/repositories/server_repository.dart';
+import 'package:disalive/presentation/features/profile/bloc/featured_server_bloc.dart';
 import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/profile/widgets/edit_screen/live_preview_delegate.dart';
 import 'package:disalive/presentation/features/profile/widgets/edit_screen/section_divider.dart';
@@ -47,6 +54,8 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isSaving = false;
   late StreamSubscription<Failure> _errorSubscription;
+  late final FeaturedServerBloc _featuredServerBloc;
+  int? _selectedFeaturedServerId;
 
   late final TextEditingController _displayNameCtrl;
   late final TextEditingController _usernameCtrl;
@@ -102,6 +111,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedFeaturedServerId = widget.user.featuredServerId;
+    _featuredServerBloc = FeaturedServerBloc(
+      sl<ServerRepository>(),
+      sl<MembersRepository>(),
+    );
+    if (widget.user.id != null) {
+      _featuredServerBloc.add(LoadFeaturedServerChoices(widget.user.id!));
+    }
     _displayNameCtrl = TextEditingController(
       text: widget.user.displayName ?? '',
     );
@@ -143,7 +160,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         context: context,
         icon: CupertinoIcons.clear,
         color: AppColors.errorRed,
-        message: failure.message ?? 'Не удалось сохранить изменения',
+        message: failure.message,
       );
       setState(() => _isSaving = false); // Разблокируем кнопку
     });
@@ -152,6 +169,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void dispose() {
     _errorSubscription.cancel();
+    _featuredServerBloc.close();
     _displayNameCtrl.dispose();
     _usernameCtrl.dispose();
     _aboutMeCtrl.dispose();
@@ -187,7 +205,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _additionalProfileColor.toARGB32() !=
             _originalAdditionalProfileColor.toARGB32() ||
         _selectedFont != (widget.user.fontUsername ?? '') ||
-        _currentSelectedBadgeId != widget.user.fkMainBadge;
+        _currentSelectedBadgeId != widget.user.fkMainBadge ||
+        _selectedFeaturedServerId != widget.user.featuredServerId;
   }
 
   Future<void> _pickMedia(bool isAvatar) async {
@@ -332,6 +351,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   label: 'Отображаемый значок',
                                   value: previewBadge?.name ?? 'Не выбран',
                                   onTap: _showBadgePicker,
+                                ),
+                                const SizedBox(height: 16),
+                                BlocBuilder<
+                                  FeaturedServerBloc,
+                                  FeaturedServerState
+                                >(
+                                  bloc: _featuredServerBloc,
+                                  builder: (context, state) {
+                                    final selected =
+                                        _selectedFeaturedServerId == null
+                                        ? null
+                                        : state.choices
+                                                  .where(
+                                                    (server) =>
+                                                        server.id ==
+                                                        _selectedFeaturedServerId,
+                                                  )
+                                                  .firstOrNull ??
+                                              (_selectedFeaturedServerId ==
+                                                      widget
+                                                          .user
+                                                          .featuredServerId
+                                                  ? widget.user.featuredServer
+                                                  : null);
+                                    return _buildFeaturedServerField(
+                                      selected,
+                                      state,
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -480,7 +528,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const CustomBackButton(positioned: 15),
               BlocListener<ProfileBloc, ProfileState>(
                 listener: (context, state) {
-                  if (_isSaving && state is ProfileLoaded) {
+                  if (_isSaving &&
+                      state is ProfileLoaded &&
+                      state.saveSucceeded) {
                     if (!state.loadingFields.contains('save_profile')) {
                       setState(() => _isSaving = false);
                       Navigator.of(context).pop();
@@ -550,6 +600,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       bageAdditionalColor: _additionalProfileColor.toHex(),
       bannerColor: _bannerColor.toHex(),
       fkMainBadge: _currentSelectedBadgeId,
+      featuredServerId: _selectedFeaturedServerId,
+      clearFeaturedServer: _selectedFeaturedServerId == null,
+      changeFeaturedServer:
+          _selectedFeaturedServerId != widget.user.featuredServerId,
       fileAvatar: _newAvatarFile,
       fileBanner: _newBannerFile,
       deleteAvatar: _isAvatarDeleted,
@@ -612,6 +666,122 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     ActionBottomSheet.show(
       context,
       title: 'Выберите отображаемый значок',
+      actions: actions,
+    );
+  }
+
+  Widget _serverAvatar(Server server, {double size = 32}) {
+    final path = server.pathAvatar;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: path == null || path.isEmpty
+            ? ColoredBox(
+                color: AppColors.actionGrey,
+                child: Icon(
+                  CupertinoIcons.person_3_fill,
+                  size: size * 0.6,
+                  color: AppColors.white,
+                ),
+              )
+            : CachedNetworkImage(
+                imageUrl: Domain.resolveImageUrl(path),
+                fit: BoxFit.cover,
+                errorWidget: (_, _, _) =>
+                    Icon(CupertinoIcons.person_3_fill, color: AppColors.white),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildFeaturedServerField(
+    Server? selected,
+    FeaturedServerState state,
+  ) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Сервер в профиле',
+        style: AppText.mediumTextStyle.copyWith(
+          color: AppColors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 8),
+      CupertinoButton(
+        key: const ValueKey('featured_server_picker'),
+        padding: EdgeInsets.zero,
+        onPressed: state.loading ? null : _showFeaturedServerPicker,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.actionGrey,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.divider, width: 0.5),
+          ),
+          child: Row(
+            children: [
+              if (selected != null) ...[
+                _serverAvatar(selected),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Text(
+                  selected?.name ??
+                      (state.loading ? 'Загрузка серверов…' : 'Не выбран'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.mediumTextStyle.copyWith(
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+              Icon(
+                CupertinoIcons.chevron_down,
+                color: AppColors.greyple,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (state.error != null) ...[
+        const SizedBox(height: 6),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: () => _featuredServerBloc.add(
+            LoadFeaturedServerChoices(widget.user.id ?? 0),
+          ),
+          child: Text(
+            'Не удалось загрузить серверы. Повторить',
+            style: AppText.lowTextStyle.copyWith(color: AppColors.errorRed),
+          ),
+        ),
+      ],
+    ],
+  );
+
+  void _showFeaturedServerPicker() {
+    final actions = <ActionItem>[
+      ActionItem(
+        icon: CupertinoIcons.xmark,
+        label: 'Не показывать сервер',
+        onTap: () => setState(() => _selectedFeaturedServerId = null),
+      ),
+      for (final server in _featuredServerBloc.state.choices)
+        ActionItem(
+          icon: CupertinoIcons.person_3_fill,
+          leading: _serverAvatar(server),
+          label: server.name ?? 'Сервер',
+          onTap: () => setState(() => _selectedFeaturedServerId = server.id),
+        ),
+    ];
+    ActionBottomSheet.show(
+      context,
+      title: 'Сервер в профиле',
       actions: actions,
     );
   }

@@ -41,7 +41,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         if (appLogin.requireTotp) {
           emit(AuthTotpRequired());
         } else {
-          emit(AuthAuthenticated());
+          emit(AuthAuthenticated(accountBanned: appLogin.accountBanned));
         }
       },
     );
@@ -64,7 +64,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(AuthFailure(error: failure.message));
       },
       (appLogin) {
-        emit(AuthAuthenticated());
+        emit(AuthAuthenticated(accountBanned: appLogin.accountBanned));
       },
     );
   }

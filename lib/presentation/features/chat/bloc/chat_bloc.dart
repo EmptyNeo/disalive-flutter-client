@@ -184,7 +184,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       onData: (event) {
         final map = event.data['chat'];
         if (map is Map<String, dynamic>) {
-          final chat = Chat.fromMap(map);
+          final id = DataParser.parseInt(
+            map['chatId'] ?? event.data['chatId'] ?? event.data['entityId'],
+          );
+          if (id == null) return;
+          Chat? cached;
+          for (final item in _chatRepository.getCached()) {
+            if (item.id == id) {
+              cached = item;
+              break;
+            }
+          }
+          if (cached == null) return;
+          final chat = Chat.fromMap({...cached.toMap(), ...map, 'chatId': id});
           add(UpdateChat(chat));
         }
       },
@@ -326,6 +338,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       // Частичные обновления чата не должны сбрасывать последний текст.
       cachedChats[index] = oldChat.copyWith(
         name: newChat.name,
+        isBlocked: newChat.isBlocked,
         pathImage: newChat.pathImage ?? oldChat.pathImage,
         lastMessageText: newChat.lastMessageText,
         lastMessageUserId: newChat.lastMessageUserId,

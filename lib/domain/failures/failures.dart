@@ -22,6 +22,10 @@ class UnauthorizedFailure extends Failure {
   const UnauthorizedFailure() : super('Сессия истекла. Войдите заново.');
 }
 
+class AccountBannedFailure extends Failure {
+  const AccountBannedFailure(super.message);
+}
+
 class ClientFailure extends Failure {
   ClientFailure(super.message);
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:disalive/domain/services/emojis_handler.dart';
 import 'package:disalive/presentation/widgets/emoji_widget.dart'; // Проверь путь к твоему EmojiWidget
+import 'package:disalive/presentation/widgets/emoji_token.dart';
 
 class EmojiTextParser {
   static List<InlineSpan> parse(
@@ -30,7 +31,21 @@ class EmojiTextParser {
       final emojiDef = EmojisHandler.instance.getEmojiById(category, id);
       final sheetData = EmojisHandler.instance.getSheetDataByCategory(category);
 
-      if (emojiDef != null && sheetData != null) {
+      if (category.startsWith('server_')) {
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: EmojiToken(
+              category: category,
+              id: id,
+              token: match.group(0)!,
+              size: emojiSize,
+              style: baseTextStyle,
+              animate: animateEmoji,
+            ),
+          ),
+        );
+      } else if (emojiDef != null && sheetData != null) {
         spans.add(
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,

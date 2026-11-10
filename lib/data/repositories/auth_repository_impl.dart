@@ -32,6 +32,7 @@ class AuthRepositoryImpl implements AuthRepository {
         return AppLogin(
           requireTotp: json['requireTotp'] ?? false,
           keySession: json['keySession'] ?? '',
+          accountBanned: json['accountBanned'] == true,
         );
       },
     );
@@ -80,6 +81,7 @@ class AuthRepositoryImpl implements AuthRepository {
         return AppLogin(
           requireTotp: json['requireTotp'] ?? false,
           keySession: json['keySession'] ?? '',
+          accountBanned: json['accountBanned'] == true,
         );
       },
     );
