@@ -73,6 +73,7 @@ import 'package:disalive/domain/repositories/user_stickers_pack_repository.dart'
 import 'package:disalive/domain/repositories/ws_repository.dart';
 import 'package:disalive/domain/enums/entity_type.dart';
 import 'package:disalive/domain/services/http_client_service.dart';
+import 'package:disalive/domain/services/adult_content_access_service.dart';
 import 'package:disalive/domain/services/read_status_service.dart';
 import 'package:disalive/domain/services/secure_storage_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
@@ -139,6 +140,9 @@ Future<void> setupDependencies() async {
     () => AppUpdateRepositoryImpl(),
   );
   sl.registerLazySingleton<UserRepository>(() => UserRepositoryImpl());
+  sl.registerLazySingleton<AdultContentAccessService>(
+    () => AdultContentAccessService(sl<UserRepository>()),
+  );
   sl.registerLazySingleton<SessionRepository>(() => SessionRepositoryImpl());
   sl.registerLazySingleton<ServerRepository>(() => ServerRepositoryImpl());
   sl.registerLazySingleton<ServerListRepository>(

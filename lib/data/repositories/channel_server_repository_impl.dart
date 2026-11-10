@@ -51,6 +51,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     String type = 'text',
     int? categoryId,
     bool isPrivate = false,
+    bool isAdult = false,
     int? maxParticipants,
     int slowModeSeconds = 0,
     List<int> userIds = const [],
@@ -63,6 +64,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
       'type': type,
       'categoryId': ?categoryId,
       'isPrivate': isPrivate ? 1 : 0,
+      'isAdult': isAdult ? 1 : 0,
       if (type == 'text' && slowModeSeconds > 0)
         'slowModeSeconds': slowModeSeconds,
       if (type == 'voice' && maxParticipants != null)
@@ -75,7 +77,10 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
       data: data,
       apiType: ApiType.v1,
       requireAuth: true,
-      fromJson: (json) => ChannelServer.fromMap(json as Map<String, dynamic>),
+      fromJson: (json) => ChannelServer.fromMap({
+        ...json as Map<String, dynamic>,
+        'isAdult': isAdult,
+      }),
     );
     result.fold((failure) => null, _upsert);
     return result;
@@ -89,6 +94,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
     int? maxParticipants,
     int? slowModeSeconds,
     bool? isPrivate,
+    bool? isAdult,
     List<int>? userIds,
     List<int>? roleIds,
   }) async {
@@ -101,6 +107,7 @@ class ChannelServerRepositoryImpl implements ChannelServerRepository {
         'maxParticipants': maxParticipants?.toString() ?? '',
         'slowModeSeconds': ?slowModeSeconds,
         if (isPrivate != null) 'isPrivate': isPrivate ? 1 : 0,
+        if (isAdult != null) 'isAdult': isAdult ? 1 : 0,
         if (isPrivate == true && userIds != null)
           'userIds': jsonEncode(userIds),
         if (isPrivate == true && roleIds != null)

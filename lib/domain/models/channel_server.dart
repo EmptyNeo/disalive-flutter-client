@@ -8,6 +8,7 @@ class ChannelServer extends Equatable {
   final String? type;
   final int? categoryId;
   final bool isPrivate;
+  final bool isAdult;
   final int? maxParticipants;
   final int slowModeSeconds;
   final int sortOrder;
@@ -26,6 +27,7 @@ class ChannelServer extends Equatable {
     this.type,
     this.categoryId,
     this.isPrivate = false,
+    this.isAdult = false,
     this.maxParticipants,
     this.slowModeSeconds = 0,
     this.sortOrder = 0,
@@ -45,6 +47,8 @@ class ChannelServer extends Equatable {
     type: map['type'] as String?,
     categoryId: (map['categoryId'] as num?)?.toInt(),
     isPrivate: map['isPrivate'] == true || map['isPrivate'] == 1,
+    isAdult:
+        map['isAdult'] == true || map['isAdult'] == 1 || map['isAdult'] == '1',
     maxParticipants: (map['maxParticipants'] as num?)?.toInt(),
     slowModeSeconds: (map['slowModeSeconds'] as num?)?.toInt() ?? 0,
     sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
@@ -71,6 +75,7 @@ class ChannelServer extends Equatable {
     'type': type,
     'categoryId': categoryId,
     'isPrivate': isPrivate,
+    'isAdult': isAdult,
     'maxParticipants': maxParticipants,
     'slowModeSeconds': slowModeSeconds,
     'sortOrder': sortOrder,
@@ -99,6 +104,7 @@ class ChannelServer extends Equatable {
         type: type,
         categoryId: categoryId,
         isPrivate: isPrivate,
+        isAdult: isAdult,
         maxParticipants: maxParticipants,
         slowModeSeconds: slowModeSeconds,
         sortOrder: sortOrder,
@@ -111,6 +117,8 @@ class ChannelServer extends Equatable {
         allowedRoles: allowedRoles,
       );
 
+  bool canAccess({required bool userIsAdult}) => !isAdult || userIsAdult;
+
   @override
   List<Object?> get props => [
     id,
@@ -119,6 +127,7 @@ class ChannelServer extends Equatable {
     type,
     categoryId,
     isPrivate,
+    isAdult,
     maxParticipants,
     slowModeSeconds,
     sortOrder,

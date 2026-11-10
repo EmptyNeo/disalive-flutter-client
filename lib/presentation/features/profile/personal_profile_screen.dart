@@ -260,6 +260,7 @@ class PersonalProfileScreen extends StatelessWidget {
                                 ProfileInfoSection(
                                   title: 'ОБО МНЕ',
                                   content: user.aboutMe!,
+                                  enableLinks: true,
                                   icon: CupertinoIcons.chat_bubble_text_fill,
                                 ),
                                 const SizedBox(height: 8),

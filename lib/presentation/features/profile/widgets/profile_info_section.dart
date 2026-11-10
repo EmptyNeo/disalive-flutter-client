@@ -1,17 +1,20 @@
 // lib/presentation/features/profile/widgets/profile_info_section.dart
 import 'package:disalive/app/theme/app_theme.dart';
+import 'package:disalive/presentation/features/message/widgets/message_link_text.dart';
 import 'package:flutter/cupertino.dart';
 
 class ProfileInfoSection extends StatelessWidget {
   final String title;
   final String content;
   final IconData? icon;
+  final bool enableLinks;
 
   const ProfileInfoSection({
     super.key,
     required this.title,
     required this.content,
     this.icon,
+    this.enableLinks = false,
   });
 
   @override
@@ -35,7 +38,11 @@ class ProfileInfoSection extends StatelessWidget {
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: AppColors.white.withValues(alpha: 0.7)),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: AppColors.white.withValues(alpha: 0.7),
+                ),
                 const SizedBox(width: 8),
               ],
               Text(
@@ -49,14 +56,22 @@ class ProfileInfoSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            content,
-            style: AppText.mediumTextStyle.copyWith(
-              // 🎯 Динамический цвет текста (белый в Dark, почти чёрный в Light)
-              color: AppColors.white.withValues(alpha: 0.6),
-              height: 1.4,
+          if (enableLinks)
+            MessageLinkText(
+              text: content,
+              style: AppText.mediumTextStyle.copyWith(
+                color: AppColors.white.withValues(alpha: 0.6),
+                height: 1.4,
+              ),
+            )
+          else
+            Text(
+              content,
+              style: AppText.mediumTextStyle.copyWith(
+                color: AppColors.white.withValues(alpha: 0.6),
+                height: 1.4,
+              ),
             ),
-          ),
         ],
       ),
     );

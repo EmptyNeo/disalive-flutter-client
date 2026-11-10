@@ -18,6 +18,7 @@ class VerifyCodeScreen extends StatefulWidget {
   final String? username;
   final String? displayName;
   final String? password;
+  final String? dateOfBirth;
   final bool useTotp;
 
   const VerifyCodeScreen({
@@ -29,6 +30,7 @@ class VerifyCodeScreen extends StatefulWidget {
     this.username,
     this.displayName,
     this.password,
+    this.dateOfBirth,
     this.useTotp = false,
   });
 
@@ -41,6 +43,7 @@ class VerifyCodeScreen extends StatefulWidget {
     String? username,
     String? displayName,
     String? password,
+    String? dateOfBirth,
     bool useTotp = false,
   }) {
     return Navigator.of(context).push(
@@ -55,6 +58,7 @@ class VerifyCodeScreen extends StatefulWidget {
             username: username,
             displayName: displayName,
             password: password,
+            dateOfBirth: dateOfBirth,
             useTotp: useTotp,
           ),
         ),
@@ -92,6 +96,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           username: widget.username,
           displayName: widget.displayName,
           password: widget.password,
+          dateOfBirth: widget.dateOfBirth,
           useTotp: widget.useTotp,
         ),
       );

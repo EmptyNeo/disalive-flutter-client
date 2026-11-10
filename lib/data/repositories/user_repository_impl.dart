@@ -64,6 +64,7 @@ class UserRepositoryImpl implements UserRepository {
     String? username,
     String? password,
     String inputCode,
+    String? dateOfBirth,
   ) async {
     final result = await _httpClient.postFormData<bool>(
       endpoint: 'users/create.php',
@@ -73,6 +74,7 @@ class UserRepositoryImpl implements UserRepository {
         'username': username,
         'password': password,
         'inputCode': inputCode,
+        if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
       },
       apiType: ApiType.v1,
       requireAuth: false,

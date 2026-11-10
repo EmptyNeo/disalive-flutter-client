@@ -14,6 +14,7 @@ class Server extends Equatable {
   final String? pathBannerKey;
   final int? canInvite;
   final int? private;
+  final bool isAdult;
   final ServerType? category;
   final int? fkMainChannel;
   final int? fkMainRole;
@@ -41,6 +42,7 @@ class Server extends Equatable {
     this.pathBannerKey,
     this.canInvite,
     this.private,
+    this.isAdult = false,
     this.category,
     this.fkMainChannel,
     this.fkMainRole,
@@ -91,6 +93,10 @@ class Server extends Equatable {
       pathBannerKey: map['pathBannerKey'],
       canInvite: map['canInvite'],
       private: map['private'],
+      isAdult:
+          map['isAdult'] == true ||
+          map['isAdult'] == 1 ||
+          map['isAdult'] == '1',
       category: map['category'] == null
           ? null
           : ServerType.fromString(map['category'] as String?),
@@ -134,6 +140,7 @@ class Server extends Equatable {
       'pathBannerKey': pathBannerKey,
       if (canInvite != null) 'canInvite': canInvite,
       if (private != null) 'private': private,
+      'isAdult': isAdult,
       if (category != null) 'category': category!.value,
       if (fkMainChannel != null) 'fkMainChannel': fkMainChannel,
       'fkMainRole': fkMainRole,
@@ -164,6 +171,7 @@ class Server extends Equatable {
     String? pathBannerKey,
     int? canInvite,
     int? private,
+    bool? isAdult,
     ServerType? category,
     int? fkMainChannel,
     int? fkMainRole,
@@ -191,6 +199,7 @@ class Server extends Equatable {
       pathBannerKey: pathBannerKey ?? this.pathBannerKey,
       canInvite: canInvite ?? this.canInvite,
       private: private ?? this.private,
+      isAdult: isAdult ?? this.isAdult,
       category: category ?? this.category,
       fkMainChannel: fkMainChannel ?? this.fkMainChannel,
       fkMainRole: fkMainRole ?? this.fkMainRole,
@@ -215,6 +224,7 @@ class Server extends Equatable {
   bool get isServerMuted => muted ?? false;
   bool get canInviteUsers => canInvite == 1;
   bool get isPrivate => private == 1;
+  bool canAccess({required bool userIsAdult}) => !isAdult || userIsAdult;
   bool get isServerBlocked => isBlocked ?? false;
   bool get hasPermissions => permissions != null && permissions!.isNotEmpty;
 
@@ -233,6 +243,7 @@ class Server extends Equatable {
     pathBannerKey,
     canInvite,
     private,
+    isAdult,
     category,
     fkMainChannel,
     fkMainRole,

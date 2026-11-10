@@ -64,6 +64,7 @@ class _Servers implements ServerRepository {
     String description = '',
     int canInvite = 1,
     int isPrivate = 0,
+    bool isAdult = false,
     ServerType? category,
     File? avatar,
     File? banner,
@@ -78,6 +79,7 @@ class _Servers implements ServerRepository {
         description: description,
         canInvite: canInvite,
         private: isPrivate,
+        isAdult: isAdult,
         category: category,
       ),
     );
@@ -90,6 +92,7 @@ class _Servers implements ServerRepository {
     String? description,
     int? canInvite,
     int? isPrivate,
+    bool? isAdult,
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,
@@ -112,6 +115,7 @@ class _Servers implements ServerRepository {
         description: description,
         canInvite: canInvite,
         private: isPrivate,
+        isAdult: isAdult ?? false,
         category: category,
       ),
     );
@@ -151,6 +155,9 @@ class _Servers implements ServerRepository {
     cached = [];
     _selectedServerId = null;
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Future<({ServersBloc bloc, WsEventBus bus, _Servers repository})> _pump(

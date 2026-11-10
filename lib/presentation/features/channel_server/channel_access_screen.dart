@@ -26,6 +26,7 @@ class ChannelAccessScreen extends StatefulWidget {
     required this.categoryId,
     this.maxParticipants,
     this.slowModeSeconds = 0,
+    this.isAdult = false,
     required this.channelsBloc,
     this.channel,
   });
@@ -37,6 +38,7 @@ class ChannelAccessScreen extends StatefulWidget {
   final int? categoryId;
   final int? maxParticipants;
   final int slowModeSeconds;
+  final bool isAdult;
   final ChannelServerBloc channelsBloc;
   final ChannelServer? channel;
 
@@ -49,6 +51,7 @@ class ChannelAccessScreen extends StatefulWidget {
     required int? categoryId,
     int? maxParticipants,
     int slowModeSeconds = 0,
+    bool isAdult = false,
     required ChannelServerBloc channelsBloc,
     ChannelServer? channel,
   }) async {
@@ -62,6 +65,7 @@ class ChannelAccessScreen extends StatefulWidget {
         categoryId: categoryId,
         maxParticipants: maxParticipants,
         slowModeSeconds: slowModeSeconds,
+        isAdult: isAdult,
         channelsBloc: channelsBloc,
         channel: channel,
       ),
@@ -131,6 +135,7 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
             maxParticipants: widget.maxParticipants,
             slowModeSeconds: widget.slowModeSeconds,
             isPrivate: true,
+            isAdult: widget.isAdult,
             userIds: _selectedUsers.toList(),
             roleIds: _selectedRoles.toList(),
           )
@@ -142,6 +147,7 @@ class _ChannelAccessScreenState extends State<ChannelAccessScreen> {
             maxParticipants: widget.maxParticipants,
             slowModeSeconds: widget.slowModeSeconds,
             isPrivate: true,
+            isAdult: widget.isAdult,
             userIds: _selectedUsers.toList(),
             roleIds: _selectedRoles.toList(),
           );

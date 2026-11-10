@@ -83,6 +83,7 @@ class _Channels implements ChannelServerRepository {
     String type = 'text',
     int? categoryId,
     bool isPrivate = false,
+    bool isAdult = false,
     int? maxParticipants,
     int slowModeSeconds = 0,
     List<int> userIds = const [],
@@ -119,6 +120,7 @@ class _Channels implements ChannelServerRepository {
     int? maxParticipants,
     int? slowModeSeconds,
     bool? isPrivate,
+    bool? isAdult,
     List<int>? userIds,
     List<int>? roleIds,
   }) async {
@@ -268,6 +270,7 @@ class _ServerRepository implements ServerRepository {
     String? description,
     int? canInvite,
     int? isPrivate,
+    bool? isAdult,
     ServerType? category,
     int? fkMainChannel,
     bool isSetNullMainChannel = false,

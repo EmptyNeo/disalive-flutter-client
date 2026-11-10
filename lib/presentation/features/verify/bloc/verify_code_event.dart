@@ -15,6 +15,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
   final String? username;
   final String? displayName;
   final String? password;
+  final String? dateOfBirth;
   final bool useTotp;
 
   const VerifyCodeInit({
@@ -25,6 +26,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
     this.username,
     this.displayName,
     this.password,
+    this.dateOfBirth,
     this.useTotp = false,
   });
 
@@ -37,6 +39,7 @@ class VerifyCodeInit extends VerifyCodeEvent {
     username,
     displayName,
     password,
+    dateOfBirth,
     useTotp,
   ];
 }

@@ -33,6 +33,15 @@ class RegisterDisplayNameChanged extends RegisterEvent {
 
 class RegisterDisplayNameSubmitted extends RegisterEvent {}
 
+class RegisterBirthDateChanged extends RegisterEvent {
+  final String dateOfBirth;
+
+  const RegisterBirthDateChanged(this.dateOfBirth);
+
+  @override
+  List<Object?> get props => [dateOfBirth];
+}
+
 // --- Шаг 3: Имя пользователя и Пароль ---
 class RegisterUsernameChanged extends RegisterEvent {
   final String username;

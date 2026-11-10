@@ -46,3 +46,15 @@ app.*.map.json
 /android/app/google-services.json
 
 .PROJECT_DIARY.md
+
+# Android Keystore and Signing
+*.jks
+*.keystore
+key.properties
+
+# Flutter local configs
+**/android/local.properties
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+android/build/

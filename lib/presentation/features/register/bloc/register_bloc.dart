@@ -6,6 +6,7 @@ import 'package:disalive/domain/enums/email_type.dart';
 import 'package:disalive/domain/repositories/email_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:equatable/equatable.dart';
+import 'package:disalive/presentation/utils/ui/birth_date_input.dart';
 
 part 'register_event.dart';
 
@@ -22,6 +23,11 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
     on<RegisterEmailChanged>(_onEmailChanged);
     on<RegisterEmailSubmitted>(_onEmailSubmitted);
     on<RegisterDisplayNameChanged>(_onDisplayNameChanged);
+    on<RegisterBirthDateChanged>(
+      (event, emit) => emit(
+        state.copyWith(dateOfBirth: event.dateOfBirth, generalError: null),
+      ),
+    );
     on<RegisterDisplayNameSubmitted>(_onDisplayNameSubmitted);
     on<RegisterUsernameChanged>(_onUsernameChanged);
     on<RegisterUsernameCheck>(_onUsernameCheck);
@@ -93,6 +99,13 @@ class RegisterBloc extends Bloc<RegisterEvent, RegisterState> {
   ) {
     if (state.displayName.trim().isEmpty) {
       return; // Можно добавить визуальную подсказку, но по ТЗ проверки нет
+    }
+
+    try {
+      BirthDateInput.normalize(state.dateOfBirth);
+    } on FormatException catch (error) {
+      emit(state.copyWith(generalError: error.message));
+      return;
     }
 
     // 🎯 Автоматически генерируем username и переходим к шагу 3

@@ -11,6 +11,7 @@ import 'package:disalive/domain/models/server.dart';
 import 'package:disalive/domain/models/entity_key.dart';
 import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
 import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
+import 'package:disalive/presentation/features/message/widgets/message_link_text.dart';
 import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/presentation/widgets/error_state_view.dart';
@@ -393,10 +394,13 @@ class _DiscoveryServerCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _name(),
-            if (_descriptionText != null) ...[
-              const SizedBox(height: 5),
-              _description(compact: true),
-            ],
+            const SizedBox(height: 5),
+            SizedBox(
+              height: 29,
+              child: _descriptionText == null
+                  ? null
+                  : _description(compact: true),
+            ),
             const SizedBox(height: 8),
             _actionButton(),
           ] else ...[
@@ -455,10 +459,11 @@ class _DiscoveryServerCard extends StatelessWidget {
     ),
   );
 
-  Widget _description({required bool compact}) => Text(
-    _descriptionText!,
+  Widget _description({required bool compact}) => MessageLinkText(
+    text: _descriptionText!,
     maxLines: compact ? 2 : 3,
     overflow: TextOverflow.ellipsis,
+    emojiSize: compact ? 12 : 15,
     style: AppText.lowTextStyle.copyWith(
       color: AppColors.greyple,
       fontSize: compact ? 11 : 13,

@@ -19,6 +19,8 @@ class UserModel extends Equatable {
   final String? email;
   final UserStatus? status;
   final String? dateRegistration;
+  final String? dateOfBirth;
+  final bool changeDateOfBirth;
   final String? pathImage;
   final String? pathBanner;
   final String? bannerColor;
@@ -67,6 +69,8 @@ class UserModel extends Equatable {
     this.email,
     this.status,
     this.dateRegistration,
+    this.dateOfBirth,
+    this.changeDateOfBirth = false,
     this.pathImage,
     this.pathBanner,
     this.bannerColor,
@@ -119,6 +123,7 @@ class UserModel extends Equatable {
           ? UserStatus.fromString(map['status'] as String)
           : null,
       dateRegistration: map['dateRegistration'],
+      dateOfBirth: map['dateOfBirth'],
       pathImage: map['pathImage'],
       pathBanner: map['pathBanner'],
       bannerColor: map['bannerColor'],
@@ -183,6 +188,8 @@ class UserModel extends Equatable {
       if (email != null) 'email': email,
       if (status != null) 'status': status?.value,
       if (dateRegistration != null) 'dateRegistration': dateRegistration,
+      if (dateOfBirth != null || changeDateOfBirth)
+        'dateOfBirth': dateOfBirth ?? '',
       if (pathImage != null) 'pathImage': pathImage,
       if (pathBanner != null) 'pathBanner': pathBanner,
       if (bannerColor != null) 'bannerColor': bannerColor,
@@ -238,6 +245,9 @@ class UserModel extends Equatable {
     String? email,
     UserStatus? status,
     String? dateRegistration,
+    String? dateOfBirth,
+    bool clearDateOfBirth = false,
+    bool changeDateOfBirth = false,
     String? pathImage,
     String? pathBanner,
     String? bannerColor,
@@ -286,6 +296,8 @@ class UserModel extends Equatable {
       email: email ?? this.email,
       status: status ?? this.status,
       dateRegistration: dateRegistration ?? this.dateRegistration,
+      dateOfBirth: clearDateOfBirth ? null : dateOfBirth ?? this.dateOfBirth,
+      changeDateOfBirth: changeDateOfBirth,
       pathImage: pathImage ?? this.pathImage,
       pathBanner: pathBanner ?? this.pathBanner,
       bannerColor: bannerColor ?? this.bannerColor,
@@ -364,6 +376,7 @@ class UserModel extends Equatable {
     displayName,
     email,
     status,
+    dateOfBirth,
     isBot,
     isMyFriend,
     personalChatId,

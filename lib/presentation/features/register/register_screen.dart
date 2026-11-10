@@ -12,6 +12,7 @@ import 'package:disalive/presentation/widgets/step_progress_indicator.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:disalive/presentation/utils/ui/birth_date_input.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -27,11 +28,13 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _displayNameController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   final _emailFocus = FocusNode();
   final _displayNameFocus = FocusNode();
+  final _birthDateFocus = FocusNode();
   final _usernameFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
@@ -62,10 +65,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     _emailController.dispose();
     _displayNameController.dispose();
+    _birthDateController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     _emailFocus.dispose();
     _displayNameFocus.dispose();
+    _birthDateFocus.dispose();
     _usernameFocus.dispose();
     _passwordFocus.dispose();
     _termsRecognizer.dispose();
@@ -177,6 +182,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               username: state.username,
               displayName: state.displayName,
               password: state.password,
+              dateOfBirth: BirthDateInput.normalize(state.dateOfBirth),
             );
           }
         },
@@ -403,7 +409,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               hasError: state.emailError != null,
             ),
           ),
-
           // 🎯 Анимированная полоска загрузки
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -477,6 +482,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: _glassInputDecoration(_displayNameFocus.hasFocus),
           ),
+          const SizedBox(height: 20),
+          _buildInputLabel('Дата рождения (необязательно)'),
+          CupertinoTextField(
+            controller: _birthDateController,
+            focusNode: _birthDateFocus,
+            placeholder: 'ДД.ММ.ГГГГ',
+            keyboardType: TextInputType.number,
+            inputFormatters: const [BirthDateInputFormatter()],
+            onChanged: (value) => context.read<RegisterBloc>().add(
+              RegisterBirthDateChanged(value),
+            ),
+            style: AppText.mediumTextStyle.copyWith(color: AppColors.white),
+            cursorColor: AppColors.blurple,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: _glassInputDecoration(_birthDateFocus.hasFocus),
+          ),
+          if (state.generalError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              state.generalError!,
+              style: AppText.lowTextStyle.copyWith(color: AppColors.errorRed),
+            ),
+          ],
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,

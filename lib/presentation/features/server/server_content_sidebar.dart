@@ -19,6 +19,7 @@ import 'package:disalive/domain/repositories/members_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
+import 'package:disalive/domain/services/adult_content_access_service.dart';
 import 'package:disalive/presentation/features/category_channel/bloc/category_channel_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_participants_bloc.dart';
 import 'package:disalive/presentation/features/calls/bloc/call_bloc.dart';
@@ -34,11 +35,13 @@ import 'package:disalive/presentation/features/invites/manage_server_invites_scr
 import 'package:disalive/presentation/features/server/server_members_screen.dart';
 import 'package:disalive/presentation/features/server/server_deletion_screen.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
+import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/role_members/role_members_screen.dart';
 import 'package:disalive/presentation/features/server/server_action_permissions.dart';
 import 'package:disalive/presentation/features/server/server_form_screen.dart';
 import 'package:disalive/presentation/features/server_emoji_packs/server_emoji_pack_screen.dart';
 import 'package:disalive/presentation/features/members/moderation/entity_access_guard.dart';
+import 'package:disalive/presentation/features/message/widgets/message_link_text.dart';
 import 'package:disalive/presentation/features/server/widgets/server_banner_image.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/app_text_input_sheet.dart';
@@ -46,6 +49,7 @@ import 'package:disalive/presentation/widgets/buttons/glass_button.dart';
 import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:disalive/presentation/widgets/adult_content_notice.dart';
 import 'package:flutter/material.dart'
     show DefaultMaterialLocalizations, ReorderableListView;
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -475,6 +479,19 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
           label: 'Редактировать канал',
           onTap: () => _editChannel(channel),
         ),
+      ],
+      if (channel.id != null)
+        ActionItem(
+          icon: CupertinoIcons.flag,
+          label: 'Пожаловаться на канал',
+          onTap: () => ComplaintScreen.open(
+            context,
+            type: ComplaintType.channel,
+            targetId: channel.id!,
+            targetName: channel.chatName,
+          ),
+        ),
+      if (_rights.canManageChannels) ...[
         ActionItem(
           icon: CupertinoIcons.delete,
           label: 'Удалить канал',
@@ -705,7 +722,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
                     height: 1,
                     color: AppColors.white.withValues(alpha: 0.10),
                   ),
-                  Expanded(child: _buildStructure()),
+                  Expanded(child: _buildAdultAwareStructure()),
                 ],
               ),
             ),
@@ -755,19 +772,6 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               ],
             ),
           ),
-          if (widget.server.description?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 3),
-            Text(
-              widget.server.description!.trim(),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppColors.white.withValues(alpha: 0.76),
-                fontSize: 11,
-                height: 1.2,
-              ),
-            ),
-          ],
           if (hasBanner) const Spacer() else const SizedBox(height: 14),
           Row(
             children: [
@@ -1021,7 +1025,35 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
     );
   }
 
+  Widget _buildAdultAwareStructure() {
+    ProfileBloc? profileBloc;
+    try {
+      profileBloc = BlocProvider.of<ProfileBloc>(context);
+    } catch (_) {
+      // The sidebar can also be rendered without the home profile provider.
+    }
+    if (profileBloc == null) return _buildStructure();
+    return BlocBuilder<ProfileBloc, ProfileState>(
+      bloc: profileBloc,
+      builder: (context, state) => _buildStructure(),
+    );
+  }
+
   Widget _buildStructure() {
+    final canAccess = widget.server.canAccess(
+      userIsAdult:
+          sl.isRegistered<AdultContentAccessService>() &&
+          sl<AdultContentAccessService>().isCurrentUserAdult,
+    );
+    if (!canAccess) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Align(
+          alignment: Alignment.center,
+          child: AdultContentNotice(description: 'Доступ к каналам запрещён.'),
+        ),
+      );
+    }
     return BlocBuilder<CategoryChannelBloc, CategoryChannelState>(
       builder: (context, categoryState) {
         return BlocBuilder<ChannelServerBloc, ChannelServerState>(
@@ -1063,32 +1095,37 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               );
             if (_ordering) return _buildOrderList();
             if (categories.isEmpty && channels.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      CupertinoIcons.number,
-                      size: 42,
-                      color: AppColors.greyple,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Каналов пока нет',
-                      style: AppText.mediumTextStyle.copyWith(
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(7, 8, 7, 120),
+                children: [
+                  if (_descriptionCard() case final card?) card,
+                  const SizedBox(height: 36),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.number,
+                        size: 42,
                         color: AppColors.greyple,
                       ),
-                    ),
-                    if (_rights.canManageChannels) ...[
-                      const SizedBox(height: 14),
-                      CupertinoButton.filled(
-                        key: const ValueKey('empty_create_channel'),
-                        onPressed: _createChannel,
-                        child: const Text('Создать канал'),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Каналов пока нет',
+                        style: AppText.mediumTextStyle.copyWith(
+                          color: AppColors.greyple,
+                        ),
                       ),
+                      if (_rights.canManageChannels) ...[
+                        const SizedBox(height: 14),
+                        CupertinoButton.filled(
+                          key: const ValueKey('empty_create_channel'),
+                          onPressed: _createChannel,
+                          child: const Text('Создать канал'),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                ],
               );
             }
 
@@ -1105,6 +1142,7 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
               padding: const EdgeInsets.fromLTRB(7, 8, 7, 120),
               physics: const BouncingScrollPhysics(),
               children: [
+                if (_descriptionCard() case final card?) card,
                 if (uncategorized.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 14, 12, 6),
@@ -1146,6 +1184,31 @@ class _ServerContentSidebarState extends State<ServerContentSidebar> {
           },
         );
       },
+    );
+  }
+
+  Widget? _descriptionCard() {
+    final description = widget.server.description?.trim();
+    if (description == null || description.isEmpty) return null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(5, 4, 5, 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.mainBackground.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.white.withValues(alpha: 0.10)),
+        ),
+        child: MessageLinkText(
+          text: description,
+          style: AppText.lowTextStyle.copyWith(
+            color: AppColors.greyple,
+            fontSize: 12,
+            height: 1.35,
+          ),
+        ),
+      ),
     );
   }
 

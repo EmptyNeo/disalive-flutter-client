@@ -15,12 +15,18 @@ class MessageLinkText extends StatefulWidget {
     required this.style,
     this.reserveWidth,
     this.onChannelTap,
+    this.maxLines,
+    this.overflow,
+    this.emojiSize = 20,
   });
 
   final String text;
   final TextStyle style;
   final double? reserveWidth;
   final ValueChanged<int>? onChannelTap;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final double emojiSize;
 
   @override
   State<MessageLinkText> createState() => _MessageLinkTextState();
@@ -47,7 +53,8 @@ class _MessageLinkTextState extends State<MessageLinkText> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text ||
         oldWidget.style != widget.style ||
-        oldWidget.onChannelTap != widget.onChannelTap) {
+        oldWidget.onChannelTap != widget.onChannelTap ||
+        oldWidget.emojiSize != widget.emojiSize) {
       _rebuildSpans();
     }
   }
@@ -123,7 +130,7 @@ class _MessageLinkTextState extends State<MessageLinkText> {
           EmojiTextParser.parse(
             widget.text.substring(cursor, match.start),
             baseTextStyle: widget.style,
-            emojiSize: 20,
+            emojiSize: widget.emojiSize,
           ),
         );
       }
@@ -167,7 +174,7 @@ class _MessageLinkTextState extends State<MessageLinkText> {
           for (final part in EmojiTextParser.parse(
             match.text,
             baseTextStyle: linkStyle,
-            emojiSize: 20,
+            emojiSize: widget.emojiSize,
           )) {
             if (part is WidgetSpan) {
               spans.add(
@@ -206,7 +213,7 @@ class _MessageLinkTextState extends State<MessageLinkText> {
         EmojiTextParser.parse(
           widget.text.substring(cursor),
           baseTextStyle: widget.style,
-          emojiSize: 20,
+          emojiSize: widget.emojiSize,
         ),
       );
     }
@@ -234,5 +241,7 @@ class _MessageLinkTextState extends State<MessageLinkText> {
       ],
     ),
     textWidthBasis: TextWidthBasis.longestLine,
+    maxLines: widget.maxLines,
+    overflow: widget.overflow,
   );
 }

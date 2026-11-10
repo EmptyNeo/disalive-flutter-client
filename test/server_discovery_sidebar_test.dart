@@ -263,6 +263,7 @@ void main() {
           Server(
             id: 2,
             name: 'Long name of server',
+            description: 'Описание сообщества на две строки',
             memberCount: 8,
             onlineMemberCount: 2,
           ),
@@ -324,12 +325,15 @@ void main() {
     final actionTop = tester
         .getRect(find.byKey(const ValueKey('public_server_action_1')))
         .top;
-    expect(actionTop - nameBottom, lessThan(20));
+    expect(actionTop - nameBottom, greaterThan(20));
     final card = tester.getRect(find.byKey(const ValueKey('public_server_1')));
     final action = tester.getRect(
       find.byKey(const ValueKey('public_server_action_1')),
     );
-    expect(card.height, lessThan(150));
+    expect(
+      card.height,
+      tester.getRect(find.byKey(const ValueKey('public_server_2'))).height,
+    );
     expect(card.bottom - action.bottom, closeTo(8, 2));
     expect(tester.takeException(), isNull);
     await showLayout(false);

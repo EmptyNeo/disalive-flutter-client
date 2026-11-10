@@ -51,6 +51,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
   late ServerType _category;
   late bool _canInvite;
   late bool _isPrivate;
+  late bool _isAdult;
   File? _avatar;
   File? _banner;
   bool _deleteBanner = false;
@@ -99,6 +100,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     _category = widget.server?.category ?? ServerType.none;
     _canInvite = (widget.server?.canInvite ?? 1) == 1;
     _isPrivate = widget.server?.isPrivate ?? false;
+    _isAdult = widget.server?.isAdult ?? false;
     _mainRoleId = widget.server?.fkMainRole;
     _mainRole = widget.server?.mainRole;
   }
@@ -369,6 +371,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             description: _descriptionController.text.trim(),
             canInvite: _canInvite ? 1 : 0,
             isPrivate: _isPrivate ? 1 : 0,
+            isAdult: _isAdult,
             category: _category,
             fkMainRole: _mainRoleId,
             isSetNullMainRole: _mainRoleId == null,
@@ -382,6 +385,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
             description: _descriptionController.text.trim(),
             canInvite: _canInvite ? 1 : 0,
             isPrivate: _isPrivate ? 1 : 0,
+            isAdult: _isAdult,
             category: _category,
             avatar: _avatar,
             banner: _banner,
@@ -600,6 +604,13 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
           subtitle: 'В ваш сервер можно будет зайти только по приглашению',
           value: _isPrivate,
           onChanged: (value) => setState(() => _isPrivate = value),
+        ),
+        _setting(
+          key: const ValueKey('server_adult_switch'),
+          title: 'Контент для взрослых',
+          subtitle: 'Доступ к каналам будет ограничен для несовершеннолетних',
+          value: _isAdult,
+          onChanged: (value) => setState(() => _isAdult = value),
         ),
       ],
     ),

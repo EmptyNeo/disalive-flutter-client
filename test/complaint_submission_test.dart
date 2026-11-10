@@ -74,13 +74,17 @@ void main() {
       expect(request.bodyFields['reason'], 'Спам');
       expect(request.bodyFields['additional_details'], 'Подробности');
       expect(request.bodyFields['severity'], 'high');
-      expect(
-        request.bodyFields['target_channel'],
-        type == ComplaintType.message ? '5' : null,
-      );
+      expect(request.bodyFields['target_channel'], switch (type) {
+        ComplaintType.channel => '12',
+        ComplaintType.message => '5',
+        _ => null,
+      });
       for (final other in ComplaintType.values.where(
         (other) => other != type,
       )) {
+        if (type == ComplaintType.message && other == ComplaintType.channel) {
+          continue;
+        }
         expect(request.bodyFields.containsKey(other.targetField), isFalse);
       }
     }

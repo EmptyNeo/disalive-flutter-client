@@ -6,6 +6,7 @@ class RegisterState extends Equatable {
   final int currentStep;
   final String email;
   final String displayName;
+  final String dateOfBirth;
   final String username;
   final String password;
 
@@ -24,6 +25,7 @@ class RegisterState extends Equatable {
     this.currentStep = 1,
     this.email = '',
     this.displayName = '',
+    this.dateOfBirth = '',
     this.username = '',
     this.password = '',
     this.isEmailLoading = false,
@@ -39,6 +41,7 @@ class RegisterState extends Equatable {
     int? currentStep,
     String? email,
     String? displayName,
+    String? dateOfBirth,
     String? username,
     String? password,
     bool? isEmailLoading,
@@ -53,6 +56,7 @@ class RegisterState extends Equatable {
       currentStep: currentStep ?? this.currentStep,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       username: username ?? this.username,
       password: password ?? this.password,
       isEmailLoading: isEmailLoading ?? this.isEmailLoading,
@@ -67,7 +71,7 @@ class RegisterState extends Equatable {
 
   @override
   List<Object?> get props => [
-    currentStep, email, displayName, username, password,
+    currentStep, email, displayName, dateOfBirth, username, password,
     isEmailLoading, isUsernameLoading, isSubmitLoading,
     isCodeSent, // 🎯 Добавляем в props
     emailError, usernameError, generalError,

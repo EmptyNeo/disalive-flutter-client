@@ -30,6 +30,7 @@ import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/server_repository.dart';
 import 'package:disalive/domain/repositories/user_repository.dart';
 import 'package:disalive/domain/services/determining_context_service.dart';
+import 'package:disalive/domain/services/adult_content_access_service.dart';
 import 'package:disalive/domain/services/ws_event_bus.dart';
 import 'package:disalive/presentation/features/chat/bloc/chat_bloc.dart';
 import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dart';
@@ -51,6 +52,7 @@ import 'package:disalive/presentation/features/members/moderation/entity_access_
 import 'package:disalive/presentation/features/media_stats/bloc/media_stats_bloc.dart';
 import 'package:disalive/presentation/features/message/bloc/message_bloc.dart';
 import 'package:disalive/presentation/features/profile/determinant_profile_screen.dart';
+import 'package:disalive/presentation/features/profile/bloc/profile_bloc.dart';
 import 'package:disalive/presentation/features/reactions/bloc/preferred_reactions_bloc.dart';
 import 'package:disalive/presentation/features/emojis/bloc/preferred_emojis_bloc.dart';
 import 'package:disalive/presentation/features/server/bloc/servers_bloc.dart';
@@ -60,6 +62,7 @@ import 'package:disalive/presentation/utils/id_generator.dart';
 import 'package:disalive/presentation/utils/data_parser.dart';
 import 'package:disalive/presentation/utils/ui/util_file.dart';
 import 'package:disalive/presentation/widgets/emoji_text_editing_controller.dart';
+import 'package:disalive/presentation/widgets/adult_content_notice.dart';
 import 'package:disalive/presentation/widgets/media_picker_bottom_sheet.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -82,12 +85,16 @@ int? initialPositionForChat(Chat chat, int? savedPositionId) {
 
 class ChatScreen extends StatefulWidget {
   final Chat chat;
+  final ChannelServer? initialChannel;
+  final ProfileBloc? profileBloc;
   final bool initiallyModerationMuted;
   final String? initialModerationMuteExpiresAt;
 
   const ChatScreen({
     super.key,
     required this.chat,
+    this.initialChannel,
+    this.profileBloc,
     this.initiallyModerationMuted = false,
     this.initialModerationMuteExpiresAt,
   });
@@ -118,7 +125,28 @@ class ChatScreen extends StatefulWidget {
       EntityKey(entityId: serverId, entityType: EntityType.server),
     );
     if (access == null || !context.mounted) return;
+    final userIsAdult =
+        sl.isRegistered<AdultContentAccessService>() &&
+        sl<AdultContentAccessService>().isCurrentUserAdult;
+    final server = sl<ServerRepository>().getByIdCached(serverId);
     if (channel.type == 'voice') {
+      if (!channel.canAccess(userIsAdult: userIsAdult) ||
+          server?.canAccess(userIsAdult: userIsAdult) == false) {
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Контент для взрослых'),
+            content: const Text('Доступ к каналу запрещён.'),
+            actions: [
+              CupertinoDialogAction(
+                child: const Text('Понятно'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       await CallScreen.open(
         context,
         chatId: chatId,
@@ -147,7 +175,13 @@ class ChatScreen extends StatefulWidget {
           member: Member(lastIdReadMessage: channel.lastIdReadMessage),
           members: channel.members,
         );
-    await open(context, chat, isReconnect, entityAccess: access);
+    await open(
+      context,
+      chat,
+      isReconnect,
+      entityAccess: access,
+      initialChannel: channel,
+    );
   }
 
   static Future<void> open(
@@ -155,6 +189,7 @@ class ChatScreen extends StatefulWidget {
     Chat chat,
     bool isReconnect, {
     EntityAccess? entityAccess,
+    ChannelServer? initialChannel,
   }) async {
     if (chat.isGroup && chat.isChatBlocked) {
       await BlockedEntityNotice.show(
@@ -194,6 +229,12 @@ class ChatScreen extends StatefulWidget {
     final invitesBloc = context.read<InvitesBloc>();
     final mediaStatsBloc = context.read<MediaStatsBloc>();
     final serversBloc = context.read<ServersBloc>();
+    ProfileBloc? profileBloc;
+    try {
+      profileBloc = BlocProvider.of<ProfileBloc>(context);
+    } catch (_) {
+      // Some standalone chat routes have no profile provider.
+    }
     final callBloc = context.read<CallBloc>();
     final chatRepository = sl<ChatRepository>();
     final previousChat = chatRepository.getCurrentChat();
@@ -221,6 +262,8 @@ class ChatScreen extends StatefulWidget {
           ],
           child: ChatScreen(
             chat: chat,
+            initialChannel: initialChannel,
+            profileBloc: profileBloc,
             initiallyModerationMuted: chat.member?.isChatMuted ?? false,
             initialModerationMuteExpiresAt: chat.member?.chatMuteExpiresAt,
           ),
@@ -313,6 +356,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool get _hasAnswer => _answerMessage != null;
 
   Future<void> _openCall() async {
+    if (!_canAccessChannel) return;
     final chat = _currentChat;
     final announceCall = !_callParticipantsBloc.state.hasParticipants(chat.id);
     final serverId = chat.type == ChatType.channel
@@ -367,8 +411,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Timer? _moderationMuteTimer;
   late bool _isModerationMuted;
 
+  bool get _canAccessChannel {
+    final userIsAdult =
+        sl.isRegistered<AdultContentAccessService>() &&
+        sl<AdultContentAccessService>().isCurrentUserAdult;
+    final server = _channelServerId == null
+        ? null
+        : sl<ServerRepository>().getByIdCached(_channelServerId!);
+    return (_channel?.canAccess(userIsAdult: userIsAdult) ?? true) &&
+        (server?.canAccess(userIsAdult: userIsAdult) ?? true);
+  }
+
   bool get _canSendMessages =>
       !_currentChat.isService &&
+      _canAccessChannel &&
       !_isModerationMuted &&
       (_currentChat.type != ChatType.channel ||
           canSendToChannel(
@@ -591,13 +647,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     if (_currentChat.type == ChatType.channel) {
       _channelServerId = sl<ServerRepository>().selectedServerId;
+      _channel = widget.initialChannel;
       _channelRoleId = sl<ServerRepository>().selectedServer?.roleId;
       final cached = _channelServerId == null
           ? <ChannelServer>[]
           : sl<ChannelServerRepository>().getCached(_channelServerId!);
       for (final channel in cached) {
         if (channel.chatId == _currentChat.id) {
-          _channel = channel;
+          _channel ??= channel;
           break;
         }
       }
@@ -1102,6 +1159,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
       child: MultiBlocListener(
         listeners: [
+          if (widget.profileBloc != null)
+            BlocListener<ProfileBloc, ProfileState>(
+              bloc: widget.profileBloc,
+              listener: (context, state) {
+                setState(() {});
+                _hideRestrictedInput();
+              },
+            ),
           BlocListener<ServersBloc, ServersState>(
             listener: (context, state) {
               if (_channelServerId == null || state is! ServersLoaded) return;
@@ -1187,59 +1252,72 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child:
-                            BlocBuilder<
-                              CallParticipantsBloc,
-                              CallParticipantsState
-                            >(
-                              bloc: _callParticipantsBloc,
-                              buildWhen: (previous, current) =>
-                                  previous.hasParticipants(_currentChat.id) !=
-                                  current.hasParticipants(_currentChat.id),
-                              builder: (context, callState) => RepaintBoundary(
-                                child: MessagesList(
-                                  key: _messagesListKey,
-                                  messageBloc: _messageBloc,
-                                  chatBloc: _chatBloc,
-                                  chat: _currentChat,
-                                  currentUserId: _currentUserId,
-                                  initialAroundId: _hasUnread(_currentChat)
-                                      ? (_currentChat
-                                                .member
-                                                ?.lastIdReadMessage ??
-                                            0)
-                                      : null,
-                                  initialPositionId: _initialPositionId,
-                                  initialPosition: _initialPosition,
-                                  onPositionSettled: _savePosition,
-                                  inputReserve:
-                                      _inputReserve +
-                                      (_isExtraPanelOpen
-                                          ? _extraPanelHeight
-                                          : 0),
-                                  headerReserve:
-                                      callState.hasParticipants(_currentChat.id)
-                                      ? 116
-                                      : 64,
-                                  onSendMessage: _onSendMessage,
-                                  onEditMessage: _onEditMessage,
-                                  onDeleteMessage: _onDeleteMessage,
-                                  onAnswerMessage: _onAnswerMessage,
-                                  canReply: _canSendMessages,
-                                  canManageMessages: _canManageMessages,
-                                  canReact:
-                                      !_currentChat.isService &&
-                                      !_isModerationMuted,
-                                  onFocusInput: _focusInput,
-                                  onUnfocusInput: _unfocusInput,
-                                  onStickerTap: onTapSticker,
-                                  onInviteMention: _sendInviteRequest,
-                                  onChannelTap: _channelServerId == null
-                                      ? null
-                                      : _openMentionedChannel,
+                        child: !_canAccessChannel
+                            ? const Padding(
+                                padding: EdgeInsets.fromLTRB(16, 86, 16, 16),
+                                child: Align(
+                                  alignment: Alignment.center,
+                                  child: AdultContentNotice(
+                                    description: 'Доступ к каналу запрещён.',
+                                  ),
                                 ),
+                              )
+                            : BlocBuilder<
+                                CallParticipantsBloc,
+                                CallParticipantsState
+                              >(
+                                bloc: _callParticipantsBloc,
+                                buildWhen: (previous, current) =>
+                                    previous.hasParticipants(_currentChat.id) !=
+                                    current.hasParticipants(_currentChat.id),
+                                builder: (context, callState) =>
+                                    RepaintBoundary(
+                                      child: MessagesList(
+                                        key: _messagesListKey,
+                                        messageBloc: _messageBloc,
+                                        chatBloc: _chatBloc,
+                                        chat: _currentChat,
+                                        currentUserId: _currentUserId,
+                                        initialAroundId:
+                                            _hasUnread(_currentChat)
+                                            ? (_currentChat
+                                                      .member
+                                                      ?.lastIdReadMessage ??
+                                                  0)
+                                            : null,
+                                        initialPositionId: _initialPositionId,
+                                        initialPosition: _initialPosition,
+                                        onPositionSettled: _savePosition,
+                                        inputReserve:
+                                            _inputReserve +
+                                            (_isExtraPanelOpen
+                                                ? _extraPanelHeight
+                                                : 0),
+                                        headerReserve:
+                                            callState.hasParticipants(
+                                              _currentChat.id,
+                                            )
+                                            ? 116
+                                            : 64,
+                                        onSendMessage: _onSendMessage,
+                                        onEditMessage: _onEditMessage,
+                                        onDeleteMessage: _onDeleteMessage,
+                                        onAnswerMessage: _onAnswerMessage,
+                                        canReply: _canSendMessages,
+                                        canManageMessages: _canManageMessages,
+                                        canReact:
+                                            !_currentChat.isService &&
+                                            !_isModerationMuted,
+                                        onFocusInput: _focusInput,
+                                        onUnfocusInput: _unfocusInput,
+                                        onStickerTap: onTapSticker,
+                                        onInviteMention: _sendInviteRequest,
+                                        onChannelTap: _channelServerId == null
+                                            ? null
+                                            : _openMentionedChannel,
+                                      ),
+                                    ),
                               ),
-                            ),
                       ),
                       Positioned(
                         top: 0,
@@ -1279,7 +1357,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                                   _currentChat.id,
                                                 ),
                                             isCurrentCall: isCurrentCall,
-                                            onCallTap: _openCall,
+                                            onCallTap: _canAccessChannel
+                                                ? _openCall
+                                                : null,
                                             onTap: () =>
                                                 DeterminantProfileScreen.open(
                                                   context,
@@ -1306,127 +1386,130 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                                   ),
                             ),
                       ),
-                      Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        child: AnimatedContainer(
+                      if (_canAccessChannel)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutCubic,
+                            height: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                            child: _isExtraPanelOpen
+                                ? ChatExtraPanel(
+                                    height: _extraPanelHeight,
+                                    onClose: _toggleExtraPanel,
+                                    onTapEmoji: (emoji) {
+                                      String fullEmojiId =
+                                          '[${emoji.categoryName}:${emoji.id}]';
+                                      _insertEmoji(fullEmojiId);
+                                    },
+                                    onTapSticker: onTapSticker,
+                                    onTapGif: (gif) {
+                                      final optimisticFileMessage = FileMessage(
+                                        id: -1,
+                                        messageId: null,
+                                        pathFile: gif.fullUrl,
+                                        originalName: 'gif',
+                                        size: 0,
+                                        unit: 'B',
+                                        fileType: FileType.image,
+                                        contentType: FileContentType.gif,
+                                        duration: 0,
+                                        isSpoiler: 0,
+                                      );
+
+                                      final symbolData = SymbolData(
+                                        filePath: gif.fullUrl,
+                                        typeFile: FileContentType.gif,
+                                      );
+
+                                      final message = Message(
+                                        attachments: [optimisticFileMessage],
+                                        symbolData: symbolData,
+                                      );
+
+                                      _onSendMessage(message);
+                                    },
+                                    onBackspace: _deleteLastEmojiOrChar,
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                        ),
+                      if (_canAccessChannel)
+                        AnimatedPositioned(
                           duration: const Duration(milliseconds: 250),
                           curve: Curves.easeOutCubic,
-                          height: _isExtraPanelOpen ? _extraPanelHeight : 0,
-                          child: _isExtraPanelOpen
-                              ? ChatExtraPanel(
-                                  height: _extraPanelHeight,
-                                  onClose: _toggleExtraPanel,
-                                  onTapEmoji: (emoji) {
-                                    String fullEmojiId =
-                                        '[${emoji.categoryName}:${emoji.id}]';
-                                    _insertEmoji(fullEmojiId);
-                                  },
-                                  onTapSticker: onTapSticker,
-                                  onTapGif: (gif) {
-                                    final optimisticFileMessage = FileMessage(
-                                      id: -1,
-                                      messageId: null,
-                                      pathFile: gif.fullUrl,
-                                      originalName: 'gif',
-                                      size: 0,
-                                      unit: 'B',
-                                      fileType: FileType.image,
-                                      contentType: FileContentType.gif,
-                                      duration: 0,
-                                      isSpoiler: 0,
-                                    );
-
-                                    final symbolData = SymbolData(
-                                      filePath: gif.fullUrl,
-                                      typeFile: FileContentType.gif,
-                                    );
-
-                                    final message = Message(
-                                      attachments: [optimisticFileMessage],
-                                      symbolData: symbolData,
-                                    );
-
-                                    _onSendMessage(message);
-                                  },
-                                  onBackspace: _deleteLastEmojiOrChar,
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOutCubic,
-                        left: 0,
-                        right: 0,
-                        bottom: _isExtraPanelOpen ? _extraPanelHeight : 0,
-                        child: ChatInputArea(
-                          key: const ValueKey('chat_input_area'),
-                          chat: _currentChat,
-                          channel: _channel,
-                          serverId: _channelServerId,
-                          inputKey: _inputKey,
-                          textController: _textController,
-                          hasEdit: _hasEdit,
-                          hasAnswer: _hasAnswer,
-                          answerMessage: _answerMessage,
-                          hasNeedSend: _hasNeedSend,
-                          cancelBanner: _cancelBanner,
-                          onSendMessage: _onSendMessage,
-                          onApplyEdit: _onApplyEdit,
-                          inputFocusNode: _inputFocusNode,
-                          isReconnect: isReconnect,
-                          canSendMessages: _canSendMessages,
-                          isModerationMuted: _isModerationMuted,
-                          attachments: _attachments,
-                          onPickAttachment: _pickAttachments,
-                          onRemoveAttachment: (attachment) {
-                            setState(() {
-                              if (!attachment.isNew && attachment.id != null) {
-                                attachment.isDeleted = true;
-                                _deletedAttachments.add(attachment);
-                              }
-                              _attachments.remove(attachment);
-                              _scheduleDraftSave();
+                          left: 0,
+                          right: 0,
+                          bottom: _isExtraPanelOpen ? _extraPanelHeight : 0,
+                          child: ChatInputArea(
+                            key: const ValueKey('chat_input_area'),
+                            chat: _currentChat,
+                            channel: _channel,
+                            serverId: _channelServerId,
+                            inputKey: _inputKey,
+                            textController: _textController,
+                            hasEdit: _hasEdit,
+                            hasAnswer: _hasAnswer,
+                            answerMessage: _answerMessage,
+                            hasNeedSend: _hasNeedSend,
+                            cancelBanner: _cancelBanner,
+                            onSendMessage: _onSendMessage,
+                            onApplyEdit: _onApplyEdit,
+                            inputFocusNode: _inputFocusNode,
+                            isReconnect: isReconnect,
+                            canSendMessages: _canSendMessages,
+                            isModerationMuted: _isModerationMuted,
+                            attachments: _attachments,
+                            onPickAttachment: _pickAttachments,
+                            onRemoveAttachment: (attachment) {
+                              setState(() {
+                                if (!attachment.isNew &&
+                                    attachment.id != null) {
+                                  attachment.isDeleted = true;
+                                  _deletedAttachments.add(attachment);
+                                }
+                                _attachments.remove(attachment);
+                                _scheduleDraftSave();
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                  (_) => _measureInput(),
+                                );
+                              });
+                            },
+                            onUpdateAttachment: (updatedAttachment) {
+                              setState(() {
+                                final index = _attachments.indexWhere((a) {
+                                  if (a.id != null &&
+                                      updatedAttachment.id != null) {
+                                    return a.id == updatedAttachment.id;
+                                  }
+                                  if (a.file != null &&
+                                      updatedAttachment.file != null) {
+                                    return a.file!.path ==
+                                        updatedAttachment.file!.path;
+                                  }
+                                  return false;
+                                });
+                                if (index != -1) {
+                                  _attachments[index] = updatedAttachment;
+                                }
+                                _scheduleDraftSave();
+                              });
                               WidgetsBinding.instance.addPostFrameCallback(
                                 (_) => _measureInput(),
                               );
-                            });
-                          },
-                          onUpdateAttachment: (updatedAttachment) {
-                            setState(() {
-                              final index = _attachments.indexWhere((a) {
-                                if (a.id != null &&
-                                    updatedAttachment.id != null) {
-                                  return a.id == updatedAttachment.id;
-                                }
-                                if (a.file != null &&
-                                    updatedAttachment.file != null) {
-                                  return a.file!.path ==
-                                      updatedAttachment.file!.path;
-                                }
-                                return false;
-                              });
-                              if (index != -1) {
-                                _attachments[index] = updatedAttachment;
+                            },
+                            onSendVoiceMessage: _onSendVoiceMessage,
+                            onToggleExtraPanel: _toggleExtraPanel,
+                            onHideKeyboard: () {
+                              if (_inputFocusNode.hasFocus) {
+                                _inputFocusNode.unfocus();
                               }
-                              _scheduleDraftSave();
-                            });
-                            WidgetsBinding.instance.addPostFrameCallback(
-                              (_) => _measureInput(),
-                            );
-                          },
-                          onSendVoiceMessage: _onSendVoiceMessage,
-                          onToggleExtraPanel: _toggleExtraPanel,
-                          onHideKeyboard: () {
-                            if (_inputFocusNode.hasFocus) {
-                              _inputFocusNode.unfocus();
-                            }
-                          },
-                          isExtraPanelOpen: _isExtraPanelOpen,
+                            },
+                            isExtraPanelOpen: _isExtraPanelOpen,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

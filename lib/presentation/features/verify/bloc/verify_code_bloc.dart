@@ -39,6 +39,7 @@ class VerifyCodeBloc extends Bloc<VerifyCodeEvent, VerifyCodeState> {
         username: event.username,
         displayName: event.displayName,
         password: event.password,
+        dateOfBirth: event.dateOfBirth,
         useTotp: event.useTotp,
         resendTimer: 60,
       ),
@@ -104,6 +105,7 @@ class VerifyCodeBloc extends Bloc<VerifyCodeEvent, VerifyCodeState> {
           state.username,
           state.password,
           code,
+          state.dateOfBirth,
         );
 
         result.fold(
@@ -183,6 +185,7 @@ class VerifyCodeBloc extends Bloc<VerifyCodeEvent, VerifyCodeState> {
         emailType: state.emailType,
         newPassword: state.newPassword,
         verifyPassword: state.verifyPassword,
+        dateOfBirth: state.dateOfBirth,
       ),
     );
   }

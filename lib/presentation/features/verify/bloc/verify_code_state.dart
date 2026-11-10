@@ -13,6 +13,7 @@ class VerifyCodeState extends Equatable {
   final String? username;
   final String? displayName;
   final String? password;
+  final String? dateOfBirth;
   final bool useTotp;
 
   const VerifyCodeState({
@@ -28,6 +29,7 @@ class VerifyCodeState extends Equatable {
     this.username,
     this.displayName,
     this.password,
+    this.dateOfBirth,
     this.useTotp = false,
   });
 
@@ -44,6 +46,7 @@ class VerifyCodeState extends Equatable {
     String? username,
     String? displayName,
     String? password,
+    String? dateOfBirth,
     bool? useTotp,
   }) {
     return VerifyCodeState(
@@ -59,6 +62,7 @@ class VerifyCodeState extends Equatable {
       username: username ?? this.username,
       displayName: displayName ?? this.displayName,
       password: password ?? this.password,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
       useTotp: useTotp ?? this.useTotp,
     );
   }
@@ -81,6 +85,7 @@ class VerifyCodeState extends Equatable {
     username,
     displayName,
     password,
+    dateOfBirth,
     useTotp,
   ];
 }

@@ -19,6 +19,7 @@ import 'package:disalive/presentation/features/profile/widgets/edit_screen/secti
 import 'package:disalive/presentation/navigation/swipe_to_dismiss_route.dart';
 import 'package:disalive/presentation/utils/ui/color_hex_extension.dart';
 import 'package:disalive/presentation/utils/ui/color_service.dart';
+import 'package:disalive/presentation/utils/ui/birth_date_input.dart';
 import 'package:disalive/presentation/utils/ui/max_lines_input_formatter.dart';
 import 'package:disalive/presentation/widgets/action_bottom_sheet.dart';
 import 'package:disalive/presentation/widgets/custom_back_button.dart';
@@ -27,6 +28,7 @@ import 'package:disalive/presentation/widgets/screens/avatar_crop_screen.dart';
 import 'package:disalive/presentation/widgets/screens/banner_crop_screen.dart';
 import 'package:disalive/presentation/widgets/toasts/custom_toast.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -60,6 +62,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _displayNameCtrl;
   late final TextEditingController _usernameCtrl;
   late final TextEditingController _aboutMeCtrl;
+  late final TextEditingController _dateOfBirthCtrl;
   late final TextEditingController _myThinkCtrl;
 
   File? _newAvatarFile;
@@ -124,6 +127,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
     _usernameCtrl = TextEditingController(text: widget.user.username ?? '');
     _aboutMeCtrl = TextEditingController(text: widget.user.aboutMe ?? '');
+    _dateOfBirthCtrl = TextEditingController(
+      text: BirthDateInput.display(widget.user.dateOfBirth),
+    );
     _myThinkCtrl = TextEditingController(text: widget.user.myThink ?? '');
 
     _originalBannerColor = ColorService.parseColor(widget.user.bannerColor);
@@ -173,6 +179,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _displayNameCtrl.dispose();
     _usernameCtrl.dispose();
     _aboutMeCtrl.dispose();
+    _dateOfBirthCtrl.dispose();
     _myThinkCtrl.dispose();
     super.dispose();
   }
@@ -195,6 +202,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return _displayNameCtrl.text != (widget.user.displayName ?? '') ||
         _usernameCtrl.text != (widget.user.username ?? '') ||
         _aboutMeCtrl.text != (widget.user.aboutMe ?? '') ||
+        _dateOfBirthCtrl.text !=
+            BirthDateInput.display(widget.user.dateOfBirth) ||
         _myThinkCtrl.text != (widget.user.myThink ?? '') ||
         _isAvatarDeleted ||
         _isBannerDeleted ||
@@ -337,6 +346,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   placeholder: 'Расскажите о себе',
                                   maxLines: 4,
                                   maxLength: 200,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildTextField(
+                                  label: 'Дата рождения (необязательно)',
+                                  controller: _dateOfBirthCtrl,
+                                  placeholder: 'ДД.ММ.ГГГГ',
+                                  maxLength: 10,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: const [
+                                    BirthDateInputFormatter(),
+                                  ],
                                 ),
                                 const SizedBox(height: 16),
                                 _buildTextField(
@@ -587,6 +607,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _saveProfile() {
     if (!_hasChanges || _isSaving) return;
 
+    String? dateOfBirth;
+    try {
+      dateOfBirth = BirthDateInput.normalize(_dateOfBirthCtrl.text);
+    } on FormatException catch (error) {
+      _showToast(error.message);
+      return;
+    }
+
     _isSaving = true; // 🎯 Блокируем повторные нажатия
 
     // 1. Создаем копию пользователя с обновленными текстовыми и цветовыми данными
@@ -594,6 +622,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       displayName: _displayNameCtrl.text,
       username: _usernameCtrl.text,
       aboutMe: _aboutMeCtrl.text,
+      dateOfBirth: dateOfBirth,
+      clearDateOfBirth: dateOfBirth == null,
+      changeDateOfBirth:
+          _dateOfBirthCtrl.text !=
+          BirthDateInput.display(widget.user.dateOfBirth),
       myThink: _myThinkCtrl.text,
       fontUsername: _selectedFont,
       bageMainColor: _mainProfileColor.toHex(),
@@ -915,6 +948,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required int maxLength,
     String? prefix,
     int maxLines = 1,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -942,9 +977,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           placeholder: placeholder,
           maxLines: maxLines,
           maxLength: maxLength,
-          inputFormatters: maxLines > 1
-              ? [MaxLinesInputFormatter(maxLines)]
-              : null,
+          keyboardType: keyboardType,
+          inputFormatters:
+              inputFormatters ??
+              (maxLines > 1 ? [MaxLinesInputFormatter(maxLines)] : null),
           onChanged: (_) => setState(() {}),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(

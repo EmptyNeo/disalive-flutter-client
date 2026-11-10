@@ -72,6 +72,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
   late String _type;
   late int? _categoryId;
   bool _isPrivate = false;
+  bool _isAdult = false;
   bool _submitting = false;
   late ChannelServer? _currentChannel;
 
@@ -91,6 +92,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
     _type = widget.channel?.type ?? 'text';
     _categoryId = widget.channel?.categoryId ?? widget.initialCategoryId;
     _isPrivate = widget.channel?.isPrivate ?? false;
+    _isAdult = widget.channel?.isAdult ?? false;
   }
 
   @override
@@ -221,6 +223,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
         categoryId: _categoryId,
         maxParticipants: _type == 'voice' ? maxParticipants : null,
         slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
+        isAdult: _isAdult,
         channelsBloc: widget.channelsBloc,
         channel: widget.channel,
       );
@@ -238,6 +241,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
             maxParticipants: _type == 'voice' ? maxParticipants : null,
             slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
             isPrivate: _isPrivate,
+            isAdult: _isAdult,
           )
         : await repository.create(
             widget.serverId,
@@ -246,6 +250,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
             categoryId: _categoryId,
             maxParticipants: _type == 'voice' ? maxParticipants : null,
             slowModeSeconds: _type == 'text' ? slowModeSeconds : 0,
+            isAdult: _isAdult,
           );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -274,6 +279,7 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
       categoryId: _categoryId,
       maxParticipants: _type == 'voice' ? maxParticipants : null,
       slowModeSeconds: _type == 'text' ? _slowModeSeconds : 0,
+      isAdult: _isAdult,
       channelsBloc: widget.channelsBloc,
       channel: _currentChannel,
     );
@@ -469,6 +475,30 @@ class _ChannelFormScreenState extends State<ChannelFormScreen> {
                   value: _isPrivate,
                   activeTrackColor: AppColors.blurple,
                   onChanged: (value) => setState(() => _isPrivate = value),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.lightGrey,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Контент для взрослых',
+                    style: TextStyle(color: AppColors.white),
+                  ),
+                ),
+                CupertinoSwitch(
+                  key: const ValueKey('adult_channel_switch'),
+                  value: _isAdult,
+                  activeTrackColor: AppColors.blurple,
+                  onChanged: (value) => setState(() => _isAdult = value),
                 ),
               ],
             ),
