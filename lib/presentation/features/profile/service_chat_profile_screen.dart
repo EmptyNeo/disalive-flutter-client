@@ -8,6 +8,8 @@ import 'package:flutter/cupertino.dart';
 class ServiceChatProfileScreen extends StatelessWidget {
   const ServiceChatProfileScreen({super.key});
 
+  static const _backgroundColor = Color(0xFF111E30);
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -17,7 +19,7 @@ class ServiceChatProfileScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.mainBackground,
+              color: _backgroundColor,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: AppColors.white.withValues(alpha: 0.12),
@@ -32,7 +34,6 @@ class ServiceChatProfileScreen extends StatelessWidget {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(24, 24, 24, 30),
-                        color: const Color(0xFF111E30),
                         child: Column(
                           children: [
                             const BuildAvatar(
