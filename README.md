@@ -63,3 +63,5 @@ flutter test
 Проект распространяется по [лицензии MIT](LICENSE).
 
 *Проект предоставляется "как есть". Автор не несёт ответственности за ущерб, вызванный использованием сторонних сборок или модифицированных версий клиента.*
+
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/EmptyNeo/badge.svg)](https://hub.xerj.org/contributors/EmptyNeo)
