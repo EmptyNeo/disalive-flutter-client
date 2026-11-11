@@ -46,6 +46,7 @@ import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
 import 'package:disalive/presentation/features/updates/app_update_sheet.dart';
+import 'package:disalive/presentation/features/updates/rustore_update_sheet.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
 import 'package:disalive/presentation/features/login.dart';
@@ -67,6 +68,7 @@ import 'package:disalive/presentation/widgets/modals/confirmation_modal.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_rustore_update/flutter_rustore_update.dart';
 
 // 🎯 1. ДОБАВЛЯЕМ ИМПОРТЫ ТЕМЫ
 import 'package:disalive/presentation/bloc/theme/theme_cubit.dart';
@@ -143,6 +145,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkedForUpdates = true;
     try {
       final package = await PackageInfo.fromPlatform();
+      if (package.installerStore == 'ru.vk.store') {
+        try {
+          final info = await RustoreUpdateClient.info();
+          if (!mounted) return;
+          if (info.updateAvailabilityValue == UpdateAvailability.available ||
+              info.installStatusValue == InstallStatus.downloaded) {
+            unawaited(
+              showRuStoreUpdateSheet(
+                context,
+                downloaded: info.installStatusValue == InstallStatus.downloaded,
+              ),
+            );
+          }
+        } catch (_) {
+          // RuStore also manages updates independently of this prompt.
+        }
+        return;
+      }
       final currentVersion = package.version.split('.').length >= 4
           ? package.version
           : '${package.version}.${package.buildNumber}';

@@ -50,6 +50,9 @@ app.*.map.json
 # Android Keystore and Signing
 *.jks
 *.keystore
+pepk.jar
+pepk_out.zip
+upload_cert.pem
 key.properties
 
 # Flutter local configs
