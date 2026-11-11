@@ -71,6 +71,7 @@ class DmListArea extends StatelessWidget {
     sl<MembersRepository>().update(
       entityId: chat.id,
       entityType: EntityType.chat,
+      chatId: chat.id,
       toggleFixed: true,
     );
   }
@@ -79,6 +80,7 @@ class DmListArea extends StatelessWidget {
     sl<MembersRepository>().update(
       entityId: chat.id,
       entityType: EntityType.chat,
+      chatId: chat.id,
       toggleMuted: true,
     );
   }
