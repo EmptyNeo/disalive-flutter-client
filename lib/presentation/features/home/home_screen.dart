@@ -14,7 +14,6 @@ import 'package:disalive/presentation/features/appeals/blocked_entity_notice.dar
 import 'package:disalive/presentation/features/appeals/bloc/appeal_bloc.dart';
 import 'package:disalive/domain/repositories/appeal_repository.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
-import 'package:disalive/domain/repositories/app_update_repository.dart';
 import 'package:disalive/domain/repositories/calls_repository.dart';
 import 'package:disalive/domain/repositories/chat_server_repository.dart';
 import 'package:disalive/domain/repositories/gifs_repository.dart';
@@ -45,7 +44,6 @@ import 'package:disalive/presentation/features/chat_server/bloc/chat_server_bloc
 import 'package:disalive/presentation/features/gifs/bloc/gif_bloc.dart';
 import 'package:disalive/presentation/features/invites/bloc/invites_bloc.dart';
 import 'package:disalive/presentation/features/home/screens/create_chat_screen.dart';
-import 'package:disalive/presentation/features/updates/app_update_sheet.dart';
 import 'package:disalive/presentation/features/updates/rustore_update_sheet.dart';
 import 'package:disalive/presentation/features/home/widgets/chats_view.dart';
 import 'package:disalive/presentation/features/components/bottom_menu.dart';
@@ -161,20 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
         } catch (_) {
           // RuStore also manages updates independently of this prompt.
         }
-        return;
       }
-      final currentVersion = package.version.split('.').length >= 4
-          ? package.version
-          : '${package.version}.${package.buildNumber}';
-      final result = await sl<AppUpdateRepository>().checkAndroid(
-        currentVersion,
-      );
-      if (!mounted) return;
-      result.fold((_) {}, (update) {
-        if (update.isUpdateAvailable && update.downloadUrl.isNotEmpty) {
-          unawaited(showAppUpdateSheet(context, update));
-        }
-      });
     } catch (_) {
       // A failed background check must not interrupt the home screen.
     }

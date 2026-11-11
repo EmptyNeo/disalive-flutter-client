@@ -52,13 +52,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const CupertinoApp(
+      CupertinoApp(
         home: CupertinoPageScaffold(
           child: Row(
             children: [
               SpoilerMediaPreview(
                 isSpoiler: true,
-                childBuilder: (_, _) => SizedBox(
+                childBuilder: (_, _) => const SizedBox(
                   width: 120,
                   height: 84,
                   child: ColoredBox(color: CupertinoColors.systemRed),

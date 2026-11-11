@@ -4,6 +4,8 @@ import 'package:disalive/domain/failures/failures.dart';
 import 'package:disalive/domain/models/message.dart';
 import 'package:disalive/domain/models/reaction_message.dart';
 import 'package:disalive/domain/models/responses/message_response.dart';
+import 'package:disalive/domain/models/responses/reaction_summary_page.dart';
+import 'package:disalive/domain/models/responses/reaction_users_page.dart';
 import 'package:disalive/domain/repositories/chat_repository.dart';
 import 'package:disalive/domain/repositories/message_repository.dart';
 import 'package:disalive/domain/repositories/reactions_repository.dart';
@@ -72,6 +74,37 @@ class _Reactions implements ReactionsRepository {
     required int messageId,
     required String nameReaction,
   }) async => const Right(true);
+
+  @override
+  Future<Either<Failure, ReactionSummaryPage>> getByMessage({
+    required int messageId,
+    required int entityId,
+    required EntityType entityType,
+    int cursor = 0,
+    int limit = 30,
+  }) async => const Right(
+    ReactionSummaryPage(
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    ),
+  );
+
+  @override
+  Future<Either<Failure, ReactionUsersPage>> getUsersByMessage({
+    required int messageId,
+    required int entityId,
+    required EntityType entityType,
+    required String nameReaction,
+    int cursor = 0,
+    int limit = 30,
+  }) async => const Right(
+    ReactionUsersPage(
+      items: [],
+      nextCursor: null,
+      hasMore: false,
+    ),
+  );
 }
 
 Future<void> _load(MessageBloc bloc) async {
